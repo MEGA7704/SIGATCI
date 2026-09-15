@@ -91,3 +91,14 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 
 /* === SIGAT V1.14 — Paramètres d'impression officiels === */
 .print-settings-card{max-width:1180px;margin:0 auto}.settings-section-title{font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--forest);border-bottom:2px solid var(--gold);padding-bottom:7px;margin:4px 0 14px}.settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;margin-bottom:18px}.settings-grid .full{grid-column:1/-1}.settings-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px}.image-setting{border:1px dashed #bcc9c3;border-radius:12px;padding:10px;background:#f9fbfa}.setting-image-preview{min-height:72px;display:flex;align-items:center;gap:10px;margin-top:7px}.setting-image-preview img{max-width:95px;max-height:75px;object-fit:contain;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px}.print-settings-preview{display:grid;grid-template-columns:1fr 100px 1fr;gap:14px;align-items:start;font-size:11px}@media(max-width:850px){.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.settings-grid{grid-template-columns:1fr}.settings-grid .full{grid-column:1}.print-settings-preview{grid-template-columns:1fr}}
+
+/* V1.15 — Convocations : formulaire compact et sans défilement sur grand écran */
+#editorDialog.convocation-editor{width:min(1120px,calc(100vw - 24px));max-height:none;overflow:visible}
+#editorDialog.convocation-editor .dialog-body{overflow:visible;max-height:none;padding:13px 18px}
+#editorDialog.convocation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.convocation-editor #dynamicFields{display:contents}
+#editorDialog.convocation-editor .field{margin-bottom:8px}
+#editorDialog.convocation-editor .field input,#editorDialog.convocation-editor .field select,#editorDialog.convocation-editor .field textarea{min-height:36px;padding:7px 10px}
+#editorDialog.convocation-editor textarea{min-height:54px;resize:none}
+@media(max-width:900px){#editorDialog.convocation-editor{width:min(820px,calc(100vw - 18px));max-height:94vh;overflow:hidden}#editorDialog.convocation-editor .dialog-body{overflow:auto;max-height:72vh}#editorDialog.convocation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){#editorDialog.convocation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}}

@@ -247,3 +247,12 @@ La section Absences est désormais une section de rédaction et de gestion des a
 ## V1.14 — Impressions officielles
 
 La section **Paramètres > En-tête des imprimés** permet à chaque Administrateur de structure de définir les mentions administratives, la référence, l’emblème et le bloc de signature utilisés sur les impressions/PDF. Les imprimés n’affichent plus le bandeau SIGAT et leur pied de page indique le nom de la structure ainsi que la date et l’heure d’impression.
+
+
+## V1.15 — Convocations, impression unique et suppression
+
+- La section **Convocations** reprend le formulaire administratif : civilité, nom et prénoms, profession, domicile, date/heure de présentation, motif, instruction et personne/service à voir.
+- Le PDF **CONVOCATION** utilise l’en-tête officiel de la structure, un titre souligné et espacé, un corps central justifié et la signature du responsable dans la zone inférieure droite.
+- Tous les imprimés utilisent désormais un titre souligné et une présentation centrale plus homogène.
+- Correction du déclenchement d’impression en double : une seule fenêtre d’impression est lancée par clic.
+- Ajout d’une action **Supprimer** avec confirmation professionnelle. La suppression est définitive et journalisée côté serveur.

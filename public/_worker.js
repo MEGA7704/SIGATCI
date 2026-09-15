@@ -992,8 +992,13 @@ async function apiSave(env, request) {
     return ok();
   }
 
+  if (action === 'delete') {
+    await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
+    await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
+    return ok();
+  }
   await env.SIGAT_DB.prepare(`UPDATE ${table} SET status='ARCHIVED',archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(id, orgId).run();
-  await audit(env, request, { action: action === 'delete' ? 'RECORD_DELETED' : 'RECORD_ARCHIVED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
+  await audit(env, request, { action: 'RECORD_ARCHIVED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
   return ok();
 }
 

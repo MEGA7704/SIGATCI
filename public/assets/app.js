@@ -80,13 +80,14 @@ async function loadRecords(){
 function renderRows(items){
   const tb=document.getElementById('recordsBody');
   if(!items.length){tb.innerHTML='<tr><td colspan="7" class="muted">Aucune donnée enregistrée.</td></tr>';return}
-  tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong></td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-archive="${r.id}">Archiver</button>`:'<span class="muted">Consultation</span>'}</div></td></tr>`).join('');
+  tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong></td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div></td></tr>`).join('');
   items.forEach(r=>{
     tb.querySelector(`[data-view="${r.id}"]`)?.addEventListener('click',()=>openDetails(r));
     tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
     if(!r.owned)return;
     tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r));
     tb.querySelector(`[data-archive="${r.id}"]`)?.addEventListener('click',e=>archiveRecord(r,e.currentTarget));
+    tb.querySelector(`[data-delete="${r.id}"]`)?.addEventListener('click',e=>deleteRecord(r,e.currentTarget));
   });
 }
 
@@ -156,8 +157,10 @@ function openEditor(record=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
   const isPersonnel=moduleKey==='personnel';
   const isAbsence=moduleKey==='absences';
+  const isConvocation=moduleKey==='convocations';
   d.classList.toggle('personnel-editor',isPersonnel);
   d.classList.toggle('absence-editor',isAbsence);
+  d.classList.toggle('convocation-editor',isConvocation);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${config.singular}`:`Ajouter — ${config.singular}`;
   document.getElementById('recordId').value=record?.id||'';
   const refInput=document.getElementById('recordReference');
@@ -183,6 +186,14 @@ function openEditor(record=null){
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="AUTORISÉ">AUTORISÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'AUTORISÉ';
+  }else if(isConvocation){
+    refField.querySelector('label').textContent='Référence / N°';
+    dateField.querySelector('label').textContent="Date d’établissement";
+    titleField.querySelector('label').textContent='Nom et Prénoms de la personne convoquée *';
+    titleField.classList.remove('full');
+    statusField.classList.remove('personnel-status-hidden');
+    statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="REMISE">REMISE</option><option value="PRÉSENTÉ">PRÉSENTÉ</option><option value="ANNULÉ">ANNULÉ</option>';
+    statusInput.value=record?.status||'ÉMISE';
   }else{
     dateField.querySelector('label').textContent='Date';
     titleField.querySelector('label').textContent='Intitulé / nom principal *';
@@ -206,6 +217,10 @@ function openEditor(record=null){
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
     else{el=document.createElement('input');el.type=type==='computed'?'number':(type||'text');if(type==='computed'){el.readOnly=true;el.classList.add('computed-field')}}
     el.dataset.key=key;el.value=record?.data?.[key]??'';wrap.appendChild(el);area.appendChild(wrap);
+  }
+  if(isConvocation && !record){
+    const instructions=document.querySelector('#dynamicFields [data-key="instructions"]');
+    if(instructions&&!instructions.value)instructions.value="Se munir d’une pièce d’identité.";
   }
   if(isAbsence){
     const start=document.querySelector('#dynamicFields [data-key="date_debut"]');
@@ -233,6 +248,12 @@ async function archiveRecord(r,button){
   return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:'archive',payload:{id:r.id}}});await professionalAlert('Archivage effectué','L’élément a été archivé avec succès.');loadRecords()}catch(e){await professionalAlert('Archivage impossible',e.message)}},'Archivage…');
 }
 
+async function deleteRecord(r,button){
+  const yes=await professionalConfirm('Supprimer définitivement',`Voulez-vous supprimer définitivement « ${r.title} » ? Cette action est irréversible.`,{confirmText:'Supprimer',cancelText:'Annuler',danger:true});
+  if(!yes)return;
+  return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:'delete',payload:{id:r.id}}});await professionalAlert('Suppression effectuée','L’enregistrement a été supprimé définitivement.');loadRecords()}catch(e){await professionalAlert('Suppression impossible',e.message)}},'Suppression…');
+}
+
 let printSettingsCache=null;
 
 async function ensurePrintSettings(){
@@ -255,7 +276,7 @@ function officialDate(v){
   return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
 }
 
-function printBaseStyles(){return `@page{size:A4 portrait;margin:13mm 14mm 18mm}*{box-sizing:border-box}html,body{background:#fff}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:11.5px;line-height:1.45;padding-bottom:13mm}.official-header{display:grid;grid-template-columns:minmax(0,1.25fr) 90px minmax(0,1fr);gap:12px;align-items:start;margin-bottom:8px;min-height:142px}.official-left{font-size:10.5px;line-height:1.45;font-weight:500}.official-left .admin-line{display:block;margin:0 0 2px;text-transform:uppercase}.official-left .admin-separator{font-size:8px;letter-spacing:2px;margin:0 0 5px 18px}.official-center{text-align:center;min-height:76px}.official-emblem{max-width:74px;max-height:74px;object-fit:contain}.official-right{text-align:center;font-size:10.5px;line-height:1.35;font-weight:800}.official-right .motto{font-style:italic;font-weight:500;margin-top:2px}.official-right .admin-separator{font-size:8px;letter-spacing:2px;margin-top:2px}.official-right .place-date{font-weight:500;text-align:right;margin-top:58px;font-size:10px}.official-reference{font-size:10.5px;margin:3px 0 22px;font-weight:500}.document-title{text-align:center;text-decoration:underline;font-size:18px;font-weight:900;margin:22px 0 34px}.title-box{border:1.2px solid #1c4b3c;background:#f6f8f7;color:#143e32;text-align:center;padding:8px 10px;font-size:17px;font-weight:900;margin:12px 0 16px}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 18px;margin-bottom:14px}.meta>div,.data>div{padding:6px 8px;border-bottom:1px solid #d9dfdc}.label{font-size:9px;text-transform:uppercase;color:#64716b;font-weight:800;display:block;margin-bottom:2px}.value{font-weight:700;white-space:pre-wrap}.data{display:grid;grid-template-columns:repeat(2,1fr);gap:0 16px}.official-signature{width:43%;margin-left:auto;margin-right:3%;margin-top:44px;text-align:center;break-inside:avoid}.official-signature .signer-title{font-size:11px;margin-bottom:30px}.official-signature .signature-media{height:54px;display:flex;justify-content:center;align-items:flex-end;position:relative}.official-signature .signature-image{max-width:145px;max-height:54px;object-fit:contain;position:relative;z-index:2}.official-signature .stamp-image{max-width:80px;max-height:80px;object-fit:contain;position:absolute;right:5%;bottom:-15px;opacity:.82}.official-signature .signer-name{font-weight:900;text-decoration:underline;margin-top:4px}.official-signature .signer-position{font-size:9.5px;margin-top:2px}.official-footer{position:fixed;left:14mm;right:14mm;bottom:5mm;border-top:1px solid #cfd7d3;padding-top:4px;text-align:center;font-size:8.5px;color:#5d6963}.agent-sheet{border:1px solid #bac6c0;border-radius:7px;overflow:hidden}.agent-sheet-banner{background:#174c3b;color:#fff;text-align:center;padding:9px 12px;font-size:16px;font-weight:900;letter-spacing:.04em}.agent-sheet-top{display:grid;grid-template-columns:1fr 120px;gap:18px;padding:16px;border-bottom:1px solid #dce4e0}.agent-sheet-photo{width:108px;height:132px;object-fit:cover;border:1.5px solid #174c3b;border-radius:5px;background:#f3f5f4}.agent-sheet-photo-empty{display:grid;place-items:center;color:#87928d;font-weight:800}.agent-sheet-id{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;align-content:start}.agent-sheet-section{padding:12px 16px 4px}.agent-sheet-section h2{font-size:11px;color:#174c3b;text-transform:uppercase;letter-spacing:.06em;border-bottom:1.5px solid #b89b44;padding-bottom:5px;margin:0 0 6px}.agent-sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}.agent-sheet-cell{padding:7px 0;border-bottom:1px solid #e2e7e4;min-height:43px}.absence-body{font-family:Georgia,'Times New Roman',serif;font-size:14px;line-height:1.9;text-align:justify;margin-top:22px}.absence-body .request{text-align:center;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:9.5px}th,td{border:1px solid #aebbb5;padding:5px;text-align:left}th{background:#eef2f0;color:#173f33}.no-print{position:fixed;right:12px;top:12px;z-index:9999}@media print{.no-print{display:none!important}.agent-sheet{break-inside:avoid}.official-signature{break-inside:avoid}}`}
+function printBaseStyles(){return `@page{size:A4 portrait;margin:13mm 14mm 18mm}*{box-sizing:border-box}html,body{background:#fff}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:11.5px;line-height:1.5;padding-bottom:13mm}.official-header{display:grid;grid-template-columns:minmax(0,1.25fr) 90px minmax(0,1fr);gap:12px;align-items:start;margin-bottom:10px;min-height:142px}.official-left{font-size:10.5px;line-height:1.45;font-weight:500}.official-left .admin-line{display:block;margin:0 0 2px;text-transform:uppercase}.official-left .admin-separator{font-size:8px;letter-spacing:2px;margin:0 0 5px 18px}.official-center{text-align:center;min-height:76px}.official-emblem{max-width:74px;max-height:74px;object-fit:contain}.official-right{text-align:center;font-size:10.5px;line-height:1.35;font-weight:800}.official-right .motto{font-style:italic;font-weight:500;margin-top:2px}.official-right .admin-separator{font-size:8px;letter-spacing:2px;margin-top:2px}.official-right .place-date{font-weight:500;text-align:right;margin-top:58px;font-size:10px}.official-reference{font-size:10.5px;margin:4px 0 30px;font-weight:500}.document-title{text-align:center;text-decoration:underline;text-decoration-thickness:1.2px;text-underline-offset:3px;font-size:18px;font-weight:900;margin:30px 0 38px;letter-spacing:.02em}.official-body{width:86%;margin:0 auto;text-align:justify}.official-body.wide{width:100%}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 18px;margin-bottom:14px;text-align:left}.meta>div,.data>div{padding:6px 8px;border-bottom:1px solid #d9dfdc}.label{font-size:9px;text-transform:uppercase;color:#64716b;font-weight:800;display:block;margin-bottom:2px}.value{font-weight:700;white-space:pre-wrap}.data{display:grid;grid-template-columns:repeat(2,1fr);gap:0 16px;text-align:left}.record-print .official-signature{position:fixed;right:14mm;bottom:25mm;width:43%;text-align:center;break-inside:avoid}.official-signature .signer-title{font-size:11px;margin-bottom:30px}.official-signature .signature-media{height:54px;display:flex;justify-content:center;align-items:flex-end;position:relative}.official-signature .signature-image{max-width:145px;max-height:54px;object-fit:contain;position:relative;z-index:2}.official-signature .stamp-image{max-width:80px;max-height:80px;object-fit:contain;position:absolute;right:5%;bottom:-15px;opacity:.82}.official-signature .signer-name{font-weight:900;text-decoration:underline;margin-top:4px}.official-signature .signer-position{font-size:9.5px;margin-top:2px}.official-footer{position:fixed;left:14mm;right:14mm;bottom:5mm;border-top:1px solid #cfd7d3;padding-top:4px;text-align:center;font-size:8.5px;color:#5d6963}.record-print .official-body,.record-print .absence-body,.record-print .agent-sheet{margin-bottom:55mm}.agent-sheet{width:92%;margin-left:auto;margin-right:auto;border:1px solid #bac6c0;border-radius:7px;overflow:hidden}.agent-sheet-top{display:grid;grid-template-columns:1fr 120px;gap:18px;padding:16px;border-bottom:1px solid #dce4e0}.agent-sheet-photo{width:108px;height:132px;object-fit:cover;border:1.5px solid #174c3b;border-radius:5px;background:#f3f5f4}.agent-sheet-photo-empty{display:grid;place-items:center;color:#87928d;font-weight:800}.agent-sheet-id{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;align-content:start}.agent-sheet-section{padding:12px 16px 4px}.agent-sheet-section h2{font-size:11px;color:#174c3b;text-transform:uppercase;letter-spacing:.06em;border-bottom:1.5px solid #b89b44;padding-bottom:5px;margin:0 0 6px}.agent-sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}.agent-sheet-cell{padding:7px 0;border-bottom:1px solid #e2e7e4;min-height:43px}.absence-body{width:86%;margin-left:auto;margin-right:auto;font-family:Georgia,'Times New Roman',serif;font-size:14px;line-height:1.95;text-align:justify}.absence-body .request{text-align:center;margin-bottom:22px}.convocation-body{font-family:Georgia,'Times New Roman',serif;font-size:13.5px;line-height:1.85}.convocation-line{display:grid;grid-template-columns:155px 1fr;gap:10px;padding:7px 0;border-bottom:1px dotted #8b948f;text-align:left}.convocation-label{font-weight:700}.convocation-sentence{margin:24px 0 18px;text-align:justify}.convocation-reason{margin:18px 0}.convocation-reason>div{min-height:54px;margin-top:8px;padding:8px 0;border-bottom:1px dotted #8b948f;white-space:pre-wrap}.convocation-instruction{margin:28px 0 18px;font-weight:600}.convocation-see{margin-top:20px;padding-top:8px;border-top:1px dotted #8b948f}.list-print .document-title{margin-top:26px;margin-bottom:24px}table{width:100%;border-collapse:collapse;font-size:9.5px}th,td{border:1px solid #aebbb5;padding:5px;text-align:left}th{background:#eef2f0;color:#173f33}.no-print{position:fixed;right:12px;top:12px;z-index:9999}@media print{.no-print{display:none!important}.agent-sheet{break-inside:avoid}.official-signature{break-inside:avoid}}`}
 
 function settingsLine(v){return String(v||'').trim()}
 function adminLineHtml(v){const s=settingsLine(v);return s?`<div class="admin-line">${esc(s)}</div><div class="admin-separator">- - - - - -</div>`:''}
@@ -285,7 +306,8 @@ function officialSignatureHtml(s){
 function officialFooterHtml(s){const name=settingsLine(s.structureName)||session?.user?.organizationName||'Structure';return `<div class="official-footer">${esc(name)} — ${esc(nowFrDateTime())}</div>`}
 
 function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false}){
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body>${officialHeaderHtml(settings,{reference,date,hideReference})}${body}${signature?officialSignatureHtml(settings):''}${officialFooterHtml(settings)}</body></html>`;
+  const bodyClass=signature?'record-print':'list-print';
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body class="${bodyClass}">${officialHeaderHtml(settings,{reference,date,hideReference})}${body}${signature?officialSignatureHtml(settings):''}${officialFooterHtml(settings)}</body></html>`;
 }
 
 async function launchPrint(html){
@@ -293,21 +315,24 @@ async function launchPrint(html){
     const frame=document.createElement('iframe');
     frame.setAttribute('aria-hidden','true');
     frame.style.cssText='position:fixed;width:1px;height:1px;right:0;bottom:0;border:0;opacity:.01;pointer-events:none;';
-    let finished=false;
+    let started=false,finished=false;
     const done=()=>{if(finished)return;finished=true;setTimeout(()=>frame.remove(),1000);resolve();};
     const fail=e=>{if(finished)return;finished=true;frame.remove();reject(e instanceof Error?e:new Error('Impression impossible.'));};
-    frame.onload=()=>{
+    const startPrint=()=>{
+      if(started||finished)return;started=true;
       try{
         const w=frame.contentWindow;
         if(!w)throw new Error('Fenêtre d’impression indisponible.');
         const images=[...frame.contentDocument.images];
-        const waitImages=Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r})));
-        waitImages.then(()=>setTimeout(()=>{try{w.focus();w.print();setTimeout(done,700)}catch(e){fail(e)}},180));
+        Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r})))
+          .then(()=>setTimeout(()=>{try{w.focus();w.print();setTimeout(done,700)}catch(e){fail(e)}},180))
+          .catch(fail);
       }catch(e){fail(e)}
     };
+    frame.onload=startPrint;
     document.body.appendChild(frame);
     frame.srcdoc=html;
-    setTimeout(()=>{if(!finished&&frame.contentDocument?.readyState==='complete')frame.onload?.()},1500);
+    setTimeout(()=>{if(!started&&!finished&&frame.contentDocument?.readyState==='complete')startPrint()},1800);
   });
 }
 
@@ -323,15 +348,24 @@ async function printRecord(record){
       const phrase=`Une autorisation d’absence de <strong>${esc(dayText)} jour${days>1?'s':''}</strong> allant du <strong>${esc(longFrDate(d.date_debut))}</strong> au <strong>${esc(longFrDate(d.date_fin))}</strong> inclus est accordée à <strong>${esc([d.grade,record.title].filter(Boolean).join(' '))}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${d.emploi?`, ${esc(d.emploi)}`:''} en service au <strong>${esc(org)}</strong>${d.destination?` en vue de se rendre à <strong>${esc(d.destination)}</strong>`:''}${d.motif?` pour ${esc(d.motif)}`:''}.`;
       title='AUTORISATION D’ABSENCE';
       body=`<div class="document-title">AUTORISATION D’ABSENCE</div><div class="absence-body"><div class="request">Vu la demande d’absence en date du <strong>${esc(longFrDate(d.date_demande))}</strong>,</div><p>${phrase}</p></div>`;
+    }else if(moduleKey==='convocations'){
+      const d=record.data||{};
+      const civ=String(d.civilite||'M.').trim();
+      const presentDate=d.date_presentation?longFrDate(d.date_presentation):'—';
+      const presentTime=d.heure?` à ${esc(d.heure)}`:'';
+      const structure=record.source_organization||session?.user?.organizationName||'service des Eaux et Forêts';
+      const instruction=String(d.instructions||"Se munir d’une pièce d’identité.").trim();
+      title='CONVOCATION';
+      body=`<div class="document-title">CONVOCATION</div><div class="official-body convocation-body"><div class="convocation-line"><span class="convocation-label">M./ Mme./Mlle</span><strong>${esc(`${civ} ${record.title}`.trim())}</strong></div><div class="convocation-line"><span class="convocation-label">Profession</span><strong>${esc(displayValue(d.profession))}</strong></div><div class="convocation-line"><span class="convocation-label">Domicile</span><strong>${esc(displayValue(d.domicile))}</strong></div><p class="convocation-sentence">Est prié(e) de se présenter au <strong>${esc(structure)}</strong> le <strong>${esc(presentDate)}</strong>${presentTime}.</p><div class="convocation-reason"><strong>Pour :</strong><div>${esc(displayValue(d.motif))}</div></div><p class="convocation-instruction">${esc(instruction)}</p><div class="convocation-see"><strong>Voir :</strong> ${esc(displayValue(d.voir))}</div></div>`;
     }else if(moduleKey==='personnel'){
       const v=key=>esc(displayValue(record.data?.[key]));
       const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
       title='FICHE DE RENSEIGNEMENT DE L’AGENT';
-      body=`<div class="agent-sheet"><div class="agent-sheet-banner">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell"><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value" style="font-size:15px;color:#174c3b">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Téléphone</span><span class="value">${v('telephone')}</span></div></div><div>${photo}</div></div><div class="agent-sheet-section"><h2>Situation professionnelle et administrative</h2><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div><div class="agent-sheet-cell"><span class="label">Qualité</span><span class="value">${v('qualite')}</span></div></div></div></div>`;
+      body=`<div class="document-title">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet"><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell"><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value" style="font-size:15px;color:#174c3b">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Téléphone</span><span class="value">${v('telephone')}</span></div></div><div>${photo}</div></div><div class="agent-sheet-section"><h2>Situation professionnelle et administrative</h2><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div><div class="agent-sheet-cell"><span class="label">Qualité</span><span class="value">${v('qualite')}</span></div></div></div></div>`;
     }else{
       title=(config?.singular||'Document').toUpperCase();
       const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
-      body=`<div class="title-box">${esc(title)}</div><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div>`;
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true});
     await launchPrint(html);
@@ -344,8 +378,8 @@ async function printCurrentList(){
     const s=await ensurePrintSettings();
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
     const title=config.title.toUpperCase();
-    const body=`<div class="title-box">${esc(title)}</div><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table>`;
-    const html=buildPrintDocument({title,body,settings:s,signature:true,hideReference:true});
+    const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'La liste n’a pas pu être préparée.');}
 }

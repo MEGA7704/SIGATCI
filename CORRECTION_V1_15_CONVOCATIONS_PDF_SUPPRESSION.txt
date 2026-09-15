@@ -1,0 +1,9 @@
+SIGAT V1.15
+
+CORRECTIONS CIBLÉES :
+- Convocations adaptées au modèle administratif fourni.
+- Formulaire compact 3 colonnes sur grand écran.
+- PDF professionnel : en-tête, titre souligné, corps central justifié, signature bas-droite.
+- Correction de la double ouverture de la fenêtre d’impression.
+- Ajout de la suppression définitive avec confirmation et journalisation.
+- Harmonisation des titres et corps des autres impressions/PDF.
