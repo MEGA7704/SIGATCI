@@ -1,4 +1,3 @@
-import { MIGRATION_SQL } from './server/schema.js';
 const SESSION_COOKIE = 'sigat_session';
 const SESSION_TTL = 60 * 60 * 8; // 8 heures
 const LOGIN_WINDOW = 60 * 15;
@@ -17,6 +16,23 @@ function canonicalType(row){return row?.service_type||row?.organization_type||nu
 
 let schemaReady = false;
 
+async function tableExists(env, table) {
+  const row = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=? LIMIT 1").bind(table).first();
+  return !!row;
+}
+
+async function columnsOf(env, table) {
+  const r = await env.SIGAT_DB.prepare(`PRAGMA table_info(${table})`).all();
+  return new Set((r.results || []).map(c => c.name));
+}
+
+async function addColumnIfMissing(env, table, cols, name, definition) {
+  if (!cols.has(name)) {
+    await env.SIGAT_DB.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    cols.add(name);
+  }
+}
+
 async function ensureRuntime(env) {
   if (!env.SIGAT_DB) {
     const e = new Error('Binding D1 SIGAT_DB absent.');
@@ -30,17 +46,17 @@ async function ensureRuntime(env) {
   }
   if (schemaReady) return;
 
-  // IMPORTANT : réparer d'abord le schéma minimal. Une ancienne base V1 peut déjà
-  // contenir organizations sans la colonne service_type. Il ne faut donc jamais
-  // créer l'index service_type avant d'avoir ajouté cette colonne.
-  await env.SIGAT_DB.exec(`
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE IF NOT EXISTS organizations (
+  // Initialisation légère : uniquement les tables indispensables à l'authentification,
+  // à la hiérarchie, aux abonnements et à la sécurité. Les tables métier sont créées
+  // à la demande afin d'éviter un gros bootstrap D1 à chaque nouvel isolate Cloudflare.
+  const ddl = [
+    `CREATE TABLE IF NOT EXISTS organizations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       parent_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
       organization_type TEXT NOT NULL DEFAULT 'PEF',
+      service_type TEXT,
       code TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
       region TEXT,
       department TEXT,
       locality TEXT,
@@ -49,17 +65,12 @@ async function ensureRuntime(env) {
       status TEXT NOT NULL DEFAULT 'PENDING',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS roles (
+    )`,
+    `CREATE TABLE IF NOT EXISTS roles (
       code TEXT PRIMARY KEY,
       label TEXT NOT NULL
-    );
-    INSERT OR IGNORE INTO roles(code,label) VALUES
-      ('SUPER_ADMIN','Super Admin'),
-      ('ORGANIZATION_ADMIN','Administrateur de structure'),
-      ('MEMBER','Membre'),
-      ('READ_ONLY','Consultation');
-    CREATE TABLE IF NOT EXISTS users (
+    )`,
+    `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
       username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -77,8 +88,8 @@ async function ensureRuntime(env) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS subscriptions (
+    )`,
+    `CREATE TABLE IF NOT EXISTS subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
       plan TEXT NOT NULL DEFAULT 'FREE',
@@ -88,8 +99,32 @@ async function ensureRuntime(env) {
       status TEXT NOT NULL DEFAULT 'TRIAL',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS audit_logs (
+    )`,
+    `CREATE TABLE IF NOT EXISTS subscription_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      old_plan TEXT,
+      new_plan TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      price INTEGER NOT NULL DEFAULT 0,
+      mode_activation TEXT,
+      activated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS password_reset_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      username_or_email TEXT NOT NULL,
+      request_type TEXT NOT NULL DEFAULT 'USER',
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      handled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      handled_at TEXT,
+      notes TEXT,
+      requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -101,97 +136,123 @@ async function ensureRuntime(env) {
       ip_address TEXT,
       user_agent TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS password_reset_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      username_or_email TEXT NOT NULL,
-      request_type TEXT NOT NULL DEFAULT 'USER',
-      status TEXT NOT NULL DEFAULT 'PENDING',
-      handled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      handled_at TEXT,
-      notes TEXT,
-      requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+    )`
+  ];
+  for (const sql of ddl) await env.SIGAT_DB.exec(sql);
 
-  async function columnsOf(table) {
-    const r = await env.SIGAT_DB.prepare(`PRAGMA table_info(${table})`).all();
-    return new Set((r.results || []).map(c => c.name));
-  }
-  async function addColumnIfMissing(table, cols, name, definition) {
-    if (!cols.has(name)) {
-      await env.SIGAT_DB.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
-      cols.add(name);
-    }
-  }
+  await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('SUPER_ADMIN','Super Admin')").run();
+  await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('ORGANIZATION_ADMIN','Administrateur de structure')").run();
+  await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('MEMBER','Membre')").run();
+  await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('READ_ONLY','Consultation')").run();
 
-  const orgCols = await columnsOf('organizations');
-  await addColumnIfMissing('organizations', orgCols, 'parent_id', 'INTEGER');
-  await addColumnIfMissing('organizations', orgCols, 'organization_type', "TEXT DEFAULT 'PEF'");
-  await addColumnIfMissing('organizations', orgCols, 'service_type', 'TEXT');
-  await addColumnIfMissing('organizations', orgCols, 'code', 'TEXT');
-  await addColumnIfMissing('organizations', orgCols, 'name', "TEXT DEFAULT ''");
-  await addColumnIfMissing('organizations', orgCols, 'status', "TEXT DEFAULT 'PENDING'");
-  await addColumnIfMissing('organizations', orgCols, 'created_at', 'TEXT');
-  await addColumnIfMissing('organizations', orgCols, 'updated_at', 'TEXT');
+  // Réparation douce des bases des versions précédentes.
+  const orgCols = await columnsOf(env, 'organizations');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'parent_id', 'INTEGER');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'organization_type', "TEXT DEFAULT 'PEF'");
+  await addColumnIfMissing(env, 'organizations', orgCols, 'service_type', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'code', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'name', "TEXT DEFAULT ''");
+  await addColumnIfMissing(env, 'organizations', orgCols, 'region', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'department', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'locality', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'phone', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'email', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'status', "TEXT DEFAULT 'PENDING'");
+  await addColumnIfMissing(env, 'organizations', orgCols, 'created_at', 'TEXT');
+  await addColumnIfMissing(env, 'organizations', orgCols, 'updated_at', 'TEXT');
   await env.SIGAT_DB.prepare("UPDATE organizations SET service_type=organization_type WHERE service_type IS NULL OR trim(service_type)='' ").run();
 
-  const userCols = await columnsOf('users');
-  await addColumnIfMissing('users', userCols, 'organization_id', 'INTEGER');
-  await addColumnIfMissing('users', userCols, 'username', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'email', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'display_name', "TEXT DEFAULT ''");
-  await addColumnIfMissing('users', userCols, 'phone', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'role_code', "TEXT DEFAULT 'MEMBER'");
-  await addColumnIfMissing('users', userCols, 'password_hash', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'password_salt', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'password_iterations', 'INTEGER DEFAULT 210000');
-  await addColumnIfMissing('users', userCols, 'status', "TEXT DEFAULT 'ACTIVE'");
-  await addColumnIfMissing('users', userCols, 'force_password_change', 'INTEGER DEFAULT 0');
-  await addColumnIfMissing('users', userCols, 'session_version', 'INTEGER DEFAULT 1');
-  await addColumnIfMissing('users', userCols, 'last_login_at', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'created_at', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'updated_at', 'TEXT');
-  await addColumnIfMissing('users', userCols, 'deleted_at', 'TEXT');
+  const userCols = await columnsOf(env, 'users');
+  await addColumnIfMissing(env, 'users', userCols, 'organization_id', 'INTEGER');
+  await addColumnIfMissing(env, 'users', userCols, 'username', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'email', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'display_name', "TEXT DEFAULT ''");
+  await addColumnIfMissing(env, 'users', userCols, 'phone', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'role_code', "TEXT DEFAULT 'MEMBER'");
+  await addColumnIfMissing(env, 'users', userCols, 'password_hash', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'password_salt', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'password_iterations', 'INTEGER DEFAULT 210000');
+  await addColumnIfMissing(env, 'users', userCols, 'status', "TEXT DEFAULT 'ACTIVE'");
+  await addColumnIfMissing(env, 'users', userCols, 'force_password_change', 'INTEGER DEFAULT 0');
+  await addColumnIfMissing(env, 'users', userCols, 'session_version', 'INTEGER DEFAULT 1');
+  await addColumnIfMissing(env, 'users', userCols, 'last_login_at', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'created_at', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'updated_at', 'TEXT');
+  await addColumnIfMissing(env, 'users', userCols, 'deleted_at', 'TEXT');
 
-  // Exécuter ensuite le schéma complet. L'index service_type n'est volontairement
-  // pas dans MIGRATION_SQL afin de rester compatible avec les anciennes bases.
-  await env.SIGAT_DB.exec(MIGRATION_SQL);
-  await env.SIGAT_DB.exec(`
-    CREATE INDEX IF NOT EXISTS idx_organizations_parent ON organizations(parent_id);
-    CREATE INDEX IF NOT EXISTS idx_organizations_type ON organizations(organization_type);
-    CREATE INDEX IF NOT EXISTS idx_organizations_service_type ON organizations(service_type);
-    CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
-    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role_code);
-  `);
+  // Index légers uniquement. Les erreurs d'index sur une ancienne base ne doivent pas bloquer la connexion.
+  for (const sql of [
+    'CREATE INDEX IF NOT EXISTS idx_organizations_parent ON organizations(parent_id)',
+    'CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id)',
+    'CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)'
+  ]) {
+    try { await env.SIGAT_DB.exec(sql); } catch (e) { console.warn('index init', e?.message || e); }
+  }
   schemaReady = true;
 }
+
+async function ensureModuleTable(env, table) {
+  // table provient exclusivement de MODULES (liste blanche).
+  if (await tableExists(env, table)) return;
+  await env.SIGAT_DB.exec(`CREATE TABLE IF NOT EXISTS ${table} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    reference TEXT,
+    title TEXT NOT NULL,
+    event_date TEXT,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    data_json TEXT NOT NULL DEFAULT '{}',
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    archived_at TEXT
+  )`);
+  try { await env.SIGAT_DB.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_org ON ${table}(organization_id)`); } catch {}
+  try { await env.SIGAT_DB.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_date ON ${table}(event_date)`); } catch {}
+}
+
 async function apiHealth(env) {
+  // Endpoint volontairement ultra-léger : aucun bootstrap complet ici.
+  // Il doit pouvoir diagnostiquer un binding manquant sans provoquer lui-même un timeout.
   const result = {
+    worker: true,
+    version: '1.6-runtime-light',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
     superAdminPasswordConfigured: !!env.SIGAT_SUPERADMIN_PASSWORD,
     superAdminEmailConfigured: !!env.SIGAT_SUPERADMIN_EMAIL,
-    schemaReady: false,
-    superAdminExists: false,
-    hierarchyV2Ready: false,
-    runtimeReady: false
+    dbReachable: false,
+    kvReachable: false,
+    coreSchemaPresent: false,
+    superAdminExists: false
   };
-  try {
-    await ensureRuntime(env);
-    result.runtimeReady = true;
-    const cols = await env.SIGAT_DB.prepare("PRAGMA table_info(organizations)").all();
-    result.hierarchyV2Ready = (cols.results || []).some(c => c.name === 'service_type');
-    const su = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND deleted_at IS NULL LIMIT 1").first();
-    result.superAdminExists = !!su;
-    result.schemaReady = true;
-  } catch (e) {
-    result.runtimeErrorCode = e?.code || 'RUNTIME_INIT_FAILED';
-    // Message volontairement limité à un diagnostic technique non secret.
-    result.runtimeError = String(e?.message || e).slice(0, 300);
+  if (env.SIGAT_DB) {
+    try {
+      await env.SIGAT_DB.prepare('SELECT 1 AS ok').first();
+      result.dbReachable = true;
+      const usersTable = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1").first();
+      const orgTable = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='organizations' LIMIT 1").first();
+      result.coreSchemaPresent = !!usersTable && !!orgTable;
+      if (usersTable) {
+        try {
+          const su = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND (deleted_at IS NULL OR deleted_at='') LIMIT 1").first();
+          result.superAdminExists = !!su;
+        } catch (e) {
+          result.superAdminCheckError = String(e?.message || e).slice(0,200);
+        }
+      }
+    } catch (e) {
+      result.dbError = String(e?.message || e).slice(0,250);
+    }
+  }
+  if (env.SIGAT_KV) {
+    try {
+      await env.SIGAT_KV.get('__sigat_health__');
+      result.kvReachable = true;
+    } catch (e) {
+      result.kvError = String(e?.message || e).slice(0,250);
+    }
   }
   return ok(result);
 }
@@ -667,6 +728,7 @@ async function apiDashboard(env, request) {
   const summary = {};
   const wanted = ['agents','missions','controls','offenses','seizures','awareness_actions','plantations','fire_incidents','training_sessions'];
   for (const table of wanted) {
+    if (!await tableExists(env, table)) { summary[table] = 0; continue; }
     const r = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE organization_id IN (${sql}) AND archived_at IS NULL`).bind(...binds).first();
     summary[table] = Number(r?.c || 0);
   }
@@ -707,6 +769,7 @@ async function apiLoad(env, request) {
   const module = url.searchParams.get('module') || '';
   const table = MODULES[module];
   if (!table) return bad('Module non autorisé.');
+  await ensureModuleTable(env, table);
   const page = Math.max(1, Number(url.searchParams.get('page') || 1));
   const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
   const search = String(url.searchParams.get('search') || '').trim();
@@ -751,6 +814,7 @@ async function apiSave(env, request) {
   const action = String(body?.action || '');
   const table = MODULES[module];
   if (!table || !['create','update','archive','delete'].includes(action)) return bad('Opération invalide.');
+  await ensureModuleTable(env, table);
   const orgId = Number(auth.user.organization_id);
   const payload = body?.payload || {};
 
@@ -1019,6 +1083,7 @@ async function superAuditLogs(env, request) {
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.6-runtime-light', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
@@ -1058,7 +1123,7 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname.startsWith('/api/')) {
-        if (url.pathname !== '/api/health') await ensureRuntime(env);
+        if (!['/api/health','/api/ping'].includes(url.pathname)) await ensureRuntime(env);
         return securityHeaders(await routeApi(env, request, url));
       }
       const response = await env.ASSETS.fetch(request);

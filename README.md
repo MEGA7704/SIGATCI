@@ -1,3 +1,7 @@
+# SIGAT V1.6 — correction runtime Cloudflare
+
+Cette version utilise un bootstrap D1 léger pour fiabiliser `/api/login`. Testez d’abord `/api/ping`, puis `/api/health`.
+
 # SIGAT — Système Intégré de Gestion Administrative et Technique
 
 Projet Cloudflare Pages + GitHub pour une plateforme privée hiérarchique utilisée par les **Directions Régionales**, **Cantonnements** et **Postes des Eaux et Forêts (PEF)**.

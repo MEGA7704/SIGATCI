@@ -1,0 +1,27 @@
+SIGAT V1.6 - CORRECTION ERREUR INTERNE / API HEALTH
+
+Cette version corrige le bootstrap serveur afin d'éviter qu'un gros schéma D1 soit exécuté à chaque nouvel isolate Cloudflare.
+
+Modifications principales :
+- /api/ping : test minimal du Worker, sans D1 ni KV.
+- /api/health : diagnostic léger des bindings D1/KV, sans migration complète.
+- initialisation automatique limitée aux tables de sécurité/authentification nécessaires à la connexion.
+- création des tables métier à la demande, module par module.
+- tableau de bord compatible avec des tables métier pas encore créées.
+- aucun secret Super Admin publié.
+
+Tests après déploiement :
+1. https://VOTRE-DOMAINE.pages.dev/api/ping
+   doit retourner un JSON avec worker:true.
+2. https://VOTRE-DOMAINE.pages.dev/api/health
+   doit retourner dbBinding, kvBinding, dbReachable, kvReachable et les variables Super Admin.
+3. Réessayer la connexion Super Admin.
+
+Bindings attendus :
+SIGAT_KV -> SIGAT-KV
+SIGAT_DB -> sigat-d1
+
+Variables/secrets attendus :
+SIGAT_SUPERADMIN_USERNAME
+SIGAT_SUPERADMIN_EMAIL
+SIGAT_SUPERADMIN_PASSWORD (Secret)
