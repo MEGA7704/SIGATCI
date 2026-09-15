@@ -229,3 +229,12 @@ Cloudflare Workers limite actuellement PBKDF2 à 100 000 itérations. Cette vers
 
 ## V1.9 — Rattachement après inscription
 L'inscription ne demande plus le code du service supérieur. Après activation, l'Administrateur de chaque structure choisit son rattachement dans **Paramètres > Rattachement hiérarchique**. Le serveur ne propose que les services supérieurs actifs et compatibles avec le niveau de la structure.
+
+
+## V1.11 — Ergonomie, impressions PDF et photo agent
+
+- Protection contre les doubles clics : déduplication des requêtes d’écriture et garde visuelle sur les boutons.
+- Popups professionnels uniformisés pour confirmations, informations, archivages et réinitialisations sensibles.
+- Impression professionnelle A4 / Enregistrer en PDF disponible sur chaque enregistrement et sur les listes visibles.
+- Personnel : importation d’une photo JPG/PNG/WEBP dans le popup Ajouter/Modifier Agent, compression automatique et affichage sur la fiche agent imprimée.
+- Popups d’ajout Administration / Activités techniques / Environnement / Gestion disposés en grille compacte sans défilement interne sur ordinateur ; défilement uniquement en secours sur petit écran.

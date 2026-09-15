@@ -21,3 +21,35 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 .mobile-nav{display:none}
 @media(max-width:1100px){.cards{grid-template-columns:repeat(2,1fr)}.nav{display:none}.mobile-nav{display:block}.topbar-inner{flex-wrap:wrap;padding-bottom:10px}.org-chip{max-width:180px}}
 @media(max-width:800px){.login-page{grid-template-columns:1fr;background:#f6f8f5}.login-brand{padding:40px 24px;background:var(--forest)}.login-brand h1{font-size:38px}.login-panel{padding:20px}.form-grid{grid-template-columns:1fr}.cards,.plans{grid-template-columns:1fr}.page-head{flex-direction:column}.toolbar input{min-width:0;width:100%}}
+
+/* === SIGAT V1.11 — Popups professionnels, anti double-clic, impression et formulaires compacts === */
+.btn:disabled,.btn.is-busy,button:disabled{opacity:.58;cursor:not-allowed;pointer-events:none}
+.btn-danger-solid{background:#a52a2a;color:#fff}.btn-danger-solid:hover{background:#812020}
+.sigat-toast{position:fixed;right:18px;bottom:18px;z-index:9999;max-width:380px;padding:13px 16px;border-radius:12px;color:#fff;font-weight:750;box-shadow:0 12px 35px rgba(0,0,0,.2)}.sigat-toast.ok{background:#0b4d3b}.sigat-toast.error{background:#9f2e2e}
+.pro-dialog{width:min(680px,calc(100vw - 24px));overflow:hidden}.pro-dialog-head{background:linear-gradient(90deg,#f5f9f7,#fff)}.pro-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:900;margin-bottom:4px}.pro-message{white-space:pre-wrap;line-height:1.6;color:#384c43}.detail-layout{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.detail-item{background:#f8faf9;border:1px solid var(--line);border-radius:12px;padding:10px}.detail-item span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:800;margin-bottom:4px}.detail-item strong{white-space:pre-wrap;overflow-wrap:anywhere}.agent-photo-view img{width:118px;height:145px;object-fit:cover;border-radius:12px;border:1px solid var(--line);box-shadow:0 8px 20px rgba(0,0,0,.08)}
+
+/* Les popups d'ajout sont larges et sans défilement interne sur écran de bureau. */
+#editorDialog.editor-dialog{width:min(1180px,calc(100vw - 28px));max-height:none;overflow:visible}
+#editorDialog.editor-dialog .dialog-head{padding:14px 18px;background:linear-gradient(90deg,#f4f8f6,#fff)}
+#editorDialog.editor-dialog .dialog-body{padding:14px 18px;overflow:visible;max-height:none}
+#editorDialog.editor-dialog .dialog-foot{padding:12px 18px;background:#fbfcfb}
+#editorDialog.editor-dialog .form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px}
+#editorDialog.editor-dialog .form-grid .full{grid-column:span 2}
+#editorDialog.editor-dialog .field{margin-bottom:9px;gap:4px}
+#editorDialog.editor-dialog .field label{font-size:12px}
+#editorDialog.editor-dialog .field input,#editorDialog.editor-dialog .field select,#editorDialog.editor-dialog .field textarea{padding:8px 10px;border-radius:9px;min-height:38px}
+#editorDialog.editor-dialog textarea{resize:vertical;min-height:58px}
+#editorDialog.editor-dialog .photo-field{grid-column:span 1;border:1px dashed #b9c8c1;border-radius:12px;padding:9px;background:#f8fbf9}
+.photo-preview{display:flex;align-items:center;gap:10px;min-height:54px;margin-top:5px}.photo-preview img{width:54px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+
+/* Menus déroulants compacts : pas de défilement interne dans les groupes principaux. */
+.dropdown{max-height:none;overflow:visible;grid-template-columns:1fr}.nav-group:nth-of-type(3) .dropdown{min-width:270px}
+
+@media(max-width:900px){
+  #editorDialog.editor-dialog{width:min(760px,calc(100vw - 18px));max-height:94vh;overflow:hidden}
+  #editorDialog.editor-dialog .dialog-body{overflow:auto;max-height:72vh}
+  #editorDialog.editor-dialog .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #editorDialog.editor-dialog .form-grid .full{grid-column:1/-1}
+  .detail-layout{grid-template-columns:1fr}.detail-grid{grid-template-columns:1fr}
+}
+@media(max-width:620px){#editorDialog.editor-dialog .form-grid{grid-template-columns:1fr}#editorDialog.editor-dialog .form-grid .full,#editorDialog.editor-dialog .photo-field{grid-column:1}.detail-grid{grid-template-columns:1fr}}

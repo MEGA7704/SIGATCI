@@ -1,4 +1,4 @@
-import {api,esc,loadSession,showToast} from './common.js';
+import {api,esc,loadSession,showToast,professionalConfirm,professionalAlert} from './common.js';
 const LABEL={PEF:'Poste des Eaux et Forêts',CANTONNEMENT:'Cantonnement',DIRECTION_REGIONALE:'Direction Régionale',DIRECTION_DEPARTEMENTALE:'Direction Départementale'};
 let data=null;
 async function load(){
@@ -34,5 +34,5 @@ async function save(parentId){
   }catch(e){showToast(e.message,'error')}
 }
 document.getElementById('saveParent').onclick=()=>{const v=document.getElementById('parentSelect').value;if(!v){showToast('Sélectionnez un service supérieur.','error');return}save(Number(v))};
-document.getElementById('removeParent').onclick=()=>{if(confirm('Retirer le rattachement actuel ? Les services supérieurs ne verront plus automatiquement vos nouvelles données via ce lien.')) save(null)};
+document.getElementById('removeParent').onclick=async()=>{const yes=await professionalConfirm('Retirer le rattachement','Les services supérieurs ne verront plus automatiquement vos nouvelles données via ce lien.',{confirmText:'Retirer'});if(yes) save(null)};
 load();

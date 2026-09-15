@@ -1,0 +1,10 @@
+SIGAT V1.11 — Correction ciblée
+
+1. Protection anti double-clic sur boutons + déduplication des requêtes POST/PUT/PATCH/DELETE en cours.
+2. Remplacement des confirm/alert natifs par des popups SIGAT professionnels pour les actions sensibles.
+3. Bouton Voir et PDF sur chaque ligne des modules.
+4. Bouton Imprimer la liste / PDF.
+5. Fiches A4 professionnelles avec entête SIGAT / République de Côte d’Ivoire.
+6. Personnel : champ Photo de l’agent avec import JPG/PNG/WEBP, compression automatique et affichage sur la fiche agent PDF.
+7. Popups Ajouter/Modifier agrandis en grille 3 colonnes, sans défilement interne sur ordinateur.
+8. Responsive : sur écrans étroits, défilement de secours conservé pour ne pas masquer de champs.
