@@ -225,3 +225,7 @@ Après le premier déploiement, ouvrir `/api/health` une fois. La route initiali
 
 ## Correctif V1.8 — PBKDF2 Cloudflare
 Cloudflare Workers limite actuellement PBKDF2 à 100 000 itérations. Cette version utilise 100 000 itérations pour la création et la vérification des nouveaux mots de passe. Le mot de passe Super Admin reste fourni uniquement par les secrets Cloudflare et n’est jamais publié dans le dépôt.
+
+
+## V1.9 — Rattachement après inscription
+L'inscription ne demande plus le code du service supérieur. Après activation, l'Administrateur de chaque structure choisit son rattachement dans **Paramètres > Rattachement hiérarchique**. Le serveur ne propose que les services supérieurs actifs et compatibles avec le niveau de la structure.

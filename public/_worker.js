@@ -694,15 +694,10 @@ async function apiRegister(env, request) {
   if (!code || !name || !username || !displayName || !password) return bad('Veuillez remplir les champs obligatoires.');
   if (!validPassword(password)) return bad('Le mot de passe doit contenir au moins 10 caractères, une majuscule, une minuscule et un chiffre.');
 
-  let parentId = null;
-  const expected = PARENT_TYPE[type];
-  if (expected) {
-    const parentCode = String(body.parentCode || '').trim().toUpperCase();
-    if (!parentCode) return bad('Le code du service supérieur est obligatoire.');
-    const parent = await env.SIGAT_DB.prepare("SELECT id FROM organizations WHERE code=? AND COALESCE(service_type,organization_type)=? AND status<>'CLOSED'").bind(parentCode, expected).first();
-    if (!parent) return bad('Service supérieur introuvable ou incompatible avec la hiérarchie SIGAT.');
-    parentId = parent.id;
-  }
+  // Le rattachement hiérarchique n'est plus demandé pendant l'inscription.
+  // Chaque administrateur choisit volontairement son service supérieur après activation,
+  // depuis Paramètres > Rattachement hiérarchique.
+  const parentId = null;
 
   const dup = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE code=?').bind(code).first();
   if (dup) return bad('Ce code de structure existe déjà.');
@@ -720,7 +715,7 @@ async function apiRegister(env, request) {
     VALUES(?,?,?,?,?,'ORGANIZATION_ADMIN',?,?,?,'ACTIVE')
   `).bind(organizationId, username, email || null, displayName, body.userPhone || null, hp.hash, hp.salt, hp.iterations).run();
   await audit(env, request, { action: 'ORGANIZATION_REGISTERED', organization_id: organizationId, user_id: userRes.meta.last_row_id, target_type: 'organization', target_id: organizationId, description: `${type} ${name}` });
-  return ok({ message: 'Inscription enregistrée. Votre structure doit être activée par le Super Admin SIGAT avant la première connexion.' });
+  return ok({ message: 'Inscription enregistrée. Après activation par le Super Admin, l’Administrateur pourra choisir son rattachement dans Paramètres > Rattachement hiérarchique.' });
 }
 
 async function apiPasswordResetRequest(env, request) {
@@ -799,6 +794,75 @@ async function apiHierarchy(env, request) {
     WHERE o.parent_id=? AND o.status<>'CLOSED' ORDER BY o.name
   `).bind(scopeOrg).all();
   return ok({ root, items: rows.results });
+}
+
+
+async function apiHierarchyAssignment(env, request) {
+  const auth = await getSession(env, request, { allowExpired: true });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Seul l’Administrateur de la structure peut gérer le rattachement hiérarchique.', 403, 'ADMIN_REQUIRED');
+  const org = await env.SIGAT_DB.prepare(`
+    SELECT o.id,o.code,o.name,COALESCE(o.service_type,o.organization_type) AS organization_type,o.parent_id,
+           p.name AS parent_name,p.code AS parent_code,COALESCE(p.service_type,p.organization_type) AS parent_type
+    FROM organizations o LEFT JOIN organizations p ON p.id=o.parent_id
+    WHERE o.id=?
+  `).bind(auth.user.organization_id).first();
+  if (!org) return bad('Structure introuvable.', 404);
+  const expected = PARENT_TYPE[org.organization_type] || null;
+  let options = [];
+  if (expected) {
+    const rows = await env.SIGAT_DB.prepare(`
+      SELECT id,code,name,COALESCE(service_type,organization_type) AS organization_type,region,department,locality,status
+      FROM organizations
+      WHERE id<>? AND COALESCE(service_type,organization_type)=? AND status='ACTIVE'
+      ORDER BY name COLLATE NOCASE
+    `).bind(org.id, expected).all();
+    options = rows.results || [];
+  }
+  return ok({
+    organization: {
+      id: org.id, code: org.code, name: org.name, type: org.organization_type,
+      parentId: org.parent_id || null, parentName: org.parent_name || null,
+      parentCode: org.parent_code || null, parentType: org.parent_type || null
+    },
+    expectedParentType: expected,
+    options
+  });
+}
+
+async function apiHierarchyAssignmentSave(env, request) {
+  const auth = await getSession(env, request, { allowExpired: true });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Seul l’Administrateur de la structure peut gérer le rattachement hiérarchique.', 403, 'ADMIN_REQUIRED');
+  if (!requireCsrf(request, auth)) return bad('Jeton CSRF invalide.', 403, 'CSRF');
+  const body = await parseJson(request);
+  const org = await env.SIGAT_DB.prepare(`SELECT id,name,COALESCE(service_type,organization_type) AS organization_type,parent_id FROM organizations WHERE id=?`).bind(auth.user.organization_id).first();
+  if (!org) return bad('Structure introuvable.', 404);
+  const expected = PARENT_TYPE[org.organization_type] || null;
+  const requested = body?.parentId;
+  const parentId = requested === null || requested === '' || requested === undefined ? null : Number(requested);
+
+  if (!expected) {
+    if (parentId !== null) return bad('Une Direction Départementale ne peut pas être rattachée à un service supérieur dans la hiérarchie SIGAT actuelle.');
+  } else if (parentId !== null) {
+    if (!Number.isInteger(parentId) || parentId <= 0 || parentId === Number(org.id)) return bad('Service supérieur invalide.');
+    const parent = await env.SIGAT_DB.prepare(`
+      SELECT id,name,COALESCE(service_type,organization_type) AS organization_type,status
+      FROM organizations WHERE id=?
+    `).bind(parentId).first();
+    if (!parent || parent.status !== 'ACTIVE') return bad('Le service supérieur sélectionné est introuvable ou inactif.');
+    if (parent.organization_type !== expected) return bad(`Rattachement incompatible : ce service doit être lié à un service de type ${expected}.`);
+  }
+
+  const previousParent = org.parent_id || null;
+  await env.SIGAT_DB.prepare(`UPDATE organizations SET parent_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(parentId, org.id).run();
+  await audit(env, request, {
+    action: parentId ? 'HIERARCHY_LINK_SET' : 'HIERARCHY_LINK_REMOVED',
+    organization_id: org.id, user_id: auth.user.id, actor_user_id: auth.user.id,
+    target_type: 'organization', target_id: org.id,
+    description: `Rattachement modifié : ${previousParent ?? 'aucun'} -> ${parentId ?? 'aucun'}`
+  });
+  return ok({ message: parentId ? 'Rattachement hiérarchique enregistré.' : 'Rattachement hiérarchique supprimé.' });
 }
 
 async function apiLoad(env, request) {
@@ -1124,7 +1188,7 @@ async function superAuditLogs(env, request) {
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.7-bootstrap-repair', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.9-self-hierarchy-linking', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
@@ -1134,6 +1198,8 @@ async function routeApi(env, request, url) {
   if (p === '/api/change-password' && m === 'POST') return apiChangePassword(env, request);
   if (p === '/api/dashboard' && m === 'GET') return apiDashboard(env, request);
   if (p === '/api/hierarchy' && m === 'GET') return apiHierarchy(env, request);
+  if (p === '/api/hierarchy-assignment' && m === 'GET') return apiHierarchyAssignment(env, request);
+  if (p === '/api/hierarchy-assignment' && m === 'POST') return apiHierarchyAssignmentSave(env, request);
   if (p === '/api/load' && m === 'GET') return apiLoad(env, request);
   if (p === '/api/save' && m === 'POST') return apiSave(env, request);
   if (p === '/api/users' && m === 'GET') return apiOrgUsers(env, request);

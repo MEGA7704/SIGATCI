@@ -1,0 +1,13 @@
+SIGAT V1.9 — RATTACHEMENT HIÉRARCHIQUE PAR ADMINISTRATEUR
+
+- L'inscription d'une structure ne demande plus de service supérieur.
+- La structure est créée sans parent_id.
+- Après activation et connexion, l'Administrateur utilise Paramètres > Rattachement hiérarchique.
+- PEF : choix parmi les Cantonnements actifs.
+- Cantonnement : choix parmi les Directions Régionales actives.
+- Direction Régionale : choix parmi les Directions Départementales actives.
+- Direction Départementale : aucun supérieur dans la hiérarchie actuelle.
+- L'Administrateur peut modifier ou retirer son rattachement.
+- Le serveur valide toujours la compatibilité du type et le statut actif du service supérieur.
+- La remontée des données repose sur parent_id : aucune duplication des données.
+- Le Super Admin conserve aussi sa capacité de corriger les rattachements.
