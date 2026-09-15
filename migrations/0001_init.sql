@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS organizations (
 );
 CREATE INDEX IF NOT EXISTS idx_organizations_parent ON organizations(parent_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_type ON organizations(organization_type);
-CREATE INDEX IF NOT EXISTS idx_organizations_service_type ON organizations(service_type);
 
 CREATE TABLE IF NOT EXISTS roles (
   code TEXT PRIMARY KEY,

@@ -1,0 +1,8 @@
+SIGAT V1.3 - Correctif connexion Super Admin
+
+- Réparation non destructive du schéma D1 existant.
+- Correction de l’ordre de création de la colonne/index service_type.
+- /api/health initialise et diagnostique le runtime.
+- Récupération du Super Admin à partir des secrets Cloudflare si ancien hash obsolète.
+- Messages d’erreur D1 plus précis sans exposer les secrets.
+- Aucun mot de passe Super Admin inclus dans le projet.

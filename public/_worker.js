@@ -29,22 +29,145 @@ async function ensureRuntime(env) {
     throw e;
   }
   if (schemaReady) return;
-  const check = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','organizations','audit_logs','subscriptions')").all();
-  const names = new Set((check.results || []).map(r => r.name));
-  if (!['users','organizations','audit_logs','subscriptions'].every(n => names.has(n))) {
-    await env.SIGAT_DB.exec(MIGRATION_SQL);
+
+  // IMPORTANT : réparer d'abord le schéma minimal. Une ancienne base V1 peut déjà
+  // contenir organizations sans la colonne service_type. Il ne faut donc jamais
+  // créer l'index service_type avant d'avoir ajouté cette colonne.
+  await env.SIGAT_DB.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS organizations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+      organization_type TEXT NOT NULL DEFAULT 'PEF',
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      region TEXT,
+      department TEXT,
+      locality TEXT,
+      phone TEXT,
+      email TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS roles (
+      code TEXT PRIMARY KEY,
+      label TEXT NOT NULL
+    );
+    INSERT OR IGNORE INTO roles(code,label) VALUES
+      ('SUPER_ADMIN','Super Admin'),
+      ('ORGANIZATION_ADMIN','Administrateur de structure'),
+      ('MEMBER','Membre'),
+      ('READ_ONLY','Consultation');
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+      username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      email TEXT UNIQUE COLLATE NOCASE,
+      display_name TEXT NOT NULL DEFAULT '',
+      phone TEXT,
+      role_code TEXT NOT NULL DEFAULT 'MEMBER',
+      password_hash TEXT,
+      password_salt TEXT,
+      password_iterations INTEGER NOT NULL DEFAULT 210000,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      force_password_change INTEGER NOT NULL DEFAULT 0,
+      session_version INTEGER NOT NULL DEFAULT 1,
+      last_login_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
+      plan TEXT NOT NULL DEFAULT 'FREE',
+      price INTEGER NOT NULL DEFAULT 0,
+      start_date TEXT NOT NULL DEFAULT CURRENT_DATE,
+      end_date TEXT NOT NULL DEFAULT CURRENT_DATE,
+      status TEXT NOT NULL DEFAULT 'TRIAL',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      description TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS password_reset_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      username_or_email TEXT NOT NULL,
+      request_type TEXT NOT NULL DEFAULT 'USER',
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      handled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      handled_at TEXT,
+      notes TEXT,
+      requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  async function columnsOf(table) {
+    const r = await env.SIGAT_DB.prepare(`PRAGMA table_info(${table})`).all();
+    return new Set((r.results || []).map(c => c.name));
   }
-  // Évolution non destructive des installations V1 déjà déployées.
-  const columns = await env.SIGAT_DB.prepare("PRAGMA table_info(organizations)").all();
-  const colNames = new Set((columns.results || []).map(c => c.name));
-  if (!colNames.has('service_type')) {
-    await env.SIGAT_DB.exec("ALTER TABLE organizations ADD COLUMN service_type TEXT");
+  async function addColumnIfMissing(table, cols, name, definition) {
+    if (!cols.has(name)) {
+      await env.SIGAT_DB.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+      cols.add(name);
+    }
   }
-  await env.SIGAT_DB.prepare("UPDATE organizations SET service_type=organization_type WHERE service_type IS NULL OR trim(service_type)=''").run();
-  await env.SIGAT_DB.exec("CREATE INDEX IF NOT EXISTS idx_organizations_service_type ON organizations(service_type)");
+
+  const orgCols = await columnsOf('organizations');
+  await addColumnIfMissing('organizations', orgCols, 'parent_id', 'INTEGER');
+  await addColumnIfMissing('organizations', orgCols, 'organization_type', "TEXT DEFAULT 'PEF'");
+  await addColumnIfMissing('organizations', orgCols, 'service_type', 'TEXT');
+  await addColumnIfMissing('organizations', orgCols, 'code', 'TEXT');
+  await addColumnIfMissing('organizations', orgCols, 'name', "TEXT DEFAULT ''");
+  await addColumnIfMissing('organizations', orgCols, 'status', "TEXT DEFAULT 'PENDING'");
+  await addColumnIfMissing('organizations', orgCols, 'created_at', 'TEXT');
+  await addColumnIfMissing('organizations', orgCols, 'updated_at', 'TEXT');
+  await env.SIGAT_DB.prepare("UPDATE organizations SET service_type=organization_type WHERE service_type IS NULL OR trim(service_type)='' ").run();
+
+  const userCols = await columnsOf('users');
+  await addColumnIfMissing('users', userCols, 'organization_id', 'INTEGER');
+  await addColumnIfMissing('users', userCols, 'username', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'email', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'display_name', "TEXT DEFAULT ''");
+  await addColumnIfMissing('users', userCols, 'phone', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'role_code', "TEXT DEFAULT 'MEMBER'");
+  await addColumnIfMissing('users', userCols, 'password_hash', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'password_salt', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'password_iterations', 'INTEGER DEFAULT 210000');
+  await addColumnIfMissing('users', userCols, 'status', "TEXT DEFAULT 'ACTIVE'");
+  await addColumnIfMissing('users', userCols, 'force_password_change', 'INTEGER DEFAULT 0');
+  await addColumnIfMissing('users', userCols, 'session_version', 'INTEGER DEFAULT 1');
+  await addColumnIfMissing('users', userCols, 'last_login_at', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'created_at', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'updated_at', 'TEXT');
+  await addColumnIfMissing('users', userCols, 'deleted_at', 'TEXT');
+
+  // Exécuter ensuite le schéma complet. L'index service_type n'est volontairement
+  // pas dans MIGRATION_SQL afin de rester compatible avec les anciennes bases.
+  await env.SIGAT_DB.exec(MIGRATION_SQL);
+  await env.SIGAT_DB.exec(`
+    CREATE INDEX IF NOT EXISTS idx_organizations_parent ON organizations(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_organizations_type ON organizations(organization_type);
+    CREATE INDEX IF NOT EXISTS idx_organizations_service_type ON organizations(service_type);
+    CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role_code);
+  `);
   schemaReady = true;
 }
-
 async function apiHealth(env) {
   const result = {
     dbBinding: !!env.SIGAT_DB,
@@ -54,25 +177,24 @@ async function apiHealth(env) {
     superAdminEmailConfigured: !!env.SIGAT_SUPERADMIN_EMAIL,
     schemaReady: false,
     superAdminExists: false,
-    hierarchyV2Ready: false
+    hierarchyV2Ready: false,
+    runtimeReady: false
   };
-  if (env.SIGAT_DB) {
-    try {
-      const tables = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','organizations','audit_logs','subscriptions')").all();
-      const names = new Set((tables.results || []).map(r => r.name));
-      result.schemaReady = ['users','organizations','audit_logs','subscriptions'].every(n => names.has(n));
-      if (names.has('organizations')) { const cols = await env.SIGAT_DB.prepare("PRAGMA table_info(organizations)").all(); result.hierarchyV2Ready = (cols.results||[]).some(c=>c.name==='service_type'); }
-      if (names.has('users')) {
-        const su = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND deleted_at IS NULL LIMIT 1").first();
-        result.superAdminExists = !!su;
-      }
-    } catch (e) {
-      result.databaseError = String(e?.message || e);
-    }
+  try {
+    await ensureRuntime(env);
+    result.runtimeReady = true;
+    const cols = await env.SIGAT_DB.prepare("PRAGMA table_info(organizations)").all();
+    result.hierarchyV2Ready = (cols.results || []).some(c => c.name === 'service_type');
+    const su = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND deleted_at IS NULL LIMIT 1").first();
+    result.superAdminExists = !!su;
+    result.schemaReady = true;
+  } catch (e) {
+    result.runtimeErrorCode = e?.code || 'RUNTIME_INIT_FAILED';
+    // Message volontairement limité à un diagnostic technique non secret.
+    result.runtimeError = String(e?.message || e).slice(0, 300);
   }
   return ok(result);
 }
-
 const MODULES = Object.freeze({
   personnel: 'agents',
   documents: 'administrative_documents',
@@ -123,6 +245,16 @@ function securityHeaders(response) {
 
 function normalizeIdentifier(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+
+function constantTimeStringEqual(a, b) {
+  const aa = new TextEncoder().encode(String(a ?? ''));
+  const bb = new TextEncoder().encode(String(b ?? ''));
+  const len = Math.max(aa.length, bb.length);
+  let diff = aa.length ^ bb.length;
+  for (let i = 0; i < len; i++) diff |= (aa[i] || 0) ^ (bb[i] || 0);
+  return diff === 0;
 }
 
 function getIp(request) {
@@ -176,13 +308,18 @@ async function hashPassword(password, saltB64 = null, iterations = PBKDF2_ITERAT
 }
 
 async function verifyPassword(password, user) {
-  const derived = await hashPassword(password, user.password_salt, Number(user.password_iterations || PBKDF2_ITERATIONS));
-  const a = base64ToBytes(derived.hash);
-  const b = base64ToBytes(user.password_hash);
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-  return diff === 0;
+  if (!user?.password_hash || !user?.password_salt) return false;
+  try {
+    const derived = await hashPassword(password, user.password_salt, Number(user.password_iterations || PBKDF2_ITERATIONS));
+    const a = base64ToBytes(derived.hash);
+    const b = base64ToBytes(user.password_hash);
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    return diff === 0;
+  } catch {
+    return false;
+  }
 }
 
 async function audit(env, request, data) {
@@ -207,19 +344,36 @@ async function audit(env, request, data) {
 }
 
 async function ensureSuperAdmin(env) {
+  // S'assurer que le rôle existe même sur une base partiellement initialisée.
+  await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('SUPER_ADMIN','Super Admin')").run();
   const existing = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND deleted_at IS NULL LIMIT 1").first();
-  if (existing) return;
-  const username = env.SIGAT_SUPERADMIN_USERNAME;
-  const password = env.SIGAT_SUPERADMIN_PASSWORD;
-  const email = env.SIGAT_SUPERADMIN_EMAIL || null;
-  if (!username || !password) return;
-  const hp = await hashPassword(password);
-  await env.SIGAT_DB.prepare(`
-    INSERT INTO users(organization_id,username,email,display_name,role_code,password_hash,password_salt,password_iterations,status,force_password_change)
-    VALUES(NULL,?,?,?,?,?,?,?,?,0)
-  `).bind(username.trim(), email, 'Super Admin SIGAT', 'SUPER_ADMIN', hp.hash, hp.salt, hp.iterations, 'ACTIVE').run();
-}
+  if (existing) return existing.id;
 
+  const username = String(env.SIGAT_SUPERADMIN_USERNAME || '').trim();
+  const password = String(env.SIGAT_SUPERADMIN_PASSWORD || '');
+  const email = env.SIGAT_SUPERADMIN_EMAIL ? String(env.SIGAT_SUPERADMIN_EMAIL).trim().toLowerCase() : null;
+  if (!username || !password) {
+    const e = new Error('Variables SIGAT_SUPERADMIN_USERNAME / SIGAT_SUPERADMIN_PASSWORD non configurées.');
+    e.code = 'SUPERADMIN_SECRET_MISSING';
+    throw e;
+  }
+
+  // Éviter qu'un compte métier portant déjà le même identifiant provoque une
+  // erreur UNIQUE opaque au moment du bootstrap.
+  const conflict = await env.SIGAT_DB.prepare("SELECT id,role_code FROM users WHERE lower(username)=lower(?) AND deleted_at IS NULL LIMIT 1").bind(username).first();
+  if (conflict) {
+    const e = new Error('L’identifiant Super Admin configuré est déjà utilisé par un autre compte.');
+    e.code = 'SUPERADMIN_USERNAME_CONFLICT';
+    throw e;
+  }
+
+  const hp = await hashPassword(password);
+  const r = await env.SIGAT_DB.prepare(`
+    INSERT INTO users(organization_id,username,email,display_name,role_code,password_hash,password_salt,password_iterations,status,force_password_change,session_version)
+    VALUES(NULL,?,?,?,?,?,?,?,?,0,1)
+  `).bind(username, email, 'Super Admin SIGAT', 'SUPER_ADMIN', hp.hash, hp.salt, hp.iterations, 'ACTIVE').run();
+  return r?.meta?.last_row_id || null;
+}
 async function rateLimitState(env, key) {
   const raw = await env.SIGAT_KV.get(key);
   return raw ? Number(raw) || 0 : 0;
@@ -356,6 +510,27 @@ async function apiLogin(env, request) {
 
   let valid = false;
   if (user) valid = await verifyPassword(password, user);
+
+  // Récupération sûre du Super Admin : le secret Cloudflare reste la source de
+  // secours. Cela permet de réparer automatiquement un hash ancien/incomplet ou
+  // un compte créé par une version précédente, sans publier le secret.
+  const secretUser = normalizeIdentifier(env.SIGAT_SUPERADMIN_USERNAME);
+  const secretEmail = normalizeIdentifier(env.SIGAT_SUPERADMIN_EMAIL);
+  const secretPassword = String(env.SIGAT_SUPERADMIN_PASSWORD || '');
+  const isConfiguredSuperIdentity = !!user && user.role_code === 'SUPER_ADMIN' &&
+    (identifier === secretUser || (!!secretEmail && identifier === secretEmail));
+  if (!valid && isConfiguredSuperIdentity && secretPassword && constantTimeStringEqual(password, secretPassword)) {
+    const hp = await hashPassword(secretPassword);
+    await env.SIGAT_DB.prepare(`UPDATE users SET password_hash=?,password_salt=?,password_iterations=?,status='ACTIVE',session_version=COALESCE(session_version,1)+1,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .bind(hp.hash,hp.salt,hp.iterations,user.id).run();
+    user.password_hash = hp.hash;
+    user.password_salt = hp.salt;
+    user.password_iterations = hp.iterations;
+    user.status = 'ACTIVE';
+    user.session_version = Number(user.session_version || 1) + 1;
+    valid = true;
+  }
+
   if (!user || !valid) {
     await incrementRateLimit(env, ipKey);
     await incrementRateLimit(env, userKey);
@@ -380,7 +555,6 @@ async function apiLogin(env, request) {
     redirect: user.role_code === 'SUPER_ADMIN' ? '/superadmin/dashboard/' : '/dashboard/'
   }, 200, { 'Set-Cookie': sessionCookie(sess.token) });
 }
-
 async function apiLogout(env, request) {
   const auth = await getSession(env, request);
   await destroySession(env, request);
@@ -895,8 +1069,13 @@ export default {
         if (e?.code === 'D1_BINDING_MISSING') return securityHeaders(bad('Liaison D1 SIGAT_DB absente dans Cloudflare.', 503, e.code));
         if (e?.code === 'KV_BINDING_MISSING') return securityHeaders(bad('Liaison KV SIGAT_KV absente dans Cloudflare.', 503, e.code));
         const msg = String(e?.message || '');
-        if (/no such table/i.test(msg)) return securityHeaders(bad('La base D1 SIGAT n’est pas initialisée. Redéployez cette version ou appliquez la migration D1.', 503, 'DATABASE_NOT_INITIALIZED'));
-        return securityHeaders(bad('Erreur interne du serveur.', 500, 'SERVER_ERROR'));
+        if (e?.code === 'SUPERADMIN_SECRET_MISSING') return securityHeaders(bad('Les variables Super Admin ne sont pas correctement configurées dans Cloudflare.', 503, e.code));
+        if (e?.code === 'SUPERADMIN_USERNAME_CONFLICT') return securityHeaders(bad('L’identifiant Super Admin configuré entre en conflit avec un compte existant.', 409, e.code));
+        if (/no such table/i.test(msg)) return securityHeaders(bad('La base D1 SIGAT n’est pas initialisée. Cette version peut la réparer automatiquement via /api/health.', 503, 'DATABASE_NOT_INITIALIZED'));
+        if (/no such column|has no column named/i.test(msg)) return securityHeaders(bad('Le schéma D1 est ancien ou incomplet. Ouvrez /api/health une fois puis réessayez.', 503, 'DATABASE_SCHEMA_OUTDATED'));
+        if (/UNIQUE constraint failed/i.test(msg)) return securityHeaders(bad('Une donnée unique existe déjà dans D1. Vérifiez notamment l’identifiant ou l’e-mail Super Admin.', 409, 'DATABASE_UNIQUE_CONFLICT'));
+        console.error('SIGAT server details:', msg);
+        return securityHeaders(bad('Erreur interne du serveur. Consultez /api/health pour le diagnostic.', 500, 'SERVER_ERROR'));
       }
       return securityHeaders(new Response('Erreur interne', { status: 500 }));
     }

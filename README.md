@@ -197,3 +197,19 @@ Si `dbBinding` ou `kvBinding` vaut `false`, ajoutez les bindings `SIGAT_DB` et `
 La plateforme prend en charge quatre niveaux : **Direction Départementale → Direction Régionale → Cantonnement → PEF**. Chaque structure saisit ses propres données. Les vues supérieures sont calculées par rattachement hiérarchique, sans duplication des données. La confidentialité horizontale reste appliquée : une structure ne peut pas lire une structure indépendante hors de son sous-arbre.
 
 Pour une base D1 déjà créée avec une version antérieure, cette version ajoute automatiquement le champ de compatibilité `service_type` au premier appel API. Il n'est donc pas nécessaire de supprimer la base existante.
+
+
+## Correctif V1.3 — connexion Super Admin
+
+Cette version corrige une incompatibilité possible avec les bases D1 créées par une version antérieure : l'index `service_type` pouvait être créé avant l'ajout de la colonne correspondante sur une base partiellement initialisée. L'initialisation répare maintenant d'abord le schéma minimal, ajoute les colonnes manquantes, puis applique le schéma complet.
+
+La route `/api/health` effectue également une réparation non destructive du schéma et retourne `runtimeReady: true` lorsque D1/KV sont utilisables.
+
+Le secret Cloudflare `SIGAT_SUPERADMIN_PASSWORD` sert aussi de mécanisme de récupération côté serveur : si le compte Super Admin existe mais que son ancien hash est incomplet ou obsolète, une connexion avec l'identifiant et le mot de passe actuellement configurés dans les secrets Cloudflare répare le hash automatiquement. Le secret n'est jamais envoyé au navigateur ni stocké en clair dans D1.
+
+Après déploiement :
+
+1. ouvrir `https://VOTRE-DOMAINE/api/health` ;
+2. vérifier `dbBinding`, `kvBinding`, `runtimeReady`, `schemaReady` à `true` ;
+3. vérifier `superAdminUsernameConfigured` et `superAdminPasswordConfigured` à `true` ;
+4. revenir à la page de connexion et utiliser exactement l'identifiant et le mot de passe définis dans les Variables et secrets Cloudflare.
