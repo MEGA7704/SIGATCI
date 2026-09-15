@@ -169,3 +169,31 @@ wrangler.toml
 4. vérifier le rattachement hiérarchique de chaque structure ;
 5. configurer le domaine HTTPS définitif ;
 6. réaliser une revue de sécurité et des tests fonctionnels sur une préproduction avant de charger des données administratives réelles.
+
+## Diagnostic rapide si la connexion affiche « Erreur interne du serveur »
+
+Cette version vérifie automatiquement la présence des bindings et initialise le schéma D1 au premier appel API si les tables principales sont absentes.
+
+Après déploiement, ouvrez :
+
+```text
+https://VOTRE-DOMAINE/api/health
+```
+
+Le diagnostic doit indiquer :
+
+- `dbBinding: true`
+- `kvBinding: true`
+- `schemaReady: true`
+- `superAdminUsernameConfigured: true`
+- `superAdminPasswordConfigured: true`
+- `superAdminExists: true` après la première tentative de connexion.
+
+Si `dbBinding` ou `kvBinding` vaut `false`, ajoutez les bindings `SIGAT_DB` et `SIGAT_KV` dans les paramètres Cloudflare du projet puis redéployez.
+
+
+## Hiérarchie multi-services — V1.2
+
+La plateforme prend en charge quatre niveaux : **Direction Départementale → Direction Régionale → Cantonnement → PEF**. Chaque structure saisit ses propres données. Les vues supérieures sont calculées par rattachement hiérarchique, sans duplication des données. La confidentialité horizontale reste appliquée : une structure ne peut pas lire une structure indépendante hors de son sous-arbre.
+
+Pour une base D1 déjà créée avec une version antérieure, cette version ajoute automatiquement le champ de compatibilité `service_type` au premier appel API. Il n'est donc pas nécessaire de supprimer la base existante.

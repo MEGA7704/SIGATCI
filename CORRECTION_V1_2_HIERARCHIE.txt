@@ -1,0 +1,16 @@
+SIGAT V1.2 — CORRECTION CIBLÉE HIÉRARCHIE
+
+Hiérarchie prise en charge :
+Direction Départementale > Direction Régionale > Cantonnement > PEF
+
+Corrections principales :
+- ajout du type Direction Départementale à l'inscription ;
+- formulaire de rattachement adapté au type de service ;
+- remontée automatique et récursive des données des structures subordonnées ;
+- confidentialité horizontale maintenue ;
+- tableau de bord consolidé pour chaque niveau supérieur ;
+- navigation vers une structure subordonnée en consultation via scopeOrg ;
+- menu adapté : Mes PEF / Mes Cantonnements / Mes Directions Régionales ;
+- Super Admin : affichage hiérarchique et correction du rattachement ;
+- compatibilité avec les bases D1 V1 existantes via ajout automatique de service_type ;
+- aucun mot de passe secret Super Admin n'est publié dans le projet.

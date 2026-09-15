@@ -1,4 +1,4 @@
-PRAGMA foreign_keys = ON;
+export const MIGRATION_SQL = `PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS organizations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -514,3 +514,4 @@ CREATE TABLE IF NOT EXISTS seizure_items (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_seizure_items_org ON seizure_items(organization_id);
+`;

@@ -1,8 +1,77 @@
+import { MIGRATION_SQL } from './server/schema.js';
 const SESSION_COOKIE = 'sigat_session';
 const SESSION_TTL = 60 * 60 * 8; // 8 heures
 const LOGIN_WINDOW = 60 * 15;
 const LOGIN_MAX_ATTEMPTS = 5;
 const PBKDF2_ITERATIONS = 210000;
+const SERVICE_TYPES = Object.freeze(['PEF','CANTONNEMENT','DIRECTION_REGIONALE','DIRECTION_DEPARTEMENTALE']);
+const PARENT_TYPE = Object.freeze({
+  PEF:'CANTONNEMENT',
+  CANTONNEMENT:'DIRECTION_REGIONALE',
+  DIRECTION_REGIONALE:'DIRECTION_DEPARTEMENTALE',
+  DIRECTION_DEPARTEMENTALE:null
+});
+// Compatibilité avec les anciennes bases dont organization_type est limité aux 3 anciens types.
+function legacyStoredType(type){return type==='DIRECTION_DEPARTEMENTALE'?'DIRECTION_REGIONALE':type;}
+function canonicalType(row){return row?.service_type||row?.organization_type||null;}
+
+let schemaReady = false;
+
+async function ensureRuntime(env) {
+  if (!env.SIGAT_DB) {
+    const e = new Error('Binding D1 SIGAT_DB absent.');
+    e.code = 'D1_BINDING_MISSING';
+    throw e;
+  }
+  if (!env.SIGAT_KV) {
+    const e = new Error('Binding KV SIGAT_KV absent.');
+    e.code = 'KV_BINDING_MISSING';
+    throw e;
+  }
+  if (schemaReady) return;
+  const check = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','organizations','audit_logs','subscriptions')").all();
+  const names = new Set((check.results || []).map(r => r.name));
+  if (!['users','organizations','audit_logs','subscriptions'].every(n => names.has(n))) {
+    await env.SIGAT_DB.exec(MIGRATION_SQL);
+  }
+  // Évolution non destructive des installations V1 déjà déployées.
+  const columns = await env.SIGAT_DB.prepare("PRAGMA table_info(organizations)").all();
+  const colNames = new Set((columns.results || []).map(c => c.name));
+  if (!colNames.has('service_type')) {
+    await env.SIGAT_DB.exec("ALTER TABLE organizations ADD COLUMN service_type TEXT");
+  }
+  await env.SIGAT_DB.prepare("UPDATE organizations SET service_type=organization_type WHERE service_type IS NULL OR trim(service_type)=''").run();
+  await env.SIGAT_DB.exec("CREATE INDEX IF NOT EXISTS idx_organizations_service_type ON organizations(service_type)");
+  schemaReady = true;
+}
+
+async function apiHealth(env) {
+  const result = {
+    dbBinding: !!env.SIGAT_DB,
+    kvBinding: !!env.SIGAT_KV,
+    superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
+    superAdminPasswordConfigured: !!env.SIGAT_SUPERADMIN_PASSWORD,
+    superAdminEmailConfigured: !!env.SIGAT_SUPERADMIN_EMAIL,
+    schemaReady: false,
+    superAdminExists: false,
+    hierarchyV2Ready: false
+  };
+  if (env.SIGAT_DB) {
+    try {
+      const tables = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','organizations','audit_logs','subscriptions')").all();
+      const names = new Set((tables.results || []).map(r => r.name));
+      result.schemaReady = ['users','organizations','audit_logs','subscriptions'].every(n => names.has(n));
+      if (names.has('organizations')) { const cols = await env.SIGAT_DB.prepare("PRAGMA table_info(organizations)").all(); result.hierarchyV2Ready = (cols.results||[]).some(c=>c.name==='service_type'); }
+      if (names.has('users')) {
+        const su = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND deleted_at IS NULL LIMIT 1").first();
+        result.superAdminExists = !!su;
+      }
+    } catch (e) {
+      result.databaseError = String(e?.message || e);
+    }
+  }
+  return ok(result);
+}
 
 const MODULES = Object.freeze({
   personnel: 'agents',
@@ -213,7 +282,7 @@ async function getSession(env, request, { allowExpired = true } = {}) {
   try { s = JSON.parse(raw); } catch { return null; }
   const user = await env.SIGAT_DB.prepare(`
     SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.session_version,
-           o.name AS organization_name,o.code AS organization_code,o.organization_type,o.status AS organization_status,o.parent_id
+           o.name AS organization_name,o.code AS organization_code,COALESCE(o.service_type,o.organization_type) AS organization_type,o.status AS organization_status,o.parent_id
     FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
     WHERE u.id=? AND u.deleted_at IS NULL
   `).bind(s.userId).first();
@@ -229,22 +298,28 @@ function requireCsrf(request, auth) {
   return provided && auth?.session?.csrf && provided === auth.session.csrf;
 }
 
-async function accessibleOrganizationIds(env, user) {
+async function accessibleOrganizationIds(env, user, rootOrganizationId = null) {
   if (user.role_code === 'SUPER_ADMIN') return [];
-  const orgId = Number(user.organization_id);
-  if (user.organization_type === 'PEF') return [orgId];
-  if (user.organization_type === 'CANTONNEMENT') {
-    const rows = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE id=? OR parent_id=?').bind(orgId, orgId).all();
-    return rows.results.map(r => Number(r.id));
-  }
-  if (user.organization_type === 'DIRECTION_REGIONALE') {
-    const rows = await env.SIGAT_DB.prepare(`
-      SELECT id FROM organizations
-      WHERE id=? OR parent_id=? OR parent_id IN (SELECT id FROM organizations WHERE parent_id=?)
-    `).bind(orgId, orgId, orgId).all();
-    return rows.results.map(r => Number(r.id));
-  }
-  return [orgId];
+  const ownId = Number(user.organization_id);
+  const requestedRoot = rootOrganizationId == null ? ownId : Number(rootOrganizationId);
+  // Vérifier d'abord que la racine demandée appartient bien au sous-arbre autorisé de l'utilisateur.
+  const allowedRows = await env.SIGAT_DB.prepare(`
+    WITH RECURSIVE tree(id) AS (
+      SELECT id FROM organizations WHERE id=?
+      UNION ALL
+      SELECT o.id FROM organizations o JOIN tree t ON o.parent_id=t.id WHERE o.status<>'CLOSED'
+    ) SELECT id FROM tree
+  `).bind(ownId).all();
+  const allowed = new Set((allowedRows.results||[]).map(r=>Number(r.id)));
+  if (!allowed.has(requestedRoot)) return [];
+  const rows = await env.SIGAT_DB.prepare(`
+    WITH RECURSIVE tree(id) AS (
+      SELECT id FROM organizations WHERE id=?
+      UNION ALL
+      SELECT o.id FROM organizations o JOIN tree t ON o.parent_id=t.id WHERE o.status<>'CLOSED'
+    ) SELECT id FROM tree
+  `).bind(requestedRoot).all();
+  return (rows.results||[]).map(r=>Number(r.id));
 }
 
 function makeInClause(ids) {
@@ -274,7 +349,7 @@ async function apiLogin(env, request) {
   }
 
   const user = await env.SIGAT_DB.prepare(`
-    SELECT u.*,o.status AS organization_status,o.name AS organization_name,o.organization_type
+    SELECT u.*,o.status AS organization_status,o.name AS organization_name,COALESCE(o.service_type,o.organization_type) AS organization_type
     FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
     WHERE (lower(u.username)=? OR lower(u.email)=?) AND u.deleted_at IS NULL LIMIT 1
   `).bind(identifier, identifier).first();
@@ -333,7 +408,7 @@ async function apiRegister(env, request) {
   const body = await parseJson(request);
   if (!body) return bad('Requête invalide.');
   const type = String(body.organizationType || '').toUpperCase();
-  if (!['PEF','CANTONNEMENT','DIRECTION_REGIONALE'].includes(type)) return bad('Type de structure invalide.');
+  if (!SERVICE_TYPES.includes(type)) return bad('Type de structure invalide.');
   const code = String(body.code || '').trim().toUpperCase();
   const name = String(body.name || '').trim();
   const username = String(body.username || '').trim();
@@ -344,12 +419,12 @@ async function apiRegister(env, request) {
   if (!validPassword(password)) return bad('Le mot de passe doit contenir au moins 10 caractères, une majuscule, une minuscule et un chiffre.');
 
   let parentId = null;
-  if (type !== 'DIRECTION_REGIONALE') {
+  const expected = PARENT_TYPE[type];
+  if (expected) {
     const parentCode = String(body.parentCode || '').trim().toUpperCase();
     if (!parentCode) return bad('Le code du service supérieur est obligatoire.');
-    const expected = type === 'PEF' ? 'CANTONNEMENT' : 'DIRECTION_REGIONALE';
-    const parent = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE code=? AND organization_type=? AND status<>\'CLOSED\'').bind(parentCode, expected).first();
-    if (!parent) return bad('Service supérieur introuvable ou incompatible.');
+    const parent = await env.SIGAT_DB.prepare("SELECT id FROM organizations WHERE code=? AND COALESCE(service_type,organization_type)=? AND status<>'CLOSED'").bind(parentCode, expected).first();
+    if (!parent) return bad('Service supérieur introuvable ou incompatible avec la hiérarchie SIGAT.');
     parentId = parent.id;
   }
 
@@ -360,9 +435,9 @@ async function apiRegister(env, request) {
 
   const hp = await hashPassword(password);
   const orgRes = await env.SIGAT_DB.prepare(`
-    INSERT INTO organizations(parent_id,organization_type,code,name,region,department,locality,phone,email,status)
-    VALUES(?,?,?,?,?,?,?,?,?,'PENDING')
-  `).bind(parentId, type, code, name, body.region || null, body.department || null, body.locality || null, body.phone || null, body.organizationEmail || null).run();
+    INSERT INTO organizations(parent_id,organization_type,service_type,code,name,region,department,locality,phone,email,status)
+    VALUES(?,?,?,?,?,?,?,?,?,?,'PENDING')
+  `).bind(parentId, legacyStoredType(type), type, code, name, body.region || null, body.department || null, body.locality || null, body.phone || null, body.organizationEmail || null).run();
   const organizationId = orgRes.meta.last_row_id;
   const userRes = await env.SIGAT_DB.prepare(`
     INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status)
@@ -410,7 +485,10 @@ async function apiDashboard(env, request) {
   if (!auth) return bad('Session invalide.', 401);
   if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
   if (auth.user.role_code === 'SUPER_ADMIN') return bad('Utilisez le tableau de bord Super Admin.', 403);
-  const ids = await accessibleOrganizationIds(env, auth.user);
+  const url = new URL(request.url);
+  const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
+  const ids = await accessibleOrganizationIds(env, auth.user, scopeOrg);
+  if (!ids.length) return bad('Structure hors de votre périmètre hiérarchique.', 403, 'OUT_OF_SCOPE');
   const { sql, binds } = makeInClause(ids);
   const summary = {};
   const wanted = ['agents','missions','controls','offenses','seizures','awareness_actions','plantations','fire_incidents','training_sessions'];
@@ -418,8 +496,11 @@ async function apiDashboard(env, request) {
     const r = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE organization_id IN (${sql}) AND archived_at IS NULL`).bind(...binds).first();
     summary[table] = Number(r?.c || 0);
   }
-  const children = await env.SIGAT_DB.prepare('SELECT COUNT(*) AS c FROM organizations WHERE parent_id=? AND status<>\'CLOSED\'').bind(auth.user.organization_id).first();
-  return ok({ summary, childOrganizations: Number(children?.c || 0), organization: { name: auth.user.organization_name, type: auth.user.organization_type } });
+  const scope = await env.SIGAT_DB.prepare(`SELECT id,name,code,COALESCE(service_type,organization_type) AS organization_type,parent_id FROM organizations WHERE id=?`).bind(scopeOrg).first();
+  const children = await env.SIGAT_DB.prepare("SELECT COUNT(*) AS c FROM organizations WHERE parent_id=? AND status<>'CLOSED'").bind(scopeOrg).first();
+  const breakdownRows = await env.SIGAT_DB.prepare(`SELECT COALESCE(service_type,organization_type) AS type,COUNT(*) AS c FROM organizations WHERE id IN (${sql}) AND id<>? GROUP BY COALESCE(service_type,organization_type)`).bind(...binds,scopeOrg).all();
+  const breakdown = Object.fromEntries((breakdownRows.results||[]).map(r=>[r.type,Number(r.c||0)]));
+  return ok({ summary, childOrganizations: Number(children?.c || 0), hierarchyBreakdown: breakdown, organization: { id:scope.id,name:scope.name,code:scope.code,type:scope.organization_type }, viewingOwn:Number(scopeOrg)===Number(auth.user.organization_id) });
 }
 
 
@@ -428,16 +509,19 @@ async function apiHierarchy(env, request) {
   if (!auth) return bad('Session invalide.', 401);
   if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
   if (auth.user.role_code === 'SUPER_ADMIN') return bad('Route réservée aux structures métier.', 403);
-  const ids = await accessibleOrganizationIds(env, auth.user);
-  const descendants = ids.filter(id => Number(id) !== Number(auth.user.organization_id));
-  if (!descendants.length) return ok({ items: [] });
-  const { sql, binds } = makeInClause(descendants);
+  const url = new URL(request.url);
+  const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
+  const allowed = await accessibleOrganizationIds(env, auth.user, scopeOrg);
+  if (!allowed.length) return bad('Structure hors de votre périmètre hiérarchique.',403,'OUT_OF_SCOPE');
+  const root = await env.SIGAT_DB.prepare(`SELECT id,name,code,COALESCE(service_type,organization_type) AS organization_type FROM organizations WHERE id=?`).bind(scopeOrg).first();
   const rows = await env.SIGAT_DB.prepare(`
-    SELECT o.id,o.code,o.name,o.organization_type,o.status,o.parent_id,p.name AS parent_name,s.plan,s.end_date,s.status AS subscription_status
+    SELECT o.id,o.code,o.name,COALESCE(o.service_type,o.organization_type) AS organization_type,o.status,o.parent_id,
+           p.name AS parent_name,s.plan,s.end_date,s.status AS subscription_status,
+           (SELECT COUNT(*) FROM organizations c WHERE c.parent_id=o.id AND c.status<>'CLOSED') AS direct_children
     FROM organizations o LEFT JOIN organizations p ON p.id=o.parent_id LEFT JOIN subscriptions s ON s.organization_id=o.id
-    WHERE o.id IN (${sql}) ORDER BY o.organization_type,o.name
-  `).bind(...binds).all();
-  return ok({ items: rows.results });
+    WHERE o.parent_id=? AND o.status<>'CLOSED' ORDER BY o.name
+  `).bind(scopeOrg).all();
+  return ok({ root, items: rows.results });
 }
 
 async function apiLoad(env, request) {
@@ -452,7 +536,9 @@ async function apiLoad(env, request) {
   const page = Math.max(1, Number(url.searchParams.get('page') || 1));
   const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
   const search = String(url.searchParams.get('search') || '').trim();
-  const ids = await accessibleOrganizationIds(env, auth.user);
+  const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
+  const ids = await accessibleOrganizationIds(env, auth.user, scopeOrg);
+  if (!ids.length) return bad('Structure hors de votre périmètre hiérarchique.',403,'OUT_OF_SCOPE');
   const { sql, binds } = makeInClause(ids);
   let where = `r.organization_id IN (${sql}) AND r.archived_at IS NULL`;
   const params = [...binds];
@@ -463,12 +549,17 @@ async function apiLoad(env, request) {
   }
   const count = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} r WHERE ${where}`).bind(...params).first();
   const rows = await env.SIGAT_DB.prepare(`
-    SELECT r.id,r.organization_id,r.reference,r.title,r.event_date,r.status,r.data_json,r.created_at,r.updated_at,o.name AS source_organization
+    SELECT r.id,r.organization_id,r.reference,r.title,r.event_date,r.status,r.data_json,r.created_at,r.updated_at,
+           o.name AS source_organization,COALESCE(o.service_type,o.organization_type) AS source_type,
+           p.name AS parent_name,gp.name AS grandparent_name,ggp.name AS great_grandparent_name
     FROM ${table} r JOIN organizations o ON o.id=r.organization_id
+    LEFT JOIN organizations p ON p.id=o.parent_id
+    LEFT JOIN organizations gp ON gp.id=p.parent_id
+    LEFT JOIN organizations ggp ON ggp.id=gp.parent_id
     WHERE ${where}
     ORDER BY COALESCE(r.event_date,r.created_at) DESC,r.id DESC LIMIT ? OFFSET ?
   `).bind(...params, limit, (page - 1) * limit).all();
-  const items = rows.results.map(r => ({ ...r, data: safeJson(r.data_json), owned: Number(r.organization_id) === Number(auth.user.organization_id), data_json: undefined }));
+  const items = rows.results.map(r => { const path=[r.great_grandparent_name,r.grandparent_name,r.parent_name,r.source_organization].filter(Boolean).join(' › '); return { ...r, source_path:path, data: safeJson(r.data_json), owned: Number(r.organization_id) === Number(auth.user.organization_id), data_json: undefined }; });
   return ok({ module, items, page, limit, total: Number(count?.c || 0), totalPages: Math.max(1, Math.ceil(Number(count?.c || 0) / limit)) });
 }
 
@@ -586,7 +677,7 @@ async function requireSuper(env, request, write = false) {
 
 async function superDashboard(env, request) {
   const { auth, error } = await requireSuper(env, request); if (error) return error;
-  const org = await env.SIGAT_DB.prepare(`SELECT COUNT(*) total, SUM(organization_type='PEF') pef, SUM(organization_type='CANTONNEMENT') cantonnements, SUM(organization_type='DIRECTION_REGIONALE') directions, SUM(status='ACTIVE') actifs FROM organizations`).first();
+  const org = await env.SIGAT_DB.prepare(`SELECT COUNT(*) total, SUM(COALESCE(service_type,organization_type)='PEF') pef, SUM(COALESCE(service_type,organization_type)='CANTONNEMENT') cantonnements, SUM(COALESCE(service_type,organization_type)='DIRECTION_REGIONALE') directions, SUM(COALESCE(service_type,organization_type)='DIRECTION_DEPARTEMENTALE') departementales, SUM(status='ACTIVE') actifs FROM organizations`).first();
   const usr = await env.SIGAT_DB.prepare(`SELECT COUNT(*) total, SUM(status='ACTIVE') actifs, SUM(status<>'ACTIVE') inactifs FROM users WHERE role_code<>'SUPER_ADMIN' AND deleted_at IS NULL`).first();
   const subs = await env.SIGAT_DB.prepare(`SELECT SUM(plan='FREE') free, SUM(plan='STANDARD') standard, SUM(plan='BUSINESS') business FROM subscriptions`).first();
   return ok({ organizations: org, users: usr, subscriptions: subs });
@@ -595,7 +686,7 @@ async function superDashboard(env, request) {
 async function superOrganizations(env, request) {
   const { error } = await requireSuper(env, request); if (error) return error;
   const rows = await env.SIGAT_DB.prepare(`
-    SELECT o.id,o.parent_id,o.organization_type,o.code,o.name,o.region,o.department,o.locality,o.phone,o.email,o.status,o.created_at,
+    SELECT o.id,o.parent_id,COALESCE(o.service_type,o.organization_type) AS organization_type,o.code,o.name,o.region,o.department,o.locality,o.phone,o.email,o.status,o.created_at,
            p.name AS parent_name,s.plan,s.start_date,s.end_date,s.status AS subscription_status
     FROM organizations o LEFT JOIN organizations p ON p.id=o.parent_id LEFT JOIN subscriptions s ON s.organization_id=o.id
     ORDER BY o.created_at DESC
@@ -618,7 +709,7 @@ async function superOrganizationAction(env, request) {
   const b = await parseJson(request);
   const id = Number(b?.organizationId);
   const action = String(b?.action || '');
-  const org = await env.SIGAT_DB.prepare('SELECT * FROM organizations WHERE id=?').bind(id).first();
+  const org = await env.SIGAT_DB.prepare('SELECT *,COALESCE(service_type,organization_type) AS canonical_type FROM organizations WHERE id=?').bind(id).first();
   if (!org) return bad('Structure introuvable.', 404);
   if (action === 'status') {
     const status = String(b?.status || '').toUpperCase();
@@ -631,6 +722,16 @@ async function superOrganizationAction(env, request) {
   }
   if (action === 'parent') {
     const parentId = b?.parentId ? Number(b.parentId) : null;
+    const expected = PARENT_TYPE[org.canonical_type];
+    if (!expected && parentId) return bad('Une Direction Départementale ne doit pas avoir de structure supérieure dans cette hiérarchie.');
+    if (expected && !parentId) return bad('Cette structure doit obligatoirement être rattachée à un service supérieur.');
+    if (parentId) {
+      if (parentId === id) return bad('Une structure ne peut pas être son propre supérieur.');
+      const parent = await env.SIGAT_DB.prepare('SELECT id,COALESCE(service_type,organization_type) AS canonical_type FROM organizations WHERE id=? AND status<>'CLOSED'').bind(parentId).first();
+      if (!parent || parent.canonical_type !== expected) return bad(`Le service supérieur doit être de type ${expected}.`);
+      const descendants = await env.SIGAT_DB.prepare(`WITH RECURSIVE tree(id) AS (SELECT id FROM organizations WHERE parent_id=? UNION ALL SELECT o.id FROM organizations o JOIN tree t ON o.parent_id=t.id) SELECT id FROM tree WHERE id=? LIMIT 1`).bind(id,parentId).first();
+      if (descendants) return bad('Rattachement impossible : cette opération créerait une boucle hiérarchique.');
+    }
     await env.SIGAT_DB.prepare('UPDATE organizations SET parent_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(parentId,id).run();
     await audit(env, request, { action: 'ORGANIZATION_PARENT_CHANGED', actor_user_id: auth.user.id, organization_id: id, target_type: 'organization', target_id: id, description: String(parentId || '') });
     return ok();
@@ -641,7 +742,7 @@ async function superOrganizationAction(env, request) {
 async function superUsers(env, request) {
   const { error } = await requireSuper(env, request); if (error) return error;
   const rows = await env.SIGAT_DB.prepare(`
-    SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.last_login_at,u.created_at,o.name AS organization_name,o.organization_type
+    SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.last_login_at,u.created_at,o.name AS organization_name,COALESCE(o.service_type,o.organization_type) AS organization_type
     FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
     WHERE u.deleted_at IS NULL ORDER BY u.created_at DESC
   `).all();
@@ -700,7 +801,7 @@ async function superUserAction(env, request, kind) {
 
 async function superSubscriptions(env, request) {
   const { error } = await requireSuper(env, request); if (error) return error;
-  const rows = await env.SIGAT_DB.prepare(`SELECT s.*,o.name AS organization_name,o.organization_type,o.code FROM subscriptions s JOIN organizations o ON o.id=s.organization_id ORDER BY s.end_date ASC`).all();
+  const rows = await env.SIGAT_DB.prepare(`SELECT s.*,o.name AS organization_name,COALESCE(o.service_type,o.organization_type) AS organization_type,o.code FROM subscriptions s JOIN organizations o ON o.id=s.organization_id ORDER BY s.end_date ASC`).all();
   return ok({ items: rows.results });
 }
 
@@ -744,6 +845,7 @@ async function superAuditLogs(env, request) {
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
+  if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
   if (p === '/api/session' && m === 'GET') return apiSession(env, request);
@@ -781,12 +883,21 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     try {
-      if (url.pathname.startsWith('/api/')) return securityHeaders(await routeApi(env, request, url));
+      if (url.pathname.startsWith('/api/')) {
+        if (url.pathname !== '/api/health') await ensureRuntime(env);
+        return securityHeaders(await routeApi(env, request, url));
+      }
       const response = await env.ASSETS.fetch(request);
       return securityHeaders(response);
     } catch (e) {
-      console.error(e);
-      if (url.pathname.startsWith('/api/')) return securityHeaders(bad('Erreur interne du serveur.', 500, 'SERVER_ERROR'));
+      console.error('SIGAT runtime error', e);
+      if (url.pathname.startsWith('/api/')) {
+        if (e?.code === 'D1_BINDING_MISSING') return securityHeaders(bad('Liaison D1 SIGAT_DB absente dans Cloudflare.', 503, e.code));
+        if (e?.code === 'KV_BINDING_MISSING') return securityHeaders(bad('Liaison KV SIGAT_KV absente dans Cloudflare.', 503, e.code));
+        const msg = String(e?.message || '');
+        if (/no such table/i.test(msg)) return securityHeaders(bad('La base D1 SIGAT n’est pas initialisée. Redéployez cette version ou appliquez la migration D1.', 503, 'DATABASE_NOT_INITIALIZED'));
+        return securityHeaders(bad('Erreur interne du serveur.', 500, 'SERVER_ERROR'));
+      }
       return securityHeaders(new Response('Erreur interne', { status: 500 }));
     }
   }
