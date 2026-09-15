@@ -217,3 +217,7 @@ Après déploiement :
 2. vérifier `dbBinding`, `kvBinding`, `runtimeReady`, `schemaReady` à `true` ;
 3. vérifier `superAdminUsernameConfigured` et `superAdminPasswordConfigured` à `true` ;
 4. revenir à la page de connexion et utiliser exactement l'identifiant et le mot de passe définis dans les Variables et secrets Cloudflare.
+
+
+## Correctif V1.7 — bootstrap D1
+Après le premier déploiement, ouvrir `/api/health` une fois. La route initialise le noyau D1 et crée le compte Super Admin à partir des secrets Cloudflare si nécessaire. Le mot de passe n'est jamais inclus dans le dépôt.

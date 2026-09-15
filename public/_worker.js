@@ -26,9 +26,17 @@ async function columnsOf(env, table) {
   return new Set((r.results || []).map(c => c.name));
 }
 
+async function runDdl(env, sql) {
+  // D1 est plus fiable ici avec prepare().run() qu'avec exec() pour une seule instruction DDL.
+  // Cela évite les erreurs de découpage/incomplete input déjà observées sur certains déploiements.
+  const statement = String(sql || '').trim().replace(/;\s*$/, '');
+  if (!statement) return;
+  await env.SIGAT_DB.prepare(statement).run();
+}
+
 async function addColumnIfMissing(env, table, cols, name, definition) {
   if (!cols.has(name)) {
-    await env.SIGAT_DB.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    await runDdl(env, `ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
     cols.add(name);
   }
 }
@@ -138,7 +146,7 @@ async function ensureRuntime(env) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`
   ];
-  for (const sql of ddl) await env.SIGAT_DB.exec(sql);
+  for (const sql of ddl) await runDdl(env, sql);
 
   await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('SUPER_ADMIN','Super Admin')").run();
   await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('ORGANIZATION_ADMIN','Administrateur de structure')").run();
@@ -186,7 +194,7 @@ async function ensureRuntime(env) {
     'CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id)',
     'CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)'
   ]) {
-    try { await env.SIGAT_DB.exec(sql); } catch (e) { console.warn('index init', e?.message || e); }
+    try { await runDdl(env, sql); } catch (e) { console.warn('index init', e?.message || e); }
   }
   schemaReady = true;
 }
@@ -194,7 +202,7 @@ async function ensureRuntime(env) {
 async function ensureModuleTable(env, table) {
   // table provient exclusivement de MODULES (liste blanche).
   if (await tableExists(env, table)) return;
-  await env.SIGAT_DB.exec(`CREATE TABLE IF NOT EXISTS ${table} (
+  await runDdl(env, `CREATE TABLE IF NOT EXISTS ${table} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     reference TEXT,
@@ -207,16 +215,17 @@ async function ensureModuleTable(env, table) {
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     archived_at TEXT
   )`);
-  try { await env.SIGAT_DB.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_org ON ${table}(organization_id)`); } catch {}
-  try { await env.SIGAT_DB.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_date ON ${table}(event_date)`); } catch {}
+  try { await runDdl(env, `CREATE INDEX IF NOT EXISTS idx_${table}_org ON ${table}(organization_id)`); } catch {}
+  try { await runDdl(env, `CREATE INDEX IF NOT EXISTS idx_${table}_date ON ${table}(event_date)`); } catch {}
 }
 
 async function apiHealth(env) {
-  // Endpoint volontairement ultra-léger : aucun bootstrap complet ici.
-  // Il doit pouvoir diagnostiquer un binding manquant sans provoquer lui-même un timeout.
+  // Diagnostic + auto-réparation légère. Cette route initialise uniquement le noyau
+  // nécessaire à l'authentification puis tente de créer le Super Admin à partir
+  // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.6-runtime-light',
+    version: '1.7-bootstrap-repair',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -224,13 +233,51 @@ async function apiHealth(env) {
     superAdminEmailConfigured: !!env.SIGAT_SUPERADMIN_EMAIL,
     dbReachable: false,
     kvReachable: false,
+    bootstrapAttempted: false,
+    runtimeReady: false,
     coreSchemaPresent: false,
-    superAdminExists: false
+    superAdminExists: false,
+    bootstrapStage: 'not-started'
   };
+
+  if (env.SIGAT_KV) {
+    try {
+      await env.SIGAT_KV.get('__sigat_health__');
+      result.kvReachable = true;
+    } catch (e) {
+      result.kvError = String(e?.message || e).slice(0,500);
+    }
+  }
+
   if (env.SIGAT_DB) {
     try {
-      await env.SIGAT_DB.prepare('SELECT 1 AS ok').first();
-      result.dbReachable = true;
+      const r = await env.SIGAT_DB.prepare('SELECT 1 AS ok').first();
+      result.dbReachable = !!r;
+    } catch (e) {
+      result.dbError = String(e?.message || e).slice(0,500);
+    }
+  }
+
+  // Ne tenter le bootstrap que si D1 et KV répondent.
+  if (result.dbReachable && result.kvReachable) {
+    result.bootstrapAttempted = true;
+    try {
+      result.bootstrapStage = 'ensure-runtime';
+      await ensureRuntime(env);
+      result.runtimeReady = true;
+
+      result.bootstrapStage = 'ensure-superadmin';
+      await ensureSuperAdmin(env);
+      result.bootstrapStage = 'completed';
+    } catch (e) {
+      result.runtimeReady = schemaReady;
+      result.bootstrapErrorCode = e?.code || 'BOOTSTRAP_FAILED';
+      result.bootstrapError = String(e?.message || e).slice(0,800);
+    }
+  }
+
+  if (env.SIGAT_DB && result.dbReachable) {
+    try {
       const usersTable = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1").first();
       const orgTable = await env.SIGAT_DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='organizations' LIMIT 1").first();
       result.coreSchemaPresent = !!usersTable && !!orgTable;
@@ -239,23 +286,17 @@ async function apiHealth(env) {
           const su = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND (deleted_at IS NULL OR deleted_at='') LIMIT 1").first();
           result.superAdminExists = !!su;
         } catch (e) {
-          result.superAdminCheckError = String(e?.message || e).slice(0,200);
+          result.superAdminCheckError = String(e?.message || e).slice(0,500);
         }
       }
     } catch (e) {
-      result.dbError = String(e?.message || e).slice(0,250);
+      result.schemaCheckError = String(e?.message || e).slice(0,500);
     }
   }
-  if (env.SIGAT_KV) {
-    try {
-      await env.SIGAT_KV.get('__sigat_health__');
-      result.kvReachable = true;
-    } catch (e) {
-      result.kvError = String(e?.message || e).slice(0,250);
-    }
-  }
+
   return ok(result);
 }
+
 const MODULES = Object.freeze({
   personnel: 'agents',
   documents: 'administrative_documents',
@@ -1083,7 +1124,7 @@ async function superAuditLogs(env, request) {
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.6-runtime-light', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.7-bootstrap-repair', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
@@ -1139,6 +1180,7 @@ export default {
         if (/no such table/i.test(msg)) return securityHeaders(bad('La base D1 SIGAT n’est pas initialisée. Cette version peut la réparer automatiquement via /api/health.', 503, 'DATABASE_NOT_INITIALIZED'));
         if (/no such column|has no column named/i.test(msg)) return securityHeaders(bad('Le schéma D1 est ancien ou incomplet. Ouvrez /api/health une fois puis réessayez.', 503, 'DATABASE_SCHEMA_OUTDATED'));
         if (/UNIQUE constraint failed/i.test(msg)) return securityHeaders(bad('Une donnée unique existe déjà dans D1. Vérifiez notamment l’identifiant ou l’e-mail Super Admin.', 409, 'DATABASE_UNIQUE_CONFLICT'));
+        if (/incomplete input/i.test(msg)) return securityHeaders(bad('D1 a rejeté une instruction SQL incomplète. Déployez la version V1.7 puis ouvrez /api/health pour réparer le noyau.', 503, 'D1_INCOMPLETE_SQL'));
         console.error('SIGAT server details:', msg);
         return securityHeaders(bad('Erreur interne du serveur. Consultez /api/health pour le diagnostic.', 500, 'SERVER_ERROR'));
       }

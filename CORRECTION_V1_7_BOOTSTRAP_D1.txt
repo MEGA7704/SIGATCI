@@ -1,0 +1,25 @@
+SIGAT V1.7 — CORRECTION INITIALISATION D1 / SUPER ADMIN
+
+Diagnostic de la V1.6 :
+- D1 binding : OK
+- KV binding : OK
+- Variables Super Admin : OK
+- D1 joignable : OK
+- KV joignable : OK
+- coreSchemaPresent : false
+- superAdminExists : false
+
+Correction V1.7 :
+1. /api/health tente désormais automatiquement une initialisation légère du noyau D1.
+2. Les instructions DDL unitaires utilisent prepare().run() au lieu de exec() pour éviter les erreurs D1 de type "incomplete input".
+3. /api/health expose bootstrapAttempted, bootstrapStage, bootstrapErrorCode et bootstrapError.
+4. Après le noyau, /api/health tente de créer le Super Admin depuis les secrets Cloudflare.
+5. Aucun mot de passe Super Admin n'est inclus dans le projet.
+
+Après déploiement :
+- ouvrir https://votre-projet.pages.dev/api/health une fois ;
+- attendre bootstrapStage = completed ;
+- vérifier runtimeReady = true ;
+- vérifier coreSchemaPresent = true ;
+- vérifier superAdminExists = true ;
+- puis se connecter.
