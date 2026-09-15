@@ -901,7 +901,7 @@ async function superOrganizationAction(env, request) {
     if (expected && !parentId) return bad('Cette structure doit obligatoirement être rattachée à un service supérieur.');
     if (parentId) {
       if (parentId === id) return bad('Une structure ne peut pas être son propre supérieur.');
-      const parent = await env.SIGAT_DB.prepare('SELECT id,COALESCE(service_type,organization_type) AS canonical_type FROM organizations WHERE id=? AND status<>'CLOSED'').bind(parentId).first();
+      const parent = await env.SIGAT_DB.prepare("SELECT id,COALESCE(service_type,organization_type) AS canonical_type FROM organizations WHERE id=? AND status<>'CLOSED'").bind(parentId).first();
       if (!parent || parent.canonical_type !== expected) return bad(`Le service supérieur doit être de type ${expected}.`);
       const descendants = await env.SIGAT_DB.prepare(`WITH RECURSIVE tree(id) AS (SELECT id FROM organizations WHERE parent_id=? UNION ALL SELECT o.id FROM organizations o JOIN tree t ON o.parent_id=t.id) SELECT id FROM tree WHERE id=? LIMIT 1`).bind(id,parentId).first();
       if (descendants) return bad('Rattachement impossible : cette opération créerait une boucle hiérarchique.');

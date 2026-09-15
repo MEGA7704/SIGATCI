@@ -1,0 +1,24 @@
+SIGAT V1.5 - CORRECTION CIBLEE DU BUILD CLOUDFLARE
+
+Erreur corrigée :
+Expected ")" but found "CLOSED" dans public/_worker.js ligne 904.
+
+Cause :
+La chaîne JavaScript SQL utilisait des apostrophes imbriquées non échappées autour de CLOSED, ce qui interrompait la chaîne avant la fin de la requête.
+
+Correction appliquée :
+La requête SQL utilise maintenant une chaîne JavaScript avec guillemets doubles :
+SELECT ... WHERE id=? AND status<>'CLOSED'
+
+Contrôles effectués :
+- node --check public/_worker.js : OK
+- node --check de tous les fichiers JavaScript dans public/ : OK
+- Structure Cloudflare Pages conservée : public/
+- Bindings conservés : SIGAT_KV et SIGAT_DB
+- Hiérarchie conservée : Direction Départementale > Direction Régionale > Cantonnement > PEF
+
+Déploiement Cloudflare Pages :
+- Infrastructure prédéfinie : Aucun
+- Commande de build : vide
+- Répertoire de sortie : public
+- Répertoire racine : vide
