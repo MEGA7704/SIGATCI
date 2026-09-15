@@ -11,6 +11,13 @@ document.getElementById('registerForm').addEventListener('submit',async e=>{
   const body={};ids.forEach(id=>body[id]=document.getElementById(id)?.value||'');
   try{
     const r=await api('/api/register',{method:'POST',body});
-    msg.textContent=r.message;msg.classList.remove('hidden');msg.classList.remove('error');e.target.reset();
+    msg.textContent=r.message;msg.classList.remove('hidden');msg.classList.remove('error');
+    if(r.csrf) sessionStorage.setItem('sigat_csrf',r.csrf);
+    sessionStorage.removeItem('sigat_last_free_popup');
+    e.target.reset();
+    // L'inscription ouvre désormais automatiquement la session de l'Administrateur.
+    if(r.redirect){
+      setTimeout(()=>{ location.href=r.redirect; },350);
+    }
   }catch(err){msg.textContent=err.message;msg.classList.add('error');msg.classList.remove('hidden')}
 });

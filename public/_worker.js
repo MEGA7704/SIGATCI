@@ -640,6 +640,17 @@ async function apiLogin(env, request) {
     return bad('Identifiant ou mot de passe incorrect.', 401, 'INVALID_CREDENTIALS');
   }
   if (user.status !== 'ACTIVE') return bad('Ce compte n’est pas actif.', 403, 'ACCOUNT_DISABLED');
+
+  // Compatibilité avec les inscriptions réalisées par les anciennes versions :
+  // si l'Administrateur d'une structure encore PENDING se connecte avec le bon mot de passe,
+  // SIGAT active automatiquement la structure et démarre son plan FREE.
+  if (user.role_code === 'ORGANIZATION_ADMIN' && user.organization_status === 'PENDING' && user.organization_id) {
+    await env.SIGAT_DB.prepare("UPDATE organizations SET status='ACTIVE',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='PENDING'").bind(user.organization_id).run();
+    await createFreeSubscription(env, user.organization_id, user.id);
+    user.organization_status = 'ACTIVE';
+    await audit(env, request, { action: 'ORGANIZATION_AUTO_ACTIVATED_ON_LOGIN', user_id: user.id, actor_user_id: user.id, organization_id: user.organization_id, target_type: 'organization', target_id: user.organization_id, description: 'Ancienne inscription PENDING activée automatiquement lors de la connexion de son Administrateur' });
+  }
+
   if (user.role_code !== 'SUPER_ADMIN' && user.organization_status !== 'ACTIVE') return bad('Votre structure n’est pas active.', 403, 'ORG_INACTIVE');
 
   await clearRateLimit(env, ipKey);
@@ -705,17 +716,44 @@ async function apiRegister(env, request) {
   if (userDup) return bad('Cet identifiant ou cet e-mail est déjà utilisé.');
 
   const hp = await hashPassword(password);
+  // Nouvelle politique SIGAT : toute structure inscrite est immédiatement ACTIVE.
+  // Le rattachement hiérarchique est volontaire et se fait ensuite par son Administrateur.
   const orgRes = await env.SIGAT_DB.prepare(`
     INSERT INTO organizations(parent_id,organization_type,service_type,code,name,region,department,locality,phone,email,status)
-    VALUES(?,?,?,?,?,?,?,?,?,?,'PENDING')
+    VALUES(?,?,?,?,?,?,?,?,?,?,'ACTIVE')
   `).bind(parentId, legacyStoredType(type), type, code, name, body.region || null, body.department || null, body.locality || null, body.phone || null, body.organizationEmail || null).run();
   const organizationId = orgRes.meta.last_row_id;
   const userRes = await env.SIGAT_DB.prepare(`
-    INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status)
-    VALUES(?,?,?,?,?,'ORGANIZATION_ADMIN',?,?,?,'ACTIVE')
+    INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status,force_password_change,session_version)
+    VALUES(?,?,?,?,?,'ORGANIZATION_ADMIN',?,?,?,'ACTIVE',0,1)
   `).bind(organizationId, username, email || null, displayName, body.userPhone || null, hp.hash, hp.salt, hp.iterations).run();
-  await audit(env, request, { action: 'ORGANIZATION_REGISTERED', organization_id: organizationId, user_id: userRes.meta.last_row_id, target_type: 'organization', target_id: organizationId, description: `${type} ${name}` });
-  return ok({ message: 'Inscription enregistrée. Après activation par le Super Admin, l’Administrateur pourra choisir son rattachement dans Paramètres > Rattachement hiérarchique.' });
+  const userId = userRes.meta.last_row_id;
+
+  // Démarrer automatiquement le plan FREE de 20 jours dès l'inscription.
+  await createFreeSubscription(env, organizationId, userId);
+
+  // Ouvrir immédiatement une session sécurisée pour le nouvel Administrateur.
+  const newUser = {
+    id: userId,
+    organization_id: organizationId,
+    role_code: 'ORGANIZATION_ADMIN',
+    session_version: 1
+  };
+  const sess = await createSession(env, newUser);
+  await env.SIGAT_DB.prepare('UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?').bind(userId).run();
+  await audit(env, request, { action: 'ORGANIZATION_REGISTERED', organization_id: organizationId, user_id: userId, actor_user_id: userId, target_type: 'organization', target_id: organizationId, description: `${type} ${name} — activation automatique` });
+  await audit(env, request, { action: 'LOGIN_SUCCESS_AFTER_REGISTER', organization_id: organizationId, user_id: userId, actor_user_id: userId, description: 'Session ouverte automatiquement après inscription' });
+
+  const subscription = await currentSubscription(env, organizationId);
+  return json({
+    ok: true,
+    message: 'Inscription réussie. Votre espace SIGAT est actif et votre session est ouverte.',
+    csrf: sess.csrf,
+    role: 'ORGANIZATION_ADMIN',
+    forcePasswordChange: false,
+    subscription,
+    redirect: '/dashboard/'
+  }, 200, { 'Set-Cookie': sessionCookie(sess.token) });
 }
 
 async function apiPasswordResetRequest(env, request) {

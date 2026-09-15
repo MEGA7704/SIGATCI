@@ -1,0 +1,10 @@
+SIGAT V1.10 — Correction inscription / activation / session
+
+- Toute nouvelle structure est créée directement avec le statut ACTIVE.
+- Le plan FREE de 20 jours est créé automatiquement dès l’inscription.
+- Le compte Administrateur est connecté automatiquement après inscription.
+- Le navigateur reçoit uniquement le cookie de session HttpOnly + le jeton CSRF.
+- L’utilisateur est redirigé automatiquement vers /dashboard/.
+- Les structures PENDING créées par les anciennes versions sont automatiquement activées lors de la prochaine connexion réussie de leur Administrateur.
+- Les structures SUSPENDED ou CLOSED restent bloquées.
+- Le rattachement hiérarchique reste facultatif à l’inscription et se configure ensuite dans Paramètres > Rattachement hiérarchique.
