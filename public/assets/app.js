@@ -117,12 +117,31 @@ async function compressImage(file){
 
 function openEditor(record=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
+  const isPersonnel=moduleKey==='personnel';
+  d.classList.toggle('personnel-editor',isPersonnel);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${config.singular}`:`Ajouter — ${config.singular}`;
   document.getElementById('recordId').value=record?.id||'';
-  document.getElementById('recordReference').value=record?.reference||'';
-  document.getElementById('recordTitle').value=record?.title||'';
-  document.getElementById('recordDate').value=(record?.event_date||'').slice(0,10);
-  document.getElementById('recordStatus').value=record?.status||'ACTIVE';
+  const refInput=document.getElementById('recordReference');
+  const titleInput=document.getElementById('recordTitle');
+  const dateInput=document.getElementById('recordDate');
+  const statusInput=document.getElementById('recordStatus');
+  refInput.value=record?.reference||'';
+  titleInput.value=record?.title||'';
+  dateInput.value=(record?.event_date||'').slice(0,10);
+  statusInput.value=record?.status||'ACTIVE';
+  const refField=refInput.closest('.field'),dateField=dateInput.closest('.field'),titleField=titleInput.closest('.field'),statusField=statusInput.closest('.field');
+  if(isPersonnel){
+    refField.querySelector('label').textContent='Référence';
+    dateField.querySelector('label').textContent='Date de prise de service';
+    titleField.querySelector('label').textContent='Nom et Prénoms *';
+    titleField.classList.remove('full');
+    statusField.classList.add('personnel-status-hidden');
+  }else{
+    dateField.querySelector('label').textContent='Date';
+    titleField.querySelector('label').textContent='Intitulé / nom principal *';
+    titleField.classList.add('full');
+    statusField.classList.remove('personnel-status-hidden');
+  }
   const area=document.getElementById('dynamicFields');area.innerHTML='';
   for(const [key,label,type,opts] of config.fields){
     const wrap=document.createElement('div');wrap.className='field'+(type==='textarea'?' full':'')+(type==='image'?' photo-field':'');
@@ -165,10 +184,19 @@ function printBaseStyles(){return `@page{size:A4;margin:14mm}*{box-sizing:border
 
 function printRecord(record){
   const w=window.open('','_blank');if(!w){professionalAlert('Impression bloquée','Autorisez les fenêtres contextuelles pour imprimer le document.');return}w.opener=null;
-  const photo=moduleKey==='personnel'&&record.data?.photo?`<img class="photo" src="${esc(record.data.photo)}" alt="Photo agent">`:'';
+  if(moduleKey==='personnel'){
+    const v=(key)=>esc(displayValue(record.data?.[key]));
+    const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
+    const title='FICHE DE RENSEIGNEMENT DE L’AGENT';
+    const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${title}</title><style>${printBaseStyles()}
+      .agent-sheet{border:1px solid #b9c8c1;border-radius:8px;overflow:hidden}.agent-sheet-banner{background:#0b4d3b;color:#fff;text-align:center;padding:10px 14px;font-size:17px;font-weight:900;letter-spacing:.05em}.agent-sheet-top{display:grid;grid-template-columns:1fr 125px;gap:18px;padding:18px;border-bottom:1px solid #dfe6e2}.agent-sheet-photo{width:112px;height:138px;object-fit:cover;border:2px solid #0b4d3b;border-radius:7px;background:#f3f7f5}.agent-sheet-photo-empty{display:grid;place-items:center;color:#8a9791;font-weight:800}.agent-sheet-id{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px;align-content:start}.agent-sheet-section{padding:14px 18px 4px}.agent-sheet-section h2{font-size:12px;color:#0b4d3b;text-transform:uppercase;letter-spacing:.08em;border-bottom:2px solid #c9a227;padding-bottom:6px;margin:0 0 8px}.agent-sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}.agent-sheet-cell{padding:8px 0;border-bottom:1px solid #e2e8e5;min-height:47px}.agent-sheet-signatures{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin:28px 18px 12px}.signature-box{text-align:center;padding-top:8px}.signature-line{height:52px;border-bottom:1px dotted #728079;margin-bottom:5px}.document-note{font-size:9px;color:#78847f;margin:10px 18px 15px;text-align:center}
+      @media print{.agent-sheet{break-inside:avoid}.header{margin-bottom:12px}.title{display:none}}
+    </style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="header"><div class="left">MINISTÈRE DES EAUX ET FORÊTS<br>${esc(session?.user?.organizationName||'')}</div><div class="center"><div class="sigat">SIGAT</div><div>Système Intégré de Gestion Administrative et Technique</div></div><div class="right">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span></div></div><div class="agent-sheet"><div class="agent-sheet-banner">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell"><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value" style="font-size:16px;color:#0b4d3b">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Téléphone</span><span class="value">${v('telephone')}</span></div></div><div>${photo}</div></div><div class="agent-sheet-section"><h2>Situation professionnelle et administrative</h2><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div><div class="agent-sheet-cell"><span class="label">Qualité</span><span class="value">${v('qualite')}</span></div></div></div><div class="agent-sheet-signatures"><div class="signature-box"><div class="signature-line"></div><strong>Signature de l’agent</strong></div><div class="signature-box"><div class="signature-line"></div><strong>Visa du responsable / Cachet</strong></div></div><div class="document-note">Fiche générée par SIGAT — ${new Date().toLocaleString('fr-FR')}</div></div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
+    w.document.open();w.document.write(html);w.document.close();return;
+  }
   const dataRows=config.fields.filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
-  const title=moduleKey==='personnel'?'FICHE AGENT':`${config.singular.toUpperCase()} — ${esc(record.title)}`;
-  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${printBaseStyles()}</style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="header"><div class="left">MINISTÈRE DES EAUX ET FORÊTS<br>${esc(session?.user?.organizationName||'')}</div><div class="center"><div class="sigat">SIGAT</div><div>Système Intégré de Gestion Administrative et Technique</div></div><div class="right">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span></div></div><div class="title">${title}</div><div class="agent-head"><div><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div></div>${photo}</div><div class="data">${dataRows}</div><div class="footer">Document généré par SIGAT — ${new Date().toLocaleString('fr-FR')}</div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
+  const title=`${config.singular.toUpperCase()} — ${esc(record.title)}`;
+  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${printBaseStyles()}</style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="header"><div class="left">MINISTÈRE DES EAUX ET FORÊTS<br>${esc(session?.user?.organizationName||'')}</div><div class="center"><div class="sigat">SIGAT</div><div>Système Intégré de Gestion Administrative et Technique</div></div><div class="right">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span></div></div><div class="title">${title}</div><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div><div class="footer">Document généré par SIGAT — ${new Date().toLocaleString('fr-FR')}</div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
   w.document.open();w.document.write(html);w.document.close();
 }
 

@@ -53,3 +53,25 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .detail-layout{grid-template-columns:1fr}.detail-grid{grid-template-columns:1fr}
 }
 @media(max-width:620px){#editorDialog.editor-dialog .form-grid{grid-template-columns:1fr}#editorDialog.editor-dialog .form-grid .full,#editorDialog.editor-dialog .photo-field{grid-column:1}.detail-grid{grid-template-columns:1fr}}
+
+/* === SIGAT V1.12 — Personnel : formulaire Agent en 3 colonnes sans défilement === */
+#editorDialog.personnel-editor{width:min(1180px,calc(100vw - 24px));max-height:none;overflow:visible}
+#editorDialog.personnel-editor .dialog-body{overflow:visible;max-height:none;padding:13px 18px}
+#editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.personnel-editor #dynamicFields{display:contents}
+#editorDialog.personnel-editor .personnel-status-hidden{display:none!important}
+#editorDialog.personnel-editor .field{margin-bottom:8px}
+#editorDialog.personnel-editor .field input,#editorDialog.personnel-editor .field select{min-height:36px;padding:7px 10px}
+#editorDialog.personnel-editor .photo-field{grid-column:auto;padding:7px 9px;min-height:86px}
+#editorDialog.personnel-editor .photo-preview{min-height:42px;margin-top:3px}
+#editorDialog.personnel-editor .photo-preview img{width:48px;height:58px}
+@media(max-width:900px) and (min-width:621px){
+  #editorDialog.personnel-editor{width:min(820px,calc(100vw - 18px));max-height:none;overflow:visible}
+  #editorDialog.personnel-editor .dialog-body{overflow:visible;max-height:none}
+  #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  #editorDialog.personnel-editor{max-height:94vh;overflow:hidden}
+  #editorDialog.personnel-editor .dialog-body{overflow:auto;max-height:72vh}
+  #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+}

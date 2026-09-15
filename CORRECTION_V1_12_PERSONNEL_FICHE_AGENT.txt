@@ -1,0 +1,10 @@
+SIGAT V1.12 — CORRECTION CIBLÉE PERSONNEL
+
+- Popup « Ajouter — Agent » réorganisé en 3 colonnes sur ordinateur et 2 colonnes sur tablette.
+- Champs présents, dans l’ordre : Référence, Date de prise de service, Nom et Prénoms, Photo de l’agent, Matricule, Emploi, Grade, Classe, Échelon, Fonction, Qualité, Téléphone.
+- Suppression du champ « Lieu de résidence » du formulaire Agent.
+- Le statut technique reste géré en interne mais n’encombre plus le popup Agent.
+- Pas de défilement interne du popup Agent sur ordinateur/tablette ; repli mobile sécurisé avec défilement si nécessaire.
+- Impression Agent renommée « FICHE DE RENSEIGNEMENT DE L’AGENT ».
+- Nouvelle fiche A4 professionnelle : en-tête institutionnel, photo, identification, situation professionnelle et administrative, téléphone, zones de signature et cachet.
+- L’impression utilise le navigateur pour « Imprimer / Enregistrer en PDF ».
