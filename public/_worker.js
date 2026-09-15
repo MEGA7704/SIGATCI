@@ -1,0 +1,793 @@
+const SESSION_COOKIE = 'sigat_session';
+const SESSION_TTL = 60 * 60 * 8; // 8 heures
+const LOGIN_WINDOW = 60 * 15;
+const LOGIN_MAX_ATTEMPTS = 5;
+const PBKDF2_ITERATIONS = 210000;
+
+const MODULES = Object.freeze({
+  personnel: 'agents',
+  documents: 'administrative_documents',
+  absences: 'absences',
+  stages: 'internships',
+  convocations: 'convocations',
+  missions: 'missions',
+  controles: 'controls',
+  infractions: 'offenses',
+  saisies: 'seizures',
+  'exploitation-forestiere': 'forest_perimeters',
+  'produits-secondaires': 'secondary_operators',
+  'transformation-bois': 'wood_processing_units',
+  sensibilisations: 'awareness_actions',
+  reboisement: 'plantations',
+  'ressources-naturelles': 'natural_resources',
+  'feux-brousse': 'fire_incidents',
+  faune: 'wildlife_observations',
+  conflits: 'human_wildlife_conflicts',
+  formations: 'training_sessions',
+  materiel: 'equipment',
+  finances: 'budgets',
+  rapports: 'reports',
+  archives: 'archives'
+});
+
+const json = (data, status = 200, extraHeaders = {}) => new Response(JSON.stringify(data), {
+  status,
+  headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+    ...extraHeaders
+  }
+});
+
+const ok = (data = {}) => json({ ok: true, ...data });
+const bad = (message, status = 400, code = 'BAD_REQUEST') => json({ ok: false, code, message }, status);
+
+function securityHeaders(response) {
+  const h = new Headers(response.headers);
+  h.set('X-Content-Type-Options', 'nosniff');
+  h.set('X-Frame-Options', 'DENY');
+  h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  h.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  h.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers: h });
+}
+
+function normalizeIdentifier(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getIp(request) {
+  return request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown';
+}
+
+function getCookie(request, name) {
+  const cookie = request.headers.get('Cookie') || '';
+  for (const part of cookie.split(';')) {
+    const [k, ...rest] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(rest.join('='));
+  }
+  return null;
+}
+
+function bytesToBase64(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+
+function base64ToBytes(str) {
+  const s = atob(str);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+function randomToken(bytes = 32) {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return bytesToBase64(arr).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+function randomPassword(length = 14) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+}
+
+async function hashPassword(password, saltB64 = null, iterations = PBKDF2_ITERATIONS) {
+  const salt = saltB64 ? base64ToBytes(saltB64) : crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256);
+  return {
+    hash: bytesToBase64(new Uint8Array(bits)),
+    salt: bytesToBase64(salt),
+    iterations
+  };
+}
+
+async function verifyPassword(password, user) {
+  const derived = await hashPassword(password, user.password_salt, Number(user.password_iterations || PBKDF2_ITERATIONS));
+  const a = base64ToBytes(derived.hash);
+  const b = base64ToBytes(user.password_hash);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+async function audit(env, request, data) {
+  try {
+    await env.SIGAT_DB.prepare(`
+      INSERT INTO audit_logs(organization_id,user_id,actor_user_id,action,target_type,target_id,description,ip_address,user_agent)
+      VALUES(?,?,?,?,?,?,?,?,?)
+    `).bind(
+      data.organization_id ?? null,
+      data.user_id ?? null,
+      data.actor_user_id ?? null,
+      data.action,
+      data.target_type ?? null,
+      data.target_id != null ? String(data.target_id) : null,
+      data.description ?? null,
+      getIp(request),
+      request.headers.get('User-Agent') || null
+    ).run();
+  } catch (e) {
+    console.error('audit error', e);
+  }
+}
+
+async function ensureSuperAdmin(env) {
+  const existing = await env.SIGAT_DB.prepare("SELECT id FROM users WHERE role_code='SUPER_ADMIN' AND deleted_at IS NULL LIMIT 1").first();
+  if (existing) return;
+  const username = env.SIGAT_SUPERADMIN_USERNAME;
+  const password = env.SIGAT_SUPERADMIN_PASSWORD;
+  const email = env.SIGAT_SUPERADMIN_EMAIL || null;
+  if (!username || !password) return;
+  const hp = await hashPassword(password);
+  await env.SIGAT_DB.prepare(`
+    INSERT INTO users(organization_id,username,email,display_name,role_code,password_hash,password_salt,password_iterations,status,force_password_change)
+    VALUES(NULL,?,?,?,?,?,?,?,?,0)
+  `).bind(username.trim(), email, 'Super Admin SIGAT', 'SUPER_ADMIN', hp.hash, hp.salt, hp.iterations, 'ACTIVE').run();
+}
+
+async function rateLimitState(env, key) {
+  const raw = await env.SIGAT_KV.get(key);
+  return raw ? Number(raw) || 0 : 0;
+}
+
+async function incrementRateLimit(env, key) {
+  const current = await rateLimitState(env, key);
+  await env.SIGAT_KV.put(key, String(current + 1), { expirationTtl: LOGIN_WINDOW });
+}
+
+async function clearRateLimit(env, key) {
+  await env.SIGAT_KV.delete(key);
+}
+
+async function createSession(env, user) {
+  const token = randomToken(36);
+  const csrf = randomToken(24);
+  const session = {
+    userId: user.id,
+    organizationId: user.organization_id,
+    role: user.role_code,
+    sessionVersion: user.session_version,
+    csrf,
+    createdAt: Date.now()
+  };
+  await env.SIGAT_KV.put(`session:${token}`, JSON.stringify(session), { expirationTtl: SESSION_TTL });
+  return { token, csrf };
+}
+
+async function destroySession(env, request) {
+  const token = getCookie(request, SESSION_COOKIE);
+  if (token) await env.SIGAT_KV.delete(`session:${token}`);
+}
+
+function sessionCookie(token, maxAge = SESSION_TTL) {
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function expiredCookie() {
+  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+async function currentSubscription(env, organizationId) {
+  if (!organizationId) return null;
+  const sub = await env.SIGAT_DB.prepare('SELECT * FROM subscriptions WHERE organization_id=? LIMIT 1').bind(organizationId).first();
+  if (!sub) return null;
+  const today = new Date();
+  const end = new Date(`${sub.end_date}T23:59:59Z`);
+  const expired = today > end || sub.status === 'EXPIRED' || sub.status === 'SUSPENDED';
+  const daysRemaining = Math.max(0, Math.ceil((end - today) / 86400000));
+  return { ...sub, expired, daysRemaining };
+}
+
+async function getSession(env, request, { allowExpired = true } = {}) {
+  const token = getCookie(request, SESSION_COOKIE);
+  if (!token) return null;
+  const raw = await env.SIGAT_KV.get(`session:${token}`);
+  if (!raw) return null;
+  let s;
+  try { s = JSON.parse(raw); } catch { return null; }
+  const user = await env.SIGAT_DB.prepare(`
+    SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.session_version,
+           o.name AS organization_name,o.code AS organization_code,o.organization_type,o.status AS organization_status,o.parent_id
+    FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
+    WHERE u.id=? AND u.deleted_at IS NULL
+  `).bind(s.userId).first();
+  if (!user || user.status !== 'ACTIVE' || Number(user.session_version) !== Number(s.sessionVersion)) return null;
+  if (user.role_code !== 'SUPER_ADMIN' && user.organization_status !== 'ACTIVE') return null;
+  const subscription = user.role_code === 'SUPER_ADMIN' ? null : await currentSubscription(env, user.organization_id);
+  if (!allowExpired && subscription?.expired) return { denied: 'SUBSCRIPTION_EXPIRED', token, session: s, user, subscription };
+  return { token, session: s, user, subscription };
+}
+
+function requireCsrf(request, auth) {
+  const provided = request.headers.get('X-CSRF-Token') || '';
+  return provided && auth?.session?.csrf && provided === auth.session.csrf;
+}
+
+async function accessibleOrganizationIds(env, user) {
+  if (user.role_code === 'SUPER_ADMIN') return [];
+  const orgId = Number(user.organization_id);
+  if (user.organization_type === 'PEF') return [orgId];
+  if (user.organization_type === 'CANTONNEMENT') {
+    const rows = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE id=? OR parent_id=?').bind(orgId, orgId).all();
+    return rows.results.map(r => Number(r.id));
+  }
+  if (user.organization_type === 'DIRECTION_REGIONALE') {
+    const rows = await env.SIGAT_DB.prepare(`
+      SELECT id FROM organizations
+      WHERE id=? OR parent_id=? OR parent_id IN (SELECT id FROM organizations WHERE parent_id=?)
+    `).bind(orgId, orgId, orgId).all();
+    return rows.results.map(r => Number(r.id));
+  }
+  return [orgId];
+}
+
+function makeInClause(ids) {
+  return { sql: ids.map(() => '?').join(','), binds: ids };
+}
+
+async function parseJson(request) {
+  try { return await request.json(); } catch { return null; }
+}
+
+function validPassword(p) {
+  return typeof p === 'string' && p.length >= 10 && /[A-Z]/.test(p) && /[a-z]/.test(p) && /\d/.test(p);
+}
+
+async function apiLogin(env, request) {
+  await ensureSuperAdmin(env);
+  const body = await parseJson(request);
+  if (!body) return bad('Requête invalide.');
+  const identifier = normalizeIdentifier(body.identifier);
+  const password = String(body.password || '');
+  if (!identifier || !password) return bad('Identifiant et mot de passe requis.');
+
+  const ipKey = `login:ip:${getIp(request)}`;
+  const userKey = `login:user:${identifier}`;
+  if ((await rateLimitState(env, ipKey)) >= LOGIN_MAX_ATTEMPTS || (await rateLimitState(env, userKey)) >= LOGIN_MAX_ATTEMPTS) {
+    return bad('Trop de tentatives. Veuillez réessayer plus tard.', 429, 'RATE_LIMITED');
+  }
+
+  const user = await env.SIGAT_DB.prepare(`
+    SELECT u.*,o.status AS organization_status,o.name AS organization_name,o.organization_type
+    FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
+    WHERE (lower(u.username)=? OR lower(u.email)=?) AND u.deleted_at IS NULL LIMIT 1
+  `).bind(identifier, identifier).first();
+
+  let valid = false;
+  if (user) valid = await verifyPassword(password, user);
+  if (!user || !valid) {
+    await incrementRateLimit(env, ipKey);
+    await incrementRateLimit(env, userKey);
+    await audit(env, request, { action: 'LOGIN_FAILED', user_id: user?.id, organization_id: user?.organization_id, description: 'Échec de connexion' });
+    return bad('Identifiant ou mot de passe incorrect.', 401, 'INVALID_CREDENTIALS');
+  }
+  if (user.status !== 'ACTIVE') return bad('Ce compte n’est pas actif.', 403, 'ACCOUNT_DISABLED');
+  if (user.role_code !== 'SUPER_ADMIN' && user.organization_status !== 'ACTIVE') return bad('Votre structure n’est pas active.', 403, 'ORG_INACTIVE');
+
+  await clearRateLimit(env, ipKey);
+  await clearRateLimit(env, userKey);
+  const sess = await createSession(env, user);
+  await env.SIGAT_DB.prepare('UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?').bind(user.id).run();
+  await audit(env, request, { action: 'LOGIN_SUCCESS', user_id: user.id, actor_user_id: user.id, organization_id: user.organization_id, description: 'Connexion réussie' });
+  const subscription = user.role_code === 'SUPER_ADMIN' ? null : await currentSubscription(env, user.organization_id);
+  return json({
+    ok: true,
+    csrf: sess.csrf,
+    role: user.role_code,
+    forcePasswordChange: !!user.force_password_change,
+    subscription,
+    redirect: user.role_code === 'SUPER_ADMIN' ? '/superadmin/dashboard/' : '/dashboard/'
+  }, 200, { 'Set-Cookie': sessionCookie(sess.token) });
+}
+
+async function apiLogout(env, request) {
+  const auth = await getSession(env, request);
+  await destroySession(env, request);
+  if (auth?.user) await audit(env, request, { action: 'LOGOUT', user_id: auth.user.id, actor_user_id: auth.user.id, organization_id: auth.user.organization_id });
+  return json({ ok: true }, 200, { 'Set-Cookie': expiredCookie() });
+}
+
+async function apiSession(env, request) {
+  const auth = await getSession(env, request, { allowExpired: true });
+  if (!auth || auth.denied) return bad('Session invalide.', 401, 'UNAUTHENTICATED');
+  const u = auth.user;
+  return ok({
+    csrf: auth.session.csrf,
+    user: {
+      id: u.id, username: u.username, email: u.email, displayName: u.display_name,
+      role: u.role_code, organizationId: u.organization_id, organizationName: u.organization_name,
+      organizationCode: u.organization_code, organizationType: u.organization_type,
+      forcePasswordChange: !!u.force_password_change
+    },
+    subscription: auth.subscription
+  });
+}
+
+async function apiRegister(env, request) {
+  const body = await parseJson(request);
+  if (!body) return bad('Requête invalide.');
+  const type = String(body.organizationType || '').toUpperCase();
+  if (!['PEF','CANTONNEMENT','DIRECTION_REGIONALE'].includes(type)) return bad('Type de structure invalide.');
+  const code = String(body.code || '').trim().toUpperCase();
+  const name = String(body.name || '').trim();
+  const username = String(body.username || '').trim();
+  const email = normalizeIdentifier(body.email);
+  const displayName = String(body.displayName || '').trim();
+  const password = String(body.password || '');
+  if (!code || !name || !username || !displayName || !password) return bad('Veuillez remplir les champs obligatoires.');
+  if (!validPassword(password)) return bad('Le mot de passe doit contenir au moins 10 caractères, une majuscule, une minuscule et un chiffre.');
+
+  let parentId = null;
+  if (type !== 'DIRECTION_REGIONALE') {
+    const parentCode = String(body.parentCode || '').trim().toUpperCase();
+    if (!parentCode) return bad('Le code du service supérieur est obligatoire.');
+    const expected = type === 'PEF' ? 'CANTONNEMENT' : 'DIRECTION_REGIONALE';
+    const parent = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE code=? AND organization_type=? AND status<>\'CLOSED\'').bind(parentCode, expected).first();
+    if (!parent) return bad('Service supérieur introuvable ou incompatible.');
+    parentId = parent.id;
+  }
+
+  const dup = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE code=?').bind(code).first();
+  if (dup) return bad('Ce code de structure existe déjà.');
+  const userDup = await env.SIGAT_DB.prepare('SELECT id FROM users WHERE lower(username)=? OR lower(email)=?').bind(username.toLowerCase(), email).first();
+  if (userDup) return bad('Cet identifiant ou cet e-mail est déjà utilisé.');
+
+  const hp = await hashPassword(password);
+  const orgRes = await env.SIGAT_DB.prepare(`
+    INSERT INTO organizations(parent_id,organization_type,code,name,region,department,locality,phone,email,status)
+    VALUES(?,?,?,?,?,?,?,?,?,'PENDING')
+  `).bind(parentId, type, code, name, body.region || null, body.department || null, body.locality || null, body.phone || null, body.organizationEmail || null).run();
+  const organizationId = orgRes.meta.last_row_id;
+  const userRes = await env.SIGAT_DB.prepare(`
+    INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status)
+    VALUES(?,?,?,?,?,'ORGANIZATION_ADMIN',?,?,?,'ACTIVE')
+  `).bind(organizationId, username, email || null, displayName, body.userPhone || null, hp.hash, hp.salt, hp.iterations).run();
+  await audit(env, request, { action: 'ORGANIZATION_REGISTERED', organization_id: organizationId, user_id: userRes.meta.last_row_id, target_type: 'organization', target_id: organizationId, description: `${type} ${name}` });
+  return ok({ message: 'Inscription enregistrée. Votre structure doit être activée par le Super Admin SIGAT avant la première connexion.' });
+}
+
+async function apiPasswordResetRequest(env, request) {
+  const body = await parseJson(request);
+  const ident = normalizeIdentifier(body?.identifier);
+  const requestType = String(body?.requestType || '').toUpperCase();
+  if (!ident || !['ADMINISTRATOR','USER'].includes(requestType)) return bad('Informations incomplètes.');
+  const user = await env.SIGAT_DB.prepare(`SELECT id,organization_id,role_code FROM users WHERE (lower(username)=? OR lower(email)=?) AND deleted_at IS NULL LIMIT 1`).bind(ident, ident).first();
+  if (user) {
+    const typeOk = requestType === 'ADMINISTRATOR' ? user.role_code === 'ORGANIZATION_ADMIN' : ['MEMBER','READ_ONLY'].includes(user.role_code);
+    if (typeOk) {
+      await env.SIGAT_DB.prepare(`INSERT INTO password_reset_requests(organization_id,user_id,username_or_email,request_type) VALUES(?,?,?,?)`).bind(user.organization_id, user.id, ident, requestType).run();
+      await audit(env, request, { action: 'PASSWORD_RESET_REQUESTED', organization_id: user.organization_id, user_id: user.id, target_type: 'user', target_id: user.id });
+    }
+  }
+  return ok({ message: 'Votre demande a été prise en compte. Si les informations correspondent à un compte SIGAT, elle sera traitée par l’administrateur compétent.' });
+}
+
+async function apiChangePassword(env, request) {
+  const auth = await getSession(env, request);
+  if (!auth) return bad('Session invalide.', 401);
+  if (!requireCsrf(request, auth)) return bad('Jeton CSRF invalide.', 403, 'CSRF');
+  const body = await parseJson(request);
+  const current = String(body?.currentPassword || '');
+  const next = String(body?.newPassword || '');
+  if (!validPassword(next)) return bad('Le nouveau mot de passe ne respecte pas les exigences de sécurité.');
+  const full = await env.SIGAT_DB.prepare('SELECT * FROM users WHERE id=?').bind(auth.user.id).first();
+  if (!await verifyPassword(current, full)) return bad('Ancien mot de passe incorrect.', 403);
+  const hp = await hashPassword(next);
+  await env.SIGAT_DB.prepare(`UPDATE users SET password_hash=?,password_salt=?,password_iterations=?,force_password_change=0,session_version=session_version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(hp.hash, hp.salt, hp.iterations, auth.user.id).run();
+  await destroySession(env, request);
+  await audit(env, request, { action: 'PASSWORD_CHANGED', organization_id: auth.user.organization_id, user_id: auth.user.id, actor_user_id: auth.user.id, target_type: 'user', target_id: auth.user.id });
+  return json({ ok: true, message: 'Mot de passe modifié. Veuillez vous reconnecter.' }, 200, { 'Set-Cookie': expiredCookie() });
+}
+
+async function apiDashboard(env, request) {
+  const auth = await getSession(env, request, { allowExpired: false });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
+  if (auth.user.role_code === 'SUPER_ADMIN') return bad('Utilisez le tableau de bord Super Admin.', 403);
+  const ids = await accessibleOrganizationIds(env, auth.user);
+  const { sql, binds } = makeInClause(ids);
+  const summary = {};
+  const wanted = ['agents','missions','controls','offenses','seizures','awareness_actions','plantations','fire_incidents','training_sessions'];
+  for (const table of wanted) {
+    const r = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE organization_id IN (${sql}) AND archived_at IS NULL`).bind(...binds).first();
+    summary[table] = Number(r?.c || 0);
+  }
+  const children = await env.SIGAT_DB.prepare('SELECT COUNT(*) AS c FROM organizations WHERE parent_id=? AND status<>\'CLOSED\'').bind(auth.user.organization_id).first();
+  return ok({ summary, childOrganizations: Number(children?.c || 0), organization: { name: auth.user.organization_name, type: auth.user.organization_type } });
+}
+
+
+async function apiHierarchy(env, request) {
+  const auth = await getSession(env, request, { allowExpired: false });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
+  if (auth.user.role_code === 'SUPER_ADMIN') return bad('Route réservée aux structures métier.', 403);
+  const ids = await accessibleOrganizationIds(env, auth.user);
+  const descendants = ids.filter(id => Number(id) !== Number(auth.user.organization_id));
+  if (!descendants.length) return ok({ items: [] });
+  const { sql, binds } = makeInClause(descendants);
+  const rows = await env.SIGAT_DB.prepare(`
+    SELECT o.id,o.code,o.name,o.organization_type,o.status,o.parent_id,p.name AS parent_name,s.plan,s.end_date,s.status AS subscription_status
+    FROM organizations o LEFT JOIN organizations p ON p.id=o.parent_id LEFT JOIN subscriptions s ON s.organization_id=o.id
+    WHERE o.id IN (${sql}) ORDER BY o.organization_type,o.name
+  `).bind(...binds).all();
+  return ok({ items: rows.results });
+}
+
+async function apiLoad(env, request) {
+  const auth = await getSession(env, request, { allowExpired: false });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
+  if (auth.user.role_code === 'SUPER_ADMIN') return bad('Utilisez les routes Super Admin.', 403);
+  const url = new URL(request.url);
+  const module = url.searchParams.get('module') || '';
+  const table = MODULES[module];
+  if (!table) return bad('Module non autorisé.');
+  const page = Math.max(1, Number(url.searchParams.get('page') || 1));
+  const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
+  const search = String(url.searchParams.get('search') || '').trim();
+  const ids = await accessibleOrganizationIds(env, auth.user);
+  const { sql, binds } = makeInClause(ids);
+  let where = `r.organization_id IN (${sql}) AND r.archived_at IS NULL`;
+  const params = [...binds];
+  if (search) {
+    where += ' AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ?)';
+    const q = `%${search}%`;
+    params.push(q, q, q);
+  }
+  const count = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} r WHERE ${where}`).bind(...params).first();
+  const rows = await env.SIGAT_DB.prepare(`
+    SELECT r.id,r.organization_id,r.reference,r.title,r.event_date,r.status,r.data_json,r.created_at,r.updated_at,o.name AS source_organization
+    FROM ${table} r JOIN organizations o ON o.id=r.organization_id
+    WHERE ${where}
+    ORDER BY COALESCE(r.event_date,r.created_at) DESC,r.id DESC LIMIT ? OFFSET ?
+  `).bind(...params, limit, (page - 1) * limit).all();
+  const items = rows.results.map(r => ({ ...r, data: safeJson(r.data_json), owned: Number(r.organization_id) === Number(auth.user.organization_id), data_json: undefined }));
+  return ok({ module, items, page, limit, total: Number(count?.c || 0), totalPages: Math.max(1, Math.ceil(Number(count?.c || 0) / limit)) });
+}
+
+function safeJson(v) { try { return JSON.parse(v || '{}'); } catch { return {}; } }
+
+async function apiSave(env, request) {
+  const auth = await getSession(env, request, { allowExpired: false });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
+  if (!requireCsrf(request, auth)) return bad('Jeton CSRF invalide.', 403, 'CSRF');
+  if (auth.user.role_code === 'SUPER_ADMIN') return bad('Action non autorisée ici.', 403);
+  if (!['ORGANIZATION_ADMIN','MEMBER'].includes(auth.user.role_code)) return bad('Droits insuffisants.', 403);
+  const body = await parseJson(request);
+  const module = String(body?.module || '');
+  const action = String(body?.action || '');
+  const table = MODULES[module];
+  if (!table || !['create','update','archive','delete'].includes(action)) return bad('Opération invalide.');
+  const orgId = Number(auth.user.organization_id);
+  const payload = body?.payload || {};
+
+  if (action === 'create') {
+    const title = String(payload.title || '').trim();
+    if (!title) return bad('Le titre ou nom principal est obligatoire.');
+    const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
+      .bind(orgId, payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(payload.data || {}), auth.user.id).run();
+    await audit(env, request, { action: 'RECORD_CREATED', organization_id: orgId, actor_user_id: auth.user.id, user_id: auth.user.id, target_type: module, target_id: r.meta.last_row_id, description: title });
+    return ok({ id: r.meta.last_row_id });
+  }
+
+  const id = Number(payload.id);
+  if (!id) return bad('Identifiant manquant.');
+  const owned = await env.SIGAT_DB.prepare(`SELECT id FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).first();
+  if (!owned) return bad('Cette donnée ne peut pas être modifiée par votre structure.', 403, 'NOT_OWNER');
+
+  if (action === 'update') {
+    const title = String(payload.title || '').trim();
+    if (!title) return bad('Le titre ou nom principal est obligatoire.');
+    await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
+      .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(payload.data || {}), id, orgId).run();
+    await audit(env, request, { action: 'RECORD_UPDATED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id, description: title });
+    return ok();
+  }
+
+  await env.SIGAT_DB.prepare(`UPDATE ${table} SET status='ARCHIVED',archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(id, orgId).run();
+  await audit(env, request, { action: action === 'delete' ? 'RECORD_DELETED' : 'RECORD_ARCHIVED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
+  return ok();
+}
+
+async function apiOrgUsers(env, request) {
+  const auth = await getSession(env, request, { allowExpired: true });
+  if (!auth) return bad('Session invalide.', 401);
+  if (auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Droits insuffisants.', 403);
+  const rows = await env.SIGAT_DB.prepare(`SELECT id,username,email,display_name,phone,role_code,status,last_login_at,created_at FROM users WHERE organization_id=? AND deleted_at IS NULL ORDER BY display_name`).bind(auth.user.organization_id).all();
+  return ok({ items: rows.results });
+}
+
+async function apiOrgUserCreate(env, request) {
+  const auth = await getSession(env, request, { allowExpired: false });
+  if (!auth || auth.denied) return bad('Accès refusé.', 403);
+  if (auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Droits insuffisants.', 403);
+  if (!requireCsrf(request, auth)) return bad('Jeton CSRF invalide.', 403);
+  const b = await parseJson(request);
+  const role = String(b?.role || 'MEMBER').toUpperCase();
+  if (!['MEMBER','READ_ONLY'].includes(role)) return bad('Rôle non autorisé.');
+  const username = String(b?.username || '').trim();
+  const email = normalizeIdentifier(b?.email);
+  const displayName = String(b?.displayName || '').trim();
+  const password = String(b?.password || '');
+  if (!username || !displayName || !validPassword(password)) return bad('Informations invalides ou mot de passe trop faible.');
+  const dup = await env.SIGAT_DB.prepare('SELECT id FROM users WHERE lower(username)=? OR (?<>\'\' AND lower(email)=?)').bind(username.toLowerCase(), email, email).first();
+  if (dup) return bad('Identifiant ou e-mail déjà utilisé.');
+  const hp = await hashPassword(password);
+  const r = await env.SIGAT_DB.prepare(`INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status,force_password_change) VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',1)`)
+    .bind(auth.user.organization_id, username, email || null, displayName, b?.phone || null, role, hp.hash, hp.salt, hp.iterations).run();
+  await audit(env, request, { action: 'USER_CREATED', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: r.meta.last_row_id, description: displayName });
+  return ok({ id: r.meta.last_row_id });
+}
+
+async function apiOrgUserAction(env, request, kind) {
+  const auth = await getSession(env, request, { allowExpired: true });
+  if (!auth || auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Droits insuffisants.', 403);
+  if (!requireCsrf(request, auth)) return bad('Jeton CSRF invalide.', 403);
+  const b = await parseJson(request);
+  const target = await env.SIGAT_DB.prepare(`SELECT id,role_code,status FROM users WHERE id=? AND organization_id=? AND deleted_at IS NULL`).bind(Number(b?.userId), auth.user.organization_id).first();
+  if (!target || !['MEMBER','READ_ONLY'].includes(target.role_code)) return bad('Utilisateur non gérable par cet administrateur.', 403);
+  if (kind === 'status') {
+    const status = String(b?.status || '').toUpperCase();
+    if (!['ACTIVE','DISABLED','SUSPENDED'].includes(status)) return bad('Statut invalide.');
+    await env.SIGAT_DB.prepare('UPDATE users SET status=?,session_version=session_version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status, target.id).run();
+    await audit(env, request, { action: 'USER_STATUS_CHANGED', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: target.id, description: status });
+    return ok();
+  }
+  if (kind === 'reset') {
+    const temp = randomPassword();
+    const hp = await hashPassword(temp);
+    await env.SIGAT_DB.prepare(`UPDATE users SET password_hash=?,password_salt=?,password_iterations=?,force_password_change=1,session_version=session_version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(hp.hash, hp.salt, hp.iterations, target.id).run();
+    await env.SIGAT_DB.prepare(`UPDATE password_reset_requests SET status='COMPLETED',handled_by=?,handled_at=CURRENT_TIMESTAMP WHERE user_id=? AND status='PENDING'`).bind(auth.user.id, target.id).run();
+    await audit(env, request, { action: 'PASSWORD_RESET_BY_ADMIN', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: target.id });
+    return ok({ temporaryPassword: temp, message: 'Mot de passe temporaire généré. Il ne sera affiché qu’une seule fois.' });
+  }
+  if (kind === 'delete') {
+    await env.SIGAT_DB.prepare(`UPDATE users SET status='ARCHIVED',deleted_at=CURRENT_TIMESTAMP,session_version=session_version+1 WHERE id=?`).bind(target.id).run();
+    await audit(env, request, { action: 'USER_ARCHIVED', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: target.id });
+    return ok();
+  }
+  return bad('Action invalide.');
+}
+
+async function requireSuper(env, request, write = false) {
+  const auth = await getSession(env, request, { allowExpired: true });
+  if (!auth || auth.user.role_code !== 'SUPER_ADMIN') return { error: bad('Accès Super Admin requis.', 403) };
+  if (write && !requireCsrf(request, auth)) return { error: bad('Jeton CSRF invalide.', 403) };
+  return { auth };
+}
+
+async function superDashboard(env, request) {
+  const { auth, error } = await requireSuper(env, request); if (error) return error;
+  const org = await env.SIGAT_DB.prepare(`SELECT COUNT(*) total, SUM(organization_type='PEF') pef, SUM(organization_type='CANTONNEMENT') cantonnements, SUM(organization_type='DIRECTION_REGIONALE') directions, SUM(status='ACTIVE') actifs FROM organizations`).first();
+  const usr = await env.SIGAT_DB.prepare(`SELECT COUNT(*) total, SUM(status='ACTIVE') actifs, SUM(status<>'ACTIVE') inactifs FROM users WHERE role_code<>'SUPER_ADMIN' AND deleted_at IS NULL`).first();
+  const subs = await env.SIGAT_DB.prepare(`SELECT SUM(plan='FREE') free, SUM(plan='STANDARD') standard, SUM(plan='BUSINESS') business FROM subscriptions`).first();
+  return ok({ organizations: org, users: usr, subscriptions: subs });
+}
+
+async function superOrganizations(env, request) {
+  const { error } = await requireSuper(env, request); if (error) return error;
+  const rows = await env.SIGAT_DB.prepare(`
+    SELECT o.id,o.parent_id,o.organization_type,o.code,o.name,o.region,o.department,o.locality,o.phone,o.email,o.status,o.created_at,
+           p.name AS parent_name,s.plan,s.start_date,s.end_date,s.status AS subscription_status
+    FROM organizations o LEFT JOIN organizations p ON p.id=o.parent_id LEFT JOIN subscriptions s ON s.organization_id=o.id
+    ORDER BY o.created_at DESC
+  `).all();
+  return ok({ items: rows.results });
+}
+
+async function createFreeSubscription(env, orgId, actorId) {
+  const existing = await env.SIGAT_DB.prepare('SELECT id FROM subscriptions WHERE organization_id=?').bind(orgId).first();
+  if (existing) return;
+  const start = new Date();
+  const end = new Date(start.getTime() + 20 * 86400000);
+  const ds = d => d.toISOString().slice(0,10);
+  await env.SIGAT_DB.prepare(`INSERT INTO subscriptions(organization_id,plan,price,start_date,end_date,status) VALUES(?,'FREE',0,?,?,'TRIAL')`).bind(orgId, ds(start), ds(end)).run();
+  await env.SIGAT_DB.prepare(`INSERT INTO subscription_history(organization_id,old_plan,new_plan,start_date,end_date,price,mode_activation,activated_by) VALUES(?,NULL,'FREE',?,?,0,'AUTO_ACTIVATION',?)`).bind(orgId, ds(start), ds(end), actorId).run();
+}
+
+async function superOrganizationAction(env, request) {
+  const { auth, error } = await requireSuper(env, request, true); if (error) return error;
+  const b = await parseJson(request);
+  const id = Number(b?.organizationId);
+  const action = String(b?.action || '');
+  const org = await env.SIGAT_DB.prepare('SELECT * FROM organizations WHERE id=?').bind(id).first();
+  if (!org) return bad('Structure introuvable.', 404);
+  if (action === 'status') {
+    const status = String(b?.status || '').toUpperCase();
+    if (!['PENDING','ACTIVE','SUSPENDED','CLOSED'].includes(status)) return bad('Statut invalide.');
+    await env.SIGAT_DB.prepare('UPDATE organizations SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run();
+    if (status === 'ACTIVE') await createFreeSubscription(env, id, auth.user.id);
+    if (status !== 'ACTIVE') await env.SIGAT_DB.prepare('UPDATE users SET session_version=session_version+1 WHERE organization_id=?').bind(id).run();
+    await audit(env, request, { action: 'ORGANIZATION_STATUS_CHANGED', actor_user_id: auth.user.id, organization_id: id, target_type: 'organization', target_id: id, description: status });
+    return ok();
+  }
+  if (action === 'parent') {
+    const parentId = b?.parentId ? Number(b.parentId) : null;
+    await env.SIGAT_DB.prepare('UPDATE organizations SET parent_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(parentId,id).run();
+    await audit(env, request, { action: 'ORGANIZATION_PARENT_CHANGED', actor_user_id: auth.user.id, organization_id: id, target_type: 'organization', target_id: id, description: String(parentId || '') });
+    return ok();
+  }
+  return bad('Action invalide.');
+}
+
+async function superUsers(env, request) {
+  const { error } = await requireSuper(env, request); if (error) return error;
+  const rows = await env.SIGAT_DB.prepare(`
+    SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.last_login_at,u.created_at,o.name AS organization_name,o.organization_type
+    FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
+    WHERE u.deleted_at IS NULL ORDER BY u.created_at DESC
+  `).all();
+  return ok({ items: rows.results });
+}
+
+async function superUserAction(env, request, kind) {
+  const { auth, error } = await requireSuper(env, request, true); if (error) return error;
+  const b = await parseJson(request);
+  const id = Number(b?.userId);
+  const target = await env.SIGAT_DB.prepare('SELECT id,organization_id,role_code FROM users WHERE id=? AND deleted_at IS NULL').bind(id).first();
+  if (!target) return bad('Utilisateur introuvable.',404);
+  if (target.role_code === 'SUPER_ADMIN' && target.id === auth.user.id) return bad('Cette action n’est pas autorisée sur votre propre compte Super Admin.',403);
+  if (kind === 'update') {
+    const displayName = String(b?.displayName || '').trim();
+    const email = normalizeIdentifier(b?.email);
+    const phone = String(b?.phone || '').trim() || null;
+    const role = String(b?.roleCode || target.role_code).toUpperCase();
+    const organizationId = b?.organizationId === null || b?.organizationId === '' ? null : Number(b.organizationId);
+    if (!displayName) return bad('Nom requis.');
+    if (!['ORGANIZATION_ADMIN','MEMBER','READ_ONLY'].includes(role)) return bad('Rôle non autorisé.');
+    if (!organizationId) return bad('Une structure de rattachement est requise.');
+    const org = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE id=?').bind(organizationId).first();
+    if (!org) return bad('Structure introuvable.');
+    await env.SIGAT_DB.prepare('UPDATE users SET display_name=?,email=?,phone=?,role_code=?,organization_id=?,updated_at=CURRENT_TIMESTAMP,session_version=session_version+1 WHERE id=?')
+      .bind(displayName,email||null,phone,role,organizationId,id).run();
+    await audit(env, request, { action: 'USER_UPDATED_BY_SUPERADMIN', actor_user_id: auth.user.id, organization_id: organizationId, target_type: 'user', target_id: id });
+    return ok();
+  }
+  if (kind === 'status') {
+    const status = String(b?.status || '').toUpperCase();
+    if (!['ACTIVE','DISABLED','SUSPENDED'].includes(status)) return bad('Statut invalide.');
+    await env.SIGAT_DB.prepare('UPDATE users SET status=?,session_version=session_version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run();
+    await audit(env, request, { action: 'SUPERADMIN_USER_STATUS', actor_user_id: auth.user.id, organization_id: target.organization_id, target_type: 'user', target_id: id, description: status });
+    return ok();
+  }
+  if (kind === 'reset') {
+    const temp = randomPassword(); const hp = await hashPassword(temp);
+    await env.SIGAT_DB.prepare(`UPDATE users SET password_hash=?,password_salt=?,password_iterations=?,force_password_change=1,session_version=session_version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(hp.hash,hp.salt,hp.iterations,id).run();
+    await env.SIGAT_DB.prepare(`UPDATE password_reset_requests SET status='COMPLETED',handled_by=?,handled_at=CURRENT_TIMESTAMP WHERE user_id=? AND status='PENDING'`).bind(auth.user.id,id).run();
+    await audit(env, request, { action: 'PASSWORD_RESET_BY_SUPERADMIN', actor_user_id: auth.user.id, organization_id: target.organization_id, target_type: 'user', target_id: id });
+    return ok({ temporaryPassword: temp, message: 'Mot de passe temporaire généré. Il ne sera affiché qu’une seule fois.' });
+  }
+  if (kind === 'invalidate') {
+    await env.SIGAT_DB.prepare('UPDATE users SET session_version=session_version+1 WHERE id=?').bind(id).run();
+    await audit(env, request, { action: 'SESSIONS_INVALIDATED', actor_user_id: auth.user.id, organization_id: target.organization_id, target_type: 'user', target_id: id });
+    return ok();
+  }
+  if (kind === 'delete') {
+    await env.SIGAT_DB.prepare(`UPDATE users SET status='ARCHIVED',deleted_at=CURRENT_TIMESTAMP,session_version=session_version+1 WHERE id=?`).bind(id).run();
+    await audit(env, request, { action: 'USER_ARCHIVED_BY_SUPERADMIN', actor_user_id: auth.user.id, organization_id: target.organization_id, target_type: 'user', target_id: id });
+    return ok();
+  }
+  return bad('Action invalide.');
+}
+
+async function superSubscriptions(env, request) {
+  const { error } = await requireSuper(env, request); if (error) return error;
+  const rows = await env.SIGAT_DB.prepare(`SELECT s.*,o.name AS organization_name,o.organization_type,o.code FROM subscriptions s JOIN organizations o ON o.id=s.organization_id ORDER BY s.end_date ASC`).all();
+  return ok({ items: rows.results });
+}
+
+async function superSetPlan(env, request) {
+  const { auth, error } = await requireSuper(env, request, true); if (error) return error;
+  const b = await parseJson(request);
+  const orgId = Number(b?.organizationId);
+  const plan = String(b?.plan || '').toUpperCase();
+  const plans = { FREE: { days:20, price:0, status:'TRIAL' }, STANDARD:{days:30,price:20600,status:'ACTIVE'}, BUSINESS:{days:365,price:181000,status:'ACTIVE'} };
+  const cfg = plans[plan]; if (!cfg) return bad('Plan invalide.');
+  const org = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE id=?').bind(orgId).first(); if (!org) return bad('Structure introuvable.',404);
+  const old = await env.SIGAT_DB.prepare('SELECT plan FROM subscriptions WHERE organization_id=?').bind(orgId).first();
+  const start = new Date(); const end = new Date(start.getTime()+cfg.days*86400000); const ds=d=>d.toISOString().slice(0,10);
+  await env.SIGAT_DB.prepare(`INSERT INTO subscriptions(organization_id,plan,price,start_date,end_date,status) VALUES(?,?,?,?,?,?) ON CONFLICT(organization_id) DO UPDATE SET plan=excluded.plan,price=excluded.price,start_date=excluded.start_date,end_date=excluded.end_date,status=excluded.status,updated_at=CURRENT_TIMESTAMP`)
+    .bind(orgId,plan,cfg.price,ds(start),ds(end),cfg.status).run();
+  await env.SIGAT_DB.prepare(`INSERT INTO subscription_history(organization_id,old_plan,new_plan,start_date,end_date,price,mode_activation,activated_by) VALUES(?,?,?,?,?,?,?,?)`)
+    .bind(orgId,old?.plan||null,plan,ds(start),ds(end),cfg.price,'SUPERADMIN',auth.user.id).run();
+  await audit(env, request, { action: 'SUBSCRIPTION_PLAN_SET', actor_user_id: auth.user.id, organization_id: orgId, target_type: 'subscription', target_id: orgId, description: `${plan} ${cfg.price}` });
+  return ok({ plan, startDate: ds(start), endDate: ds(end) });
+}
+
+async function superPasswordRequests(env, request) {
+  const { error } = await requireSuper(env, request); if (error) return error;
+  const rows = await env.SIGAT_DB.prepare(`SELECT r.*,u.display_name,u.username,o.name AS organization_name FROM password_reset_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN organizations o ON o.id=r.organization_id WHERE r.request_type='ADMINISTRATOR' ORDER BY r.requested_at DESC LIMIT 200`).all();
+  return ok({ items: rows.results });
+}
+
+async function orgPasswordRequests(env, request) {
+  const auth = await getSession(env, request, { allowExpired:true });
+  if (!auth || auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Droits insuffisants.',403);
+  const rows = await env.SIGAT_DB.prepare(`SELECT r.*,u.display_name,u.username FROM password_reset_requests r LEFT JOIN users u ON u.id=r.user_id WHERE r.organization_id=? AND r.request_type='USER' ORDER BY r.requested_at DESC LIMIT 200`).bind(auth.user.organization_id).all();
+  return ok({ items: rows.results });
+}
+
+async function superAuditLogs(env, request) {
+  const { error } = await requireSuper(env, request); if (error) return error;
+  const rows = await env.SIGAT_DB.prepare(`SELECT a.*,u.display_name AS actor_name,o.name AS organization_name FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id LEFT JOIN organizations o ON o.id=a.organization_id ORDER BY a.created_at DESC LIMIT 500`).all();
+  return ok({ items: rows.results });
+}
+
+async function routeApi(env, request, url) {
+  const p = url.pathname;
+  const m = request.method.toUpperCase();
+  if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
+  if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
+  if (p === '/api/session' && m === 'GET') return apiSession(env, request);
+  if (p === '/api/register' && m === 'POST') return apiRegister(env, request);
+  if (p === '/api/password-reset-request' && m === 'POST') return apiPasswordResetRequest(env, request);
+  if (p === '/api/change-password' && m === 'POST') return apiChangePassword(env, request);
+  if (p === '/api/dashboard' && m === 'GET') return apiDashboard(env, request);
+  if (p === '/api/hierarchy' && m === 'GET') return apiHierarchy(env, request);
+  if (p === '/api/load' && m === 'GET') return apiLoad(env, request);
+  if (p === '/api/save' && m === 'POST') return apiSave(env, request);
+  if (p === '/api/users' && m === 'GET') return apiOrgUsers(env, request);
+  if (p === '/api/users/create' && m === 'POST') return apiOrgUserCreate(env, request);
+  if (p === '/api/users/status' && m === 'POST') return apiOrgUserAction(env, request, 'status');
+  if (p === '/api/users/reset-password' && m === 'POST') return apiOrgUserAction(env, request, 'reset');
+  if (p === '/api/users/delete' && m === 'POST') return apiOrgUserAction(env, request, 'delete');
+  if (p === '/api/password-requests' && m === 'GET') return orgPasswordRequests(env, request);
+
+  if (p === '/api/superadmin/dashboard' && m === 'GET') return superDashboard(env, request);
+  if (p === '/api/superadmin/organizations' && m === 'GET') return superOrganizations(env, request);
+  if (p === '/api/superadmin/organizations/action' && m === 'POST') return superOrganizationAction(env, request);
+  if (p === '/api/superadmin/users' && m === 'GET') return superUsers(env, request);
+  if (p === '/api/superadmin/users/update' && m === 'POST') return superUserAction(env, request, 'update');
+  if (p === '/api/superadmin/users/status' && m === 'POST') return superUserAction(env, request, 'status');
+  if (p === '/api/superadmin/users/reset-password' && m === 'POST') return superUserAction(env, request, 'reset');
+  if (p === '/api/superadmin/users/invalidate-sessions' && m === 'POST') return superUserAction(env, request, 'invalidate');
+  if (p === '/api/superadmin/users/delete' && m === 'POST') return superUserAction(env, request, 'delete');
+  if (p === '/api/superadmin/subscriptions' && m === 'GET') return superSubscriptions(env, request);
+  if (p === '/api/superadmin/subscriptions/set-plan' && m === 'POST') return superSetPlan(env, request);
+  if (p === '/api/superadmin/password-requests' && m === 'GET') return superPasswordRequests(env, request);
+  if (p === '/api/superadmin/audit-logs' && m === 'GET') return superAuditLogs(env, request);
+  return bad('Route API introuvable.', 404, 'NOT_FOUND');
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    try {
+      if (url.pathname.startsWith('/api/')) return securityHeaders(await routeApi(env, request, url));
+      const response = await env.ASSETS.fetch(request);
+      return securityHeaders(response);
+    } catch (e) {
+      console.error(e);
+      if (url.pathname.startsWith('/api/')) return securityHeaders(bad('Erreur interne du serveur.', 500, 'SERVER_ERROR'));
+      return securityHeaders(new Response('Erreur interne', { status: 500 }));
+    }
+  }
+};

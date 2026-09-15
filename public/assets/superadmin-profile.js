@@ -1,0 +1,2 @@
+import {api,showToast} from './common.js';
+document.addEventListener('DOMContentLoaded',()=>{document.getElementById('saPwdForm').onsubmit=async e=>{e.preventDefault();const a=document.getElementById('saNew').value,b=document.getElementById('saNew2').value;if(a!==b){showToast('Les mots de passe ne correspondent pas.','error');return}try{const r=await api('/api/change-password',{method:'POST',body:{currentPassword:document.getElementById('saOld').value,newPassword:a}});alert(r.message);location.href='/'}catch(err){showToast(err.message,'error')}}});

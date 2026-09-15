@@ -1,0 +1,13 @@
+name = "sigat"
+compatibility_date = "2026-09-15"
+pages_build_output_dir = "./public"
+
+[[kv_namespaces]]
+binding = "SIGAT_KV"
+id = "8f9ad9cb99bd44b880731cb156c2e00b"
+
+[[d1_databases]]
+binding = "SIGAT_DB"
+database_name = "sigat-d1"
+database_id = "ad83e08b-cee9-450e-977d-be4af688656e"
+migrations_dir = "migrations"

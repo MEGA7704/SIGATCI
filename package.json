@@ -1,0 +1,15 @@
+{
+  "name": "sigat-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SIGAT - Système Intégré de Gestion Administrative et Technique",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public --project-name sigat",
+    "db:migrate:local": "wrangler d1 migrations apply sigat-d1 --local",
+    "db:migrate:remote": "wrangler d1 migrations apply sigat-d1 --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.34.0"
+  }
+}
