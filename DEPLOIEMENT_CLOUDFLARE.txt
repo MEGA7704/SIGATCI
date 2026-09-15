@@ -1,0 +1,20 @@
+SIGAT - DEPLOIEMENT CLOUDFLARE PAGES
+
+Cette archive est aplatie: public/, migrations/, wrangler.toml et package.json sont directement a la racine.
+
+Cloudflare Pages (GitHub):
+- Repertoire racine: laisser vide
+- Infrastructure predefinie: Aucun / None
+- Commande de version: laisser vide
+- Repertoire de sortie de version: public
+
+Bindings:
+- KV binding: SIGAT_KV -> namespace SIGAT-KV
+- D1 binding: SIGAT_DB -> database sigat-d1
+
+Variables/secrets:
+- SIGAT_SUPERADMIN_USERNAME
+- SIGAT_SUPERADMIN_EMAIL
+- SIGAT_SUPERADMIN_PASSWORD (Secret)
+
+Apres deploiement, verifier /api/health.
