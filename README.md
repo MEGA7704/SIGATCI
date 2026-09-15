@@ -221,3 +221,7 @@ Après déploiement :
 
 ## Correctif V1.7 — bootstrap D1
 Après le premier déploiement, ouvrir `/api/health` une fois. La route initialise le noyau D1 et crée le compte Super Admin à partir des secrets Cloudflare si nécessaire. Le mot de passe n'est jamais inclus dans le dépôt.
+
+
+## Correctif V1.8 — PBKDF2 Cloudflare
+Cloudflare Workers limite actuellement PBKDF2 à 100 000 itérations. Cette version utilise 100 000 itérations pour la création et la vérification des nouveaux mots de passe. Le mot de passe Super Admin reste fourni uniquement par les secrets Cloudflare et n’est jamais publié dans le dépôt.

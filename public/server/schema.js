@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS users (
   role_code TEXT NOT NULL REFERENCES roles(code),
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
-  password_iterations INTEGER NOT NULL DEFAULT 210000,
+  password_iterations INTEGER NOT NULL DEFAULT 100000,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED','SUSPENDED','ARCHIVED')),
   force_password_change INTEGER NOT NULL DEFAULT 0,
   session_version INTEGER NOT NULL DEFAULT 1,

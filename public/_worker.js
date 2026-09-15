@@ -2,7 +2,7 @@ const SESSION_COOKIE = 'sigat_session';
 const SESSION_TTL = 60 * 60 * 8; // 8 heures
 const LOGIN_WINDOW = 60 * 15;
 const LOGIN_MAX_ATTEMPTS = 5;
-const PBKDF2_ITERATIONS = 210000;
+const PBKDF2_ITERATIONS = 100000;
 const SERVICE_TYPES = Object.freeze(['PEF','CANTONNEMENT','DIRECTION_REGIONALE','DIRECTION_DEPARTEMENTALE']);
 const PARENT_TYPE = Object.freeze({
   PEF:'CANTONNEMENT',
@@ -88,7 +88,7 @@ async function ensureRuntime(env) {
       role_code TEXT NOT NULL DEFAULT 'MEMBER',
       password_hash TEXT,
       password_salt TEXT,
-      password_iterations INTEGER NOT NULL DEFAULT 210000,
+      password_iterations INTEGER NOT NULL DEFAULT 100000,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
       force_password_change INTEGER NOT NULL DEFAULT 0,
       session_version INTEGER NOT NULL DEFAULT 1,
@@ -179,7 +179,7 @@ async function ensureRuntime(env) {
   await addColumnIfMissing(env, 'users', userCols, 'role_code', "TEXT DEFAULT 'MEMBER'");
   await addColumnIfMissing(env, 'users', userCols, 'password_hash', 'TEXT');
   await addColumnIfMissing(env, 'users', userCols, 'password_salt', 'TEXT');
-  await addColumnIfMissing(env, 'users', userCols, 'password_iterations', 'INTEGER DEFAULT 210000');
+  await addColumnIfMissing(env, 'users', userCols, 'password_iterations', 'INTEGER DEFAULT 100000');
   await addColumnIfMissing(env, 'users', userCols, 'status', "TEXT DEFAULT 'ACTIVE'");
   await addColumnIfMissing(env, 'users', userCols, 'force_password_change', 'INTEGER DEFAULT 0');
   await addColumnIfMissing(env, 'users', userCols, 'session_version', 'INTEGER DEFAULT 1');
@@ -225,7 +225,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.7-bootstrap-repair',
+    version: '1.8-pbkdf2-cloudflare-fix',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
