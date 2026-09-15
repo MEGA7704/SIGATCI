@@ -1,0 +1,8 @@
+SIGAT V1.13 — AUTORISATIONS D’ABSENCE
+
+- La section Absences devient « Autorisations d’absence ».
+- Formulaire basé sur le modèle administratif fourni : date de demande, dates de début/fin, durée calculée automatiquement, grade/appellation, matricule, emploi, destination et motif.
+- Popup compact en 3 colonnes sur ordinateur, sans défilement interne.
+- Statuts adaptés : BROUILLON, AUTORISÉ, ANNULÉ.
+- Impression PDF A4 professionnelle reprenant la structure du document fourni : en-tête institutionnel, référence, titre AUTORISATION D’ABSENCE, texte administratif et bloc signature/cachet.
+- La hiérarchie du service source est reprise dans l’en-tête lorsque disponible.

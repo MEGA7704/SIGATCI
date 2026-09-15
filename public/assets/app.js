@@ -11,7 +11,7 @@ function navHTML(user){
   const childLink=CHILD_LABEL[user.organizationType]?`<a href="${withScope('/structures-rattachees/')}">${CHILD_LABEL[user.organizationType]}</a>`:'';
   const userAdminLink=user.role==='ORGANIZATION_ADMIN'?'<a href="/utilisateurs/">Utilisateurs</a>':'';
   const A=p=>withScope(p);
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><nav class="nav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button>Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents</a><a href="${A('/absences/')}">Absences</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button>Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button>Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button>Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`}
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><nav class="nav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button>Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents</a><a href="${A('/absences/')}">Autorisations d’absence</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button>Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button>Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button>Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`}
 
 async function boot(){
   try{session=await loadSession()}catch{return}
@@ -115,10 +115,49 @@ async function compressImage(file){
   return c.toDataURL('image/jpeg',.78);
 }
 
+function inclusiveDays(start,end){
+  if(!start||!end)return '';
+  const a=new Date(`${start}T00:00:00Z`),b=new Date(`${end}T00:00:00Z`);
+  if(Number.isNaN(a.getTime())||Number.isNaN(b.getTime())||b<a)return '';
+  return Math.floor((b-a)/86400000)+1;
+}
+function frenchNumber(n){
+  n=Number(n);const u=['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize'];
+  if(n>=0&&n<=16)return u[n];
+  if(n<20)return 'dix-'+u[n-10];
+  const t={20:'vingt',30:'trente',40:'quarante',50:'cinquante',60:'soixante'};
+  if(n<70){const d=Math.floor(n/10)*10,r=n%10;return t[d]+(r===0?'':r===1?' et un':'-'+u[r]);}
+  if(n<80){const r=n-60;return 'soixante-'+(r<=16?u[r]:'dix-'+u[r-10]);}
+  if(n<100){const r=n-80;return 'quatre-vingt'+(r===0?'s':'-'+(r<=16?u[r]:'dix-'+u[r-10]));}
+  return String(n);
+}
+function longFrDate(v){
+  if(!v)return '—';
+  const d=new Date(`${String(v).slice(0,10)}T00:00:00Z`);if(Number.isNaN(d.getTime()))return fmtDate(v);
+  return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'long',year:'numeric',timeZone:'UTC'}).format(d).replace(/^./,c=>c.toUpperCase());
+}
+function absenceSignerTitle(){
+  const t=session?.user?.organizationType;
+  if(t==='PEF')return 'Le Chef de poste';
+  if(t==='CANTONNEMENT')return 'Le Chef de Cantonnement';
+  if(t==='DIRECTION_REGIONALE')return 'Le Directeur Régional';
+  if(t==='DIRECTION_DEPARTEMENTALE')return 'Le Directeur Départemental';
+  return 'Le Responsable du service';
+}
+function updateAbsenceDays(){
+  if(moduleKey!=='absences')return;
+  const a=document.querySelector('#dynamicFields [data-key="date_debut"]');
+  const b=document.querySelector('#dynamicFields [data-key="date_fin"]');
+  const n=document.querySelector('#dynamicFields [data-key="nombre_jours"]');
+  if(n)n.value=inclusiveDays(a?.value,b?.value);
+}
+
 function openEditor(record=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
   const isPersonnel=moduleKey==='personnel';
+  const isAbsence=moduleKey==='absences';
   d.classList.toggle('personnel-editor',isPersonnel);
+  d.classList.toggle('absence-editor',isAbsence);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${config.singular}`:`Ajouter — ${config.singular}`;
   document.getElementById('recordId').value=record?.id||'';
   const refInput=document.getElementById('recordReference');
@@ -136,6 +175,14 @@ function openEditor(record=null){
     titleField.querySelector('label').textContent='Nom et Prénoms *';
     titleField.classList.remove('full');
     statusField.classList.add('personnel-status-hidden');
+  }else if(isAbsence){
+    refField.querySelector('label').textContent='Référence / N°';
+    dateField.querySelector('label').textContent='Date d’établissement';
+    titleField.querySelector('label').textContent='Nom et Prénoms de l’agent *';
+    titleField.classList.remove('full');
+    statusField.classList.remove('personnel-status-hidden');
+    statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="AUTORISÉ">AUTORISÉ</option><option value="ANNULÉ">ANNULÉ</option>';
+    statusInput.value=record?.status||'AUTORISÉ';
   }else{
     dateField.querySelector('label').textContent='Date';
     titleField.querySelector('label').textContent='Intitulé / nom principal *';
@@ -157,14 +204,20 @@ function openEditor(record=null){
     let el;
     if(type==='textarea'){el=document.createElement('textarea');el.rows=2}
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
-    else{el=document.createElement('input');el.type=type||'text'}
+    else{el=document.createElement('input');el.type=type==='computed'?'number':(type||'text');if(type==='computed'){el.readOnly=true;el.classList.add('computed-field')}}
     el.dataset.key=key;el.value=record?.data?.[key]??'';wrap.appendChild(el);area.appendChild(wrap);
+  }
+  if(isAbsence){
+    const start=document.querySelector('#dynamicFields [data-key="date_debut"]');
+    const end=document.querySelector('#dynamicFields [data-key="date_fin"]');
+    start?.addEventListener('change',updateAbsenceDays);end?.addEventListener('change',updateAbsenceDays);updateAbsenceDays();
   }
   d.showModal();
 }
 
 async function saveRecord(e){
   e.preventDefault();
+  if(moduleKey==='absences')updateAbsenceDays();
   const submit=e.submitter||document.querySelector('#recordForm button[type="submit"]');
   return withButtonLock(submit,async()=>{
     const id=document.getElementById('recordId').value;const data={};
@@ -184,6 +237,19 @@ function printBaseStyles(){return `@page{size:A4;margin:14mm}*{box-sizing:border
 
 function printRecord(record){
   const w=window.open('','_blank');if(!w){professionalAlert('Impression bloquée','Autorisez les fenêtres contextuelles pour imprimer le document.');return}w.opener=null;
+  if(moduleKey==='absences'){
+    const d=record.data||{};
+    const days=Number(d.nombre_jours||inclusiveDays(d.date_debut,d.date_fin)||0);
+    const dayText=days?`${frenchNumber(days)} (${String(days).padStart(2,'0')})`:'—';
+    const org=record.source_organization||session?.user?.organizationName||'Service des Eaux et Forêts';
+    const path=(record.source_path||org).split('›').map(x=>x.trim()).filter(Boolean);
+    const hierarchy=path.map(x=>`<div>${esc(x.toUpperCase())}</div>`).join('');
+    const phrase=`Une autorisation d’absence de <strong>${esc(dayText)} jour${days>1?'s':''}</strong> allant du <strong>${esc(longFrDate(d.date_debut))}</strong> au <strong>${esc(longFrDate(d.date_fin))}</strong> inclus est accordée à <strong>${esc([d.grade,record.title].filter(Boolean).join(' '))}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${d.emploi?`, ${esc(d.emploi)}`:''} en service au <strong>${esc(org)}</strong>${d.destination?` en vue de se rendre à <strong>${esc(d.destination)}</strong>`:''}${d.motif?` pour ${esc(d.motif)}`:''}.`;
+    const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>AUTORISATION D’ABSENCE — ${esc(record.title)}</title><style>${printBaseStyles()}
+      @page{size:A4;margin:12mm 14mm 14mm}.absence-header{display:grid;grid-template-columns:1fr 130px 1fr;gap:12px;align-items:start;margin-bottom:20px}.absence-ministry{font-weight:700;line-height:1.65;font-size:11px}.absence-emblem{height:78px;border:1px solid #d7dfdb;border-radius:50%;display:grid;place-items:center;text-align:center;color:#0b4d3b;font-weight:900;font-size:11px}.absence-republic{text-align:right;font-weight:800;line-height:1.55}.absence-ref{margin:14px 0 30px;font-weight:700}.absence-title{text-align:center;text-decoration:underline;font-weight:900;font-size:22px;margin:0 0 56px}.absence-body{font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:2;text-align:justify}.absence-body .request{text-align:center;margin-bottom:22px}.absence-sign{width:46%;margin-left:auto;margin-top:64px;text-align:center;font-size:14px}.absence-sign strong{display:block;margin-bottom:70px;text-decoration:underline}.absence-status{margin-top:20px;text-align:center;font-size:10px;color:#6f7b75}.print-actions{font-family:Arial,sans-serif}@media print{.absence-status{display:none}}
+    </style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="absence-header"><div class="absence-ministry"><div>MINISTÈRE DES EAUX ET FORÊTS</div><div style="margin-top:5px">CABINET DU MINISTRE</div>${hierarchy}</div><div class="absence-emblem">EAUX<br>ET<br>FORÊTS</div><div class="absence-republic">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span><div style="margin-top:36px">${esc(record.event_date?longFrDate(record.event_date):'')}</div></div></div><div class="absence-ref">N° ${esc(displayValue(record.reference))}</div><div class="absence-title">AUTORISATION D’ABSENCE</div><div class="absence-body"><div class="request">Vu la demande d’absence en date du <strong>${esc(longFrDate(d.date_demande))}</strong>,</div><p>${phrase}</p></div><div class="absence-sign"><strong>${esc(absenceSignerTitle())}</strong><div style="border-top:1px dotted #777;padding-top:8px">Signature et cachet</div></div><div class="absence-status">Document généré par SIGAT — statut : ${esc(record.status||'AUTORISÉ')}</div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
+    w.document.open();w.document.write(html);w.document.close();return;
+  }
   if(moduleKey==='personnel'){
     const v=(key)=>esc(displayValue(record.data?.[key]));
     const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;

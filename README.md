@@ -238,3 +238,7 @@ L'inscription ne demande plus le code du service supérieur. Après activation, 
 - Impression professionnelle A4 / Enregistrer en PDF disponible sur chaque enregistrement et sur les listes visibles.
 - Personnel : importation d’une photo JPG/PNG/WEBP dans le popup Ajouter/Modifier Agent, compression automatique et affichage sur la fiche agent imprimée.
 - Popups d’ajout Administration / Activités techniques / Environnement / Gestion disposés en grille compacte sans défilement interne sur ordinateur ; défilement uniquement en secours sur petit écran.
+
+
+## V1.13 — Autorisations d’absence
+La section Absences est désormais une section de rédaction et de gestion des autorisations d’absence, avec durée calculée automatiquement et impression PDF A4 conforme au modèle administratif fourni.

@@ -75,3 +75,16 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog.personnel-editor .dialog-body{overflow:auto;max-height:72vh}
   #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
 }
+
+
+/* V1.13 — Autorisations d'absence : formulaire compact sans défilement sur grand écran */
+#editorDialog.absence-editor{width:min(1120px,calc(100vw - 24px));max-height:none;overflow:visible}
+#editorDialog.absence-editor .dialog-body{overflow:visible;max-height:none;padding:13px 18px}
+#editorDialog.absence-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.absence-editor #dynamicFields{display:contents}
+#editorDialog.absence-editor .field{margin-bottom:8px}
+#editorDialog.absence-editor .field input,#editorDialog.absence-editor .field select,#editorDialog.absence-editor .field textarea{min-height:36px;padding:7px 10px}
+#editorDialog.absence-editor .computed-field{background:#f1f5f3;font-weight:800;color:#0b4d3b}
+#editorDialog.absence-editor textarea{min-height:54px;resize:none}
+@media(max-width:900px){#editorDialog.absence-editor{width:min(820px,calc(100vw - 18px));max-height:94vh;overflow:hidden}#editorDialog.absence-editor .dialog-body{overflow:auto;max-height:72vh}#editorDialog.absence-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){#editorDialog.absence-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}}
