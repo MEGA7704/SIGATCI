@@ -144,6 +144,14 @@ async function ensureRuntime(env) {
       ip_address TEXT,
       user_agent TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE,
+      setting_key TEXT NOT NULL,
+      setting_value TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(organization_id, setting_key)
     )`
   ];
   for (const sql of ddl) await runDdl(env, sql);
@@ -1180,6 +1188,86 @@ async function superUserAction(env, request, kind) {
   return bad('Action invalide.');
 }
 
+
+const PRINT_SETTING_KEYS = Object.freeze([
+  'ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData'
+]);
+
+function defaultSignerTitle(type) {
+  if (type === 'PEF') return 'Le Chef de poste';
+  if (type === 'CANTONNEMENT') return 'Le Chef de Cantonnement';
+  if (type === 'DIRECTION_REGIONALE') return 'Le Directeur Régional';
+  if (type === 'DIRECTION_DEPARTEMENTALE') return 'Le Directeur Départemental';
+  return 'Le Responsable de la structure';
+}
+
+async function organizationPrintDefaults(env, organizationId) {
+  const rows = await env.SIGAT_DB.prepare(`
+    WITH RECURSIVE chain(id,name,organization_type,parent_id,locality,depth) AS (
+      SELECT id,name,COALESCE(service_type,organization_type),parent_id,locality,0 FROM organizations WHERE id=?
+      UNION ALL
+      SELECT o.id,o.name,COALESCE(o.service_type,o.organization_type),o.parent_id,o.locality,chain.depth+1
+      FROM organizations o JOIN chain ON chain.parent_id=o.id
+      WHERE chain.depth < 8
+    ) SELECT * FROM chain ORDER BY depth ASC
+  `).bind(organizationId).all();
+  const chain = rows.results || [];
+  const own = chain[0] || {};
+  const byType = t => chain.find(x => x.organization_type === t)?.name || '';
+  return {
+    ministry: 'MINISTERE DES EAUX ET FORETS',
+    cabinet: 'CABINET DU MINISTRE',
+    regionalDirection: byType('DIRECTION_REGIONALE'),
+    departmentalDirection: byType('DIRECTION_DEPARTEMENTALE'),
+    cantonment: byType('CANTONNEMENT'),
+    post: own.organization_type === 'PEF' ? (own.name || '') : '',
+    structureName: own.name || '',
+    locality: own.locality || '',
+    referencePrefix: '',
+    republic: 'REPUBLIQUE DE COTE D’IVOIRE',
+    motto: 'Union – Discipline – Travail',
+    signerTitle: defaultSignerTitle(own.organization_type),
+    signerName: '',
+    signerPosition: '',
+    emblemData: '',
+    signatureData: '',
+    stampData: ''
+  };
+}
+
+async function apiPrintSettings(env, request) {
+  const auth = await getSession(env, request, { allowExpired:true });
+  if (!auth || auth.user.role_code === 'SUPER_ADMIN' || !auth.user.organization_id) return bad('Session de structure requise.', 403);
+  const orgId = Number(auth.user.organization_id);
+  const defaults = await organizationPrintDefaults(env, orgId);
+  const rows = await env.SIGAT_DB.prepare('SELECT setting_key,setting_value FROM settings WHERE organization_id=?').bind(orgId).all();
+  const settings = { ...defaults };
+  for (const row of (rows.results || [])) if (PRINT_SETTING_KEYS.includes(row.setting_key)) settings[row.setting_key] = row.setting_value ?? '';
+  return ok({ settings });
+}
+
+async function apiPrintSettingsSave(env, request) {
+  const auth = await getSession(env, request, { allowExpired:true });
+  if (!auth || auth.user.role_code !== 'ORGANIZATION_ADMIN' || !auth.user.organization_id) return bad('Seul l’Administrateur de la structure peut modifier les paramètres d’impression.', 403);
+  if (!requireCsrf(request, auth)) return bad('Jeton CSRF invalide.', 403, 'CSRF');
+  const body = await parseJson(request);
+  const values = body?.settings && typeof body.settings === 'object' ? body.settings : null;
+  if (!values) return bad('Paramètres invalides.');
+  const orgId = Number(auth.user.organization_id);
+  for (const key of PRINT_SETTING_KEYS) {
+    let value = String(values[key] ?? '').trim();
+    const isImage = ['emblemData','signatureData','stampData'].includes(key);
+    const max = isImage ? 450000 : 500;
+    if (value.length > max) return bad(`La valeur « ${key} » est trop volumineuse.`);
+    if (isImage && value && !/^data:image\/(png|jpeg|webp);base64,/i.test(value)) return bad(`Image invalide pour « ${key} ».`);
+    await env.SIGAT_DB.prepare(`INSERT INTO settings(organization_id,setting_key,setting_value,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(organization_id,setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=CURRENT_TIMESTAMP`)
+      .bind(orgId,key,value).run();
+  }
+  await audit(env, request, { action:'PRINT_SETTINGS_UPDATED', organization_id:orgId, user_id:auth.user.id, actor_user_id:auth.user.id, target_type:'settings', target_id:'print', description:'En-tête, référence et signature des impressions mis à jour' });
+  return ok({ saved:true });
+}
+
 async function superSubscriptions(env, request) {
   const { error } = await requireSuper(env, request); if (error) return error;
   const rows = await env.SIGAT_DB.prepare(`SELECT s.*,o.name AS organization_name,COALESCE(o.service_type,o.organization_type) AS organization_type,o.code FROM subscriptions s JOIN organizations o ON o.id=s.organization_id ORDER BY s.end_date ASC`).all();
@@ -1226,7 +1314,7 @@ async function superAuditLogs(env, request) {
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.11-ux-print-photo', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.14-official-print-header', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
@@ -1238,6 +1326,8 @@ async function routeApi(env, request, url) {
   if (p === '/api/hierarchy' && m === 'GET') return apiHierarchy(env, request);
   if (p === '/api/hierarchy-assignment' && m === 'GET') return apiHierarchyAssignment(env, request);
   if (p === '/api/hierarchy-assignment' && m === 'POST') return apiHierarchyAssignmentSave(env, request);
+  if (p === '/api/print-settings' && m === 'GET') return apiPrintSettings(env, request);
+  if (p === '/api/print-settings' && m === 'POST') return apiPrintSettingsSave(env, request);
   if (p === '/api/load' && m === 'GET') return apiLoad(env, request);
   if (p === '/api/save' && m === 'POST') return apiSave(env, request);
   if (p === '/api/users' && m === 'GET') return apiOrgUsers(env, request);

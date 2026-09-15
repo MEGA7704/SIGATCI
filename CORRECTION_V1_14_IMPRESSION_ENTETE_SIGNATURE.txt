@@ -1,0 +1,15 @@
+SIGAT V1.14 — CORRECTION CIBLÉE IMPRESSION / PDF / EN-TÊTE / SIGNATURE
+
+- Réparation et uniformisation des boutons PDF / Imprimer sur les modules.
+- Protection contre double clic avec état « Préparation… ».
+- Impression via document isolé, sans ouvrir de popup navigateur externe.
+- Suppression de « SIGAT — Système Intégré de Gestion Administrative et Technique » dans tous les imprimés.
+- Nouveau pied de page : « Nom de la structure — JJ/MM/AAAA HH:MM:SS ».
+- Nouvelle page Paramètres > En-tête des imprimés.
+- Paramètres enregistrés par structure dans D1 : ministère, cabinet, direction régionale, direction départementale, cantonnement, poste, localité, référence administrative, République, devise, emblème, signataire, signature et cachet.
+- En-tête administratif A4 commun à toutes les impressions.
+- « REPUBLIQUE DE COTE D’IVOIRE » et « Union – Discipline – Travail » en haut à droite.
+- Référence de type N°____________/MINEF/... configurable.
+- Signature du responsable en bas, légèrement à droite et centrée dans son bloc.
+- Les impressions Personnel, Autorisations d’absence, listes et documents génériques utilisent la même charte officielle.
+- Les paramètres d’impression sont privés à chaque structure.

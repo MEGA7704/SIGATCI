@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIGAT — En-tête des imprimés</title><link rel="stylesheet" href="/assets/styles.css"></head>
+<body>
+<main class="container">
+  <div class="page-head"><div><h1>En-tête des imprimés</h1><p>Configurez les mentions administratives, la référence et la signature qui apparaissent sur tous les PDF et impressions de votre structure.</p></div><a class="btn btn-secondary" href="/parametres/">Retour aux paramètres</a></div>
+  <div class="card print-settings-card">
+    <form id="printSettingsForm">
+      <div class="settings-section-title">Mentions administratives</div>
+      <div class="settings-grid">
+        <div class="field"><label>Ministère</label><input name="ministry" placeholder="MINISTERE DES EAUX ET FORETS"></div>
+        <div class="field"><label>Cabinet</label><input name="cabinet" placeholder="CABINET DU MINISTRE"></div>
+        <div class="field"><label>Direction régionale</label><input name="regionalDirection" placeholder="DIRECTION REGIONALE DU GBEKE"></div>
+        <div class="field"><label>Direction départementale</label><input name="departmentalDirection" placeholder="DIRECTION DEPARTEMENTALE DE BEOUMI"></div>
+        <div class="field"><label>Cantonnement</label><input name="cantonment" placeholder="CANTONNEMENT DE BOTRO"></div>
+        <div class="field"><label>Poste / structure</label><input name="post" placeholder="POSTE DES EAUX ET FORETS DE DIABO"></div>
+        <div class="field"><label>Nom de la structure pour le pied de page</label><input name="structureName" placeholder="POSTE DES EAUX ET FORETS DE DIABO"></div>
+        <div class="field"><label>Localité</label><input name="locality" placeholder="Diabo"></div>
+        <div class="field full"><label>Référence administrative après le N°</label><input name="referencePrefix" placeholder="MINEF/CAB/DREF-GB/DDEF-B/CEF-BTR/PEF-DBO"><small class="muted">Exemple imprimé : N°____________/MINEF/CAB/DREF-GB/DDEF-B/CEF-BTR/PEF-DBO</small></div>
+      </div>
+      <div class="settings-section-title">République et emblème</div>
+      <div class="settings-grid">
+        <div class="field"><label>Mention République</label><input name="republic" placeholder="REPUBLIQUE DE COTE D’IVOIRE"></div>
+        <div class="field"><label>Devise républicaine</label><input name="motto" placeholder="Union – Discipline – Travail"></div>
+        <div class="field image-setting"><label>Emblème / armoiries</label><input id="emblemFile" type="file" accept="image/png,image/jpeg,image/webp"><input type="hidden" name="emblemData"><div class="setting-image-preview" data-preview="emblemData"></div></div>
+      </div>
+      <div class="settings-section-title">Responsable signataire</div>
+      <div class="settings-grid">
+        <div class="field"><label>Qualité du signataire</label><input name="signerTitle" placeholder="Le Chef de poste"></div>
+        <div class="field"><label>Nom complet du responsable</label><input name="signerName" placeholder="LT SEYA Gnamien Marie Louise Estelle"></div>
+        <div class="field"><label>Fonction / corps</label><input name="signerPosition" placeholder="Assistant des PVA/Eaux et Forêts"></div>
+        <div class="field image-setting"><label>Signature (facultatif)</label><input id="signatureFile" type="file" accept="image/png,image/jpeg,image/webp"><input type="hidden" name="signatureData"><div class="setting-image-preview" data-preview="signatureData"></div></div>
+        <div class="field image-setting"><label>Cachet (facultatif)</label><input id="stampFile" type="file" accept="image/png,image/jpeg,image/webp"><input type="hidden" name="stampData"><div class="setting-image-preview" data-preview="stampData"></div></div>
+      </div>
+      <div class="settings-actions"><button type="button" class="btn btn-secondary" id="previewBtn">Aperçu de l’en-tête</button><button type="submit" class="btn btn-primary">Enregistrer</button></div>
+    </form>
+  </div>
+</main>
+<dialog id="freePlanDialog" class="dialog"><div class="dialog-head"><strong>Passez à une formule SIGAT payante</strong></div><div class="dialog-body">STANDARD : 20 600 FCFA / 30 jours<br>BUSINESS : 181 000 FCFA / 365 jours</div><div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary">COMPRIS</button></form><a class="btn btn-primary" href="/parametres/abonnement/">ACHETER MON PLAN</a></div></dialog>
+<script type="module" src="/assets/print-settings.js"></script>
+</body></html>

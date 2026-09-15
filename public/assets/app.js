@@ -56,7 +56,7 @@ function setupModule(){
   addBtn.onclick=()=>openEditor();
   const printBtn=document.createElement('button');
   printBtn.className='btn btn-secondary';printBtn.type='button';printBtn.innerHTML='Imprimer la liste / PDF';
-  printBtn.onclick=()=>printCurrentList();
+  printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
   addBtn.parentElement.insertBefore(printBtn,addBtn);
   document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(window.__s);window.__s=setTimeout(()=>{currentSearch=e.target.value;currentPage=1;loadRecords()},300)});
   document.getElementById('recordForm').addEventListener('submit',saveRecord);
@@ -83,7 +83,7 @@ function renderRows(items){
   tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong></td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-archive="${r.id}">Archiver</button>`:'<span class="muted">Consultation</span>'}</div></td></tr>`).join('');
   items.forEach(r=>{
     tb.querySelector(`[data-view="${r.id}"]`)?.addEventListener('click',()=>openDetails(r));
-    tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',()=>printRecord(r));
+    tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
     if(!r.owned)return;
     tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r));
     tb.querySelector(`[data-archive="${r.id}"]`)?.addEventListener('click',e=>archiveRecord(r,e.currentTarget));
@@ -233,45 +233,121 @@ async function archiveRecord(r,button){
   return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:'archive',payload:{id:r.id}}});await professionalAlert('Archivage effectué','L’élément a été archivé avec succès.');loadRecords()}catch(e){await professionalAlert('Archivage impossible',e.message)}},'Archivage…');
 }
 
-function printBaseStyles(){return `@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#18231e;margin:0;font-size:12px}.header{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;border-bottom:3px solid #0b4d3b;padding-bottom:12px;margin-bottom:18px}.header .left{font-weight:700;line-height:1.55}.header .center{text-align:center}.sigat{font-size:24px;font-weight:900;color:#0b4d3b;letter-spacing:1px}.header .right{text-align:right;font-weight:700;line-height:1.55}.motto{font-style:italic;font-size:11px}.title{border:1.5px solid #0b4d3b;background:#f3f7f5;color:#0b4d3b;text-align:center;padding:10px;font-size:19px;font-weight:900;margin:16px 0}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px;margin-bottom:16px}.meta div,.data div{padding:7px 9px;border-bottom:1px solid #dfe6e2}.label{font-size:10px;text-transform:uppercase;color:#68766f;font-weight:800;display:block;margin-bottom:2px}.value{font-weight:700;white-space:pre-wrap}.data{display:grid;grid-template-columns:repeat(2,1fr);gap:0 16px}.photo{width:105px;height:130px;object-fit:cover;border:1px solid #b8c5bf;border-radius:7px}.agent-head{display:grid;grid-template-columns:1fr 120px;gap:18px}.footer{margin-top:28px;padding-top:10px;border-top:1px solid #dfe6e2;text-align:center;color:#66736d;font-size:10px}.print-actions{position:fixed;top:10px;right:10px}@media print{.print-actions{display:none}}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd7d1;padding:7px;text-align:left}th{background:#eef4f1;color:#0b4d3b}`}
+let printSettingsCache=null;
 
-function printRecord(record){
-  const w=window.open('','_blank');if(!w){professionalAlert('Impression bloquée','Autorisez les fenêtres contextuelles pour imprimer le document.');return}w.opener=null;
-  if(moduleKey==='absences'){
-    const d=record.data||{};
-    const days=Number(d.nombre_jours||inclusiveDays(d.date_debut,d.date_fin)||0);
-    const dayText=days?`${frenchNumber(days)} (${String(days).padStart(2,'0')})`:'—';
-    const org=record.source_organization||session?.user?.organizationName||'Service des Eaux et Forêts';
-    const path=(record.source_path||org).split('›').map(x=>x.trim()).filter(Boolean);
-    const hierarchy=path.map(x=>`<div>${esc(x.toUpperCase())}</div>`).join('');
-    const phrase=`Une autorisation d’absence de <strong>${esc(dayText)} jour${days>1?'s':''}</strong> allant du <strong>${esc(longFrDate(d.date_debut))}</strong> au <strong>${esc(longFrDate(d.date_fin))}</strong> inclus est accordée à <strong>${esc([d.grade,record.title].filter(Boolean).join(' '))}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${d.emploi?`, ${esc(d.emploi)}`:''} en service au <strong>${esc(org)}</strong>${d.destination?` en vue de se rendre à <strong>${esc(d.destination)}</strong>`:''}${d.motif?` pour ${esc(d.motif)}`:''}.`;
-    const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>AUTORISATION D’ABSENCE — ${esc(record.title)}</title><style>${printBaseStyles()}
-      @page{size:A4;margin:12mm 14mm 14mm}.absence-header{display:grid;grid-template-columns:1fr 130px 1fr;gap:12px;align-items:start;margin-bottom:20px}.absence-ministry{font-weight:700;line-height:1.65;font-size:11px}.absence-emblem{height:78px;border:1px solid #d7dfdb;border-radius:50%;display:grid;place-items:center;text-align:center;color:#0b4d3b;font-weight:900;font-size:11px}.absence-republic{text-align:right;font-weight:800;line-height:1.55}.absence-ref{margin:14px 0 30px;font-weight:700}.absence-title{text-align:center;text-decoration:underline;font-weight:900;font-size:22px;margin:0 0 56px}.absence-body{font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:2;text-align:justify}.absence-body .request{text-align:center;margin-bottom:22px}.absence-sign{width:46%;margin-left:auto;margin-top:64px;text-align:center;font-size:14px}.absence-sign strong{display:block;margin-bottom:70px;text-decoration:underline}.absence-status{margin-top:20px;text-align:center;font-size:10px;color:#6f7b75}.print-actions{font-family:Arial,sans-serif}@media print{.absence-status{display:none}}
-    </style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="absence-header"><div class="absence-ministry"><div>MINISTÈRE DES EAUX ET FORÊTS</div><div style="margin-top:5px">CABINET DU MINISTRE</div>${hierarchy}</div><div class="absence-emblem">EAUX<br>ET<br>FORÊTS</div><div class="absence-republic">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span><div style="margin-top:36px">${esc(record.event_date?longFrDate(record.event_date):'')}</div></div></div><div class="absence-ref">N° ${esc(displayValue(record.reference))}</div><div class="absence-title">AUTORISATION D’ABSENCE</div><div class="absence-body"><div class="request">Vu la demande d’absence en date du <strong>${esc(longFrDate(d.date_demande))}</strong>,</div><p>${phrase}</p></div><div class="absence-sign"><strong>${esc(absenceSignerTitle())}</strong><div style="border-top:1px dotted #777;padding-top:8px">Signature et cachet</div></div><div class="absence-status">Document généré par SIGAT — statut : ${esc(record.status||'AUTORISÉ')}</div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
-    w.document.open();w.document.write(html);w.document.close();return;
-  }
-  if(moduleKey==='personnel'){
-    const v=(key)=>esc(displayValue(record.data?.[key]));
-    const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
-    const title='FICHE DE RENSEIGNEMENT DE L’AGENT';
-    const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${title}</title><style>${printBaseStyles()}
-      .agent-sheet{border:1px solid #b9c8c1;border-radius:8px;overflow:hidden}.agent-sheet-banner{background:#0b4d3b;color:#fff;text-align:center;padding:10px 14px;font-size:17px;font-weight:900;letter-spacing:.05em}.agent-sheet-top{display:grid;grid-template-columns:1fr 125px;gap:18px;padding:18px;border-bottom:1px solid #dfe6e2}.agent-sheet-photo{width:112px;height:138px;object-fit:cover;border:2px solid #0b4d3b;border-radius:7px;background:#f3f7f5}.agent-sheet-photo-empty{display:grid;place-items:center;color:#8a9791;font-weight:800}.agent-sheet-id{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px;align-content:start}.agent-sheet-section{padding:14px 18px 4px}.agent-sheet-section h2{font-size:12px;color:#0b4d3b;text-transform:uppercase;letter-spacing:.08em;border-bottom:2px solid #c9a227;padding-bottom:6px;margin:0 0 8px}.agent-sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}.agent-sheet-cell{padding:8px 0;border-bottom:1px solid #e2e8e5;min-height:47px}.agent-sheet-signatures{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin:28px 18px 12px}.signature-box{text-align:center;padding-top:8px}.signature-line{height:52px;border-bottom:1px dotted #728079;margin-bottom:5px}.document-note{font-size:9px;color:#78847f;margin:10px 18px 15px;text-align:center}
-      @media print{.agent-sheet{break-inside:avoid}.header{margin-bottom:12px}.title{display:none}}
-    </style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="header"><div class="left">MINISTÈRE DES EAUX ET FORÊTS<br>${esc(session?.user?.organizationName||'')}</div><div class="center"><div class="sigat">SIGAT</div><div>Système Intégré de Gestion Administrative et Technique</div></div><div class="right">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span></div></div><div class="agent-sheet"><div class="agent-sheet-banner">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell"><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value" style="font-size:16px;color:#0b4d3b">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Téléphone</span><span class="value">${v('telephone')}</span></div></div><div>${photo}</div></div><div class="agent-sheet-section"><h2>Situation professionnelle et administrative</h2><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div><div class="agent-sheet-cell"><span class="label">Qualité</span><span class="value">${v('qualite')}</span></div></div></div><div class="agent-sheet-signatures"><div class="signature-box"><div class="signature-line"></div><strong>Signature de l’agent</strong></div><div class="signature-box"><div class="signature-line"></div><strong>Visa du responsable / Cachet</strong></div></div><div class="document-note">Fiche générée par SIGAT — ${new Date().toLocaleString('fr-FR')}</div></div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
-    w.document.open();w.document.write(html);w.document.close();return;
-  }
-  const dataRows=config.fields.filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
-  const title=`${config.singular.toUpperCase()} — ${esc(record.title)}`;
-  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${printBaseStyles()}</style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="header"><div class="left">MINISTÈRE DES EAUX ET FORÊTS<br>${esc(session?.user?.organizationName||'')}</div><div class="center"><div class="sigat">SIGAT</div><div>Système Intégré de Gestion Administrative et Technique</div></div><div class="right">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span></div></div><div class="title">${title}</div><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div><div class="footer">Document généré par SIGAT — ${new Date().toLocaleString('fr-FR')}</div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
-  w.document.open();w.document.write(html);w.document.close();
+async function ensurePrintSettings(){
+  if(printSettingsCache)return printSettingsCache;
+  const r=await api('/api/print-settings');
+  printSettingsCache=r.settings||{};
+  return printSettingsCache;
 }
 
-function printCurrentList(){
-  if(!lastItems.length){professionalAlert('Impression','Aucune donnée à imprimer sur cette page.');return}
-  const w=window.open('','_blank');if(!w){professionalAlert('Impression bloquée','Autorisez les fenêtres contextuelles pour imprimer la liste.');return}w.opener=null;
-  const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
-  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(config.title)}</title><style>${printBaseStyles()}</style></head><body><button class="print-actions" onclick="window.print()">Imprimer / Enregistrer en PDF</button><div class="header"><div class="left">MINISTÈRE DES EAUX ET FORÊTS<br>${esc(session?.user?.organizationName||'')}</div><div class="center"><div class="sigat">SIGAT</div><div>Système Intégré de Gestion Administrative et Technique</div></div><div class="right">RÉPUBLIQUE DE CÔTE D’IVOIRE<br><span class="motto">Union – Discipline – Travail</span></div></div><div class="title">${esc(config.title.toUpperCase())}</div><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table><div class="footer">Page SIGAT ${currentPage} — document généré le ${new Date().toLocaleString('fr-FR')}</div><script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
-  w.document.open();w.document.write(html);w.document.close();
+function nowFrDateTime(){
+  const d=new Date();
+  const p=n=>String(n).padStart(2,'0');
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function officialDate(v){
+  if(!v)return '';
+  const d=new Date(`${String(v).slice(0,10)}T00:00:00`);
+  if(Number.isNaN(d.getTime()))return fmtDate(v);
+  return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
+}
+
+function printBaseStyles(){return `@page{size:A4 portrait;margin:13mm 14mm 18mm}*{box-sizing:border-box}html,body{background:#fff}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:11.5px;line-height:1.45;padding-bottom:13mm}.official-header{display:grid;grid-template-columns:minmax(0,1.25fr) 90px minmax(0,1fr);gap:12px;align-items:start;margin-bottom:8px;min-height:142px}.official-left{font-size:10.5px;line-height:1.45;font-weight:500}.official-left .admin-line{display:block;margin:0 0 2px;text-transform:uppercase}.official-left .admin-separator{font-size:8px;letter-spacing:2px;margin:0 0 5px 18px}.official-center{text-align:center;min-height:76px}.official-emblem{max-width:74px;max-height:74px;object-fit:contain}.official-right{text-align:center;font-size:10.5px;line-height:1.35;font-weight:800}.official-right .motto{font-style:italic;font-weight:500;margin-top:2px}.official-right .admin-separator{font-size:8px;letter-spacing:2px;margin-top:2px}.official-right .place-date{font-weight:500;text-align:right;margin-top:58px;font-size:10px}.official-reference{font-size:10.5px;margin:3px 0 22px;font-weight:500}.document-title{text-align:center;text-decoration:underline;font-size:18px;font-weight:900;margin:22px 0 34px}.title-box{border:1.2px solid #1c4b3c;background:#f6f8f7;color:#143e32;text-align:center;padding:8px 10px;font-size:17px;font-weight:900;margin:12px 0 16px}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 18px;margin-bottom:14px}.meta>div,.data>div{padding:6px 8px;border-bottom:1px solid #d9dfdc}.label{font-size:9px;text-transform:uppercase;color:#64716b;font-weight:800;display:block;margin-bottom:2px}.value{font-weight:700;white-space:pre-wrap}.data{display:grid;grid-template-columns:repeat(2,1fr);gap:0 16px}.official-signature{width:43%;margin-left:auto;margin-right:3%;margin-top:44px;text-align:center;break-inside:avoid}.official-signature .signer-title{font-size:11px;margin-bottom:30px}.official-signature .signature-media{height:54px;display:flex;justify-content:center;align-items:flex-end;position:relative}.official-signature .signature-image{max-width:145px;max-height:54px;object-fit:contain;position:relative;z-index:2}.official-signature .stamp-image{max-width:80px;max-height:80px;object-fit:contain;position:absolute;right:5%;bottom:-15px;opacity:.82}.official-signature .signer-name{font-weight:900;text-decoration:underline;margin-top:4px}.official-signature .signer-position{font-size:9.5px;margin-top:2px}.official-footer{position:fixed;left:14mm;right:14mm;bottom:5mm;border-top:1px solid #cfd7d3;padding-top:4px;text-align:center;font-size:8.5px;color:#5d6963}.agent-sheet{border:1px solid #bac6c0;border-radius:7px;overflow:hidden}.agent-sheet-banner{background:#174c3b;color:#fff;text-align:center;padding:9px 12px;font-size:16px;font-weight:900;letter-spacing:.04em}.agent-sheet-top{display:grid;grid-template-columns:1fr 120px;gap:18px;padding:16px;border-bottom:1px solid #dce4e0}.agent-sheet-photo{width:108px;height:132px;object-fit:cover;border:1.5px solid #174c3b;border-radius:5px;background:#f3f5f4}.agent-sheet-photo-empty{display:grid;place-items:center;color:#87928d;font-weight:800}.agent-sheet-id{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;align-content:start}.agent-sheet-section{padding:12px 16px 4px}.agent-sheet-section h2{font-size:11px;color:#174c3b;text-transform:uppercase;letter-spacing:.06em;border-bottom:1.5px solid #b89b44;padding-bottom:5px;margin:0 0 6px}.agent-sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}.agent-sheet-cell{padding:7px 0;border-bottom:1px solid #e2e7e4;min-height:43px}.absence-body{font-family:Georgia,'Times New Roman',serif;font-size:14px;line-height:1.9;text-align:justify;margin-top:22px}.absence-body .request{text-align:center;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:9.5px}th,td{border:1px solid #aebbb5;padding:5px;text-align:left}th{background:#eef2f0;color:#173f33}.no-print{position:fixed;right:12px;top:12px;z-index:9999}@media print{.no-print{display:none!important}.agent-sheet{break-inside:avoid}.official-signature{break-inside:avoid}}`}
+
+function settingsLine(v){return String(v||'').trim()}
+function adminLineHtml(v){const s=settingsLine(v);return s?`<div class="admin-line">${esc(s)}</div><div class="admin-separator">- - - - - -</div>`:''}
+function formattedReference(reference,s){
+  const raw=String(reference||'').trim();
+  const prefix=settingsLine(s.referencePrefix);
+  if(raw&&raw!=='—'&&raw.includes('/'))return `N° ${esc(raw)}`;
+  const number=raw&&raw!=='—'?esc(raw):'____________';
+  return `N°${number}${prefix?`/${esc(prefix)}`:''}`;
+}
+function officialHeaderHtml(s,{reference='',date='',hideReference=false}={}){
+  const left=[s.ministry,s.cabinet,s.regionalDirection,s.departmentalDirection,s.cantonment,s.post].map(adminLineHtml).join('');
+  const emblem=s.emblemData?`<img class="official-emblem" src="${esc(s.emblemData)}" alt="Emblème">`:'';
+  const locality=settingsLine(s.locality);
+  const dateTxt=date?officialDate(date):'';
+  const placeDate=(locality||dateTxt)?`${esc(locality)}${locality&&dateTxt?', le ':''}${esc(dateTxt)}`:'';
+  return `<div class="official-header"><div class="official-left">${left}</div><div class="official-center">${emblem}</div><div class="official-right"><div>${esc(settingsLine(s.republic)||'REPUBLIQUE DE COTE D’IVOIRE')}</div><div class="motto">${esc(settingsLine(s.motto)||'Union – Discipline – Travail')}</div><div class="admin-separator">- - - - - -</div><div class="place-date">${placeDate}</div></div></div>${hideReference?'':`<div class="official-reference">${formattedReference(reference,s)}</div>`}`;
+}
+function officialSignatureHtml(s){
+  const title=settingsLine(s.signerTitle)||absenceSignerTitle();
+  const name=settingsLine(s.signerName);
+  const position=settingsLine(s.signerPosition);
+  const sig=s.signatureData?`<img class="signature-image" src="${esc(s.signatureData)}" alt="Signature">`:'';
+  const stamp=s.stampData?`<img class="stamp-image" src="${esc(s.stampData)}" alt="Cachet">`:'';
+  return `<div class="official-signature"><div class="signer-title">${esc(title)}</div><div class="signature-media">${sig}${stamp}</div>${name?`<div class="signer-name">${esc(name)}</div>`:''}${position?`<div class="signer-position">${esc(position)}</div>`:''}</div>`;
+}
+function officialFooterHtml(s){const name=settingsLine(s.structureName)||session?.user?.organizationName||'Structure';return `<div class="official-footer">${esc(name)} — ${esc(nowFrDateTime())}</div>`}
+
+function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false}){
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body>${officialHeaderHtml(settings,{reference,date,hideReference})}${body}${signature?officialSignatureHtml(settings):''}${officialFooterHtml(settings)}</body></html>`;
+}
+
+async function launchPrint(html){
+  return new Promise((resolve,reject)=>{
+    const frame=document.createElement('iframe');
+    frame.setAttribute('aria-hidden','true');
+    frame.style.cssText='position:fixed;width:1px;height:1px;right:0;bottom:0;border:0;opacity:.01;pointer-events:none;';
+    let finished=false;
+    const done=()=>{if(finished)return;finished=true;setTimeout(()=>frame.remove(),1000);resolve();};
+    const fail=e=>{if(finished)return;finished=true;frame.remove();reject(e instanceof Error?e:new Error('Impression impossible.'));};
+    frame.onload=()=>{
+      try{
+        const w=frame.contentWindow;
+        if(!w)throw new Error('Fenêtre d’impression indisponible.');
+        const images=[...frame.contentDocument.images];
+        const waitImages=Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r})));
+        waitImages.then(()=>setTimeout(()=>{try{w.focus();w.print();setTimeout(done,700)}catch(e){fail(e)}},180));
+      }catch(e){fail(e)}
+    };
+    document.body.appendChild(frame);
+    frame.srcdoc=html;
+    setTimeout(()=>{if(!finished&&frame.contentDocument?.readyState==='complete')frame.onload?.()},1500);
+  });
+}
+
+async function printRecord(record){
+  try{
+    const s=await ensurePrintSettings();
+    let body='';let title='';
+    if(moduleKey==='absences'){
+      const d=record.data||{};
+      const days=Number(d.nombre_jours||inclusiveDays(d.date_debut,d.date_fin)||0);
+      const dayText=days?`${frenchNumber(days)} (${String(days).padStart(2,'0')})`:'—';
+      const org=record.source_organization||session?.user?.organizationName||'Service des Eaux et Forêts';
+      const phrase=`Une autorisation d’absence de <strong>${esc(dayText)} jour${days>1?'s':''}</strong> allant du <strong>${esc(longFrDate(d.date_debut))}</strong> au <strong>${esc(longFrDate(d.date_fin))}</strong> inclus est accordée à <strong>${esc([d.grade,record.title].filter(Boolean).join(' '))}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${d.emploi?`, ${esc(d.emploi)}`:''} en service au <strong>${esc(org)}</strong>${d.destination?` en vue de se rendre à <strong>${esc(d.destination)}</strong>`:''}${d.motif?` pour ${esc(d.motif)}`:''}.`;
+      title='AUTORISATION D’ABSENCE';
+      body=`<div class="document-title">AUTORISATION D’ABSENCE</div><div class="absence-body"><div class="request">Vu la demande d’absence en date du <strong>${esc(longFrDate(d.date_demande))}</strong>,</div><p>${phrase}</p></div>`;
+    }else if(moduleKey==='personnel'){
+      const v=key=>esc(displayValue(record.data?.[key]));
+      const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
+      title='FICHE DE RENSEIGNEMENT DE L’AGENT';
+      body=`<div class="agent-sheet"><div class="agent-sheet-banner">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell"><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value" style="font-size:15px;color:#174c3b">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Téléphone</span><span class="value">${v('telephone')}</span></div></div><div>${photo}</div></div><div class="agent-sheet-section"><h2>Situation professionnelle et administrative</h2><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div><div class="agent-sheet-cell"><span class="label">Qualité</span><span class="value">${v('qualite')}</span></div></div></div></div>`;
+    }else{
+      title=(config?.singular||'Document').toUpperCase();
+      const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
+      body=`<div class="title-box">${esc(title)}</div><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div>`;
+    }
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true});
+    await launchPrint(html);
+  }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
+}
+
+async function printCurrentList(){
+  if(!lastItems.length){await professionalAlert('Impression','Aucune donnée à imprimer sur cette page.');return}
+  try{
+    const s=await ensurePrintSettings();
+    const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
+    const title=config.title.toUpperCase();
+    const body=`<div class="title-box">${esc(title)}</div><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const html=buildPrintDocument({title,body,settings:s,signature:true,hideReference:true});
+    await launchPrint(html);
+  }catch(e){await professionalAlert('Impression impossible',e.message||'La liste n’a pas pu être préparée.');}
 }
 
 document.addEventListener('DOMContentLoaded',boot);

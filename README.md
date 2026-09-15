@@ -242,3 +242,8 @@ L'inscription ne demande plus le code du service supérieur. Après activation, 
 
 ## V1.13 — Autorisations d’absence
 La section Absences est désormais une section de rédaction et de gestion des autorisations d’absence, avec durée calculée automatiquement et impression PDF A4 conforme au modèle administratif fourni.
+
+
+## V1.14 — Impressions officielles
+
+La section **Paramètres > En-tête des imprimés** permet à chaque Administrateur de structure de définir les mentions administratives, la référence, l’emblème et le bloc de signature utilisés sur les impressions/PDF. Les imprimés n’affichent plus le bandeau SIGAT et leur pied de page indique le nom de la structure ainsi que la date et l’heure d’impression.
