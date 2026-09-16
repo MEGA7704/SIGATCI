@@ -269,3 +269,17 @@ La présentation PDF des convocations a été alignée sur le modèle administra
 ## V1.19 — Marges des imprimés et suppression du pied de page
 
 Tous les imprimés A4 utilisent désormais une marge uniforme de **1,5 cm sur les quatre côtés**. Le pied de page automatique contenant le nom de la structure et la date/heure d'impression a été supprimé. L'en-tête administratif reste inchangé.
+
+
+## V1.20 — Marges et typographie des imprimés
+
+Tous les imprimés A4 utilisent désormais :
+- marge haute : **1,5 cm** ;
+- marge basse : **1,2 cm** ;
+- marge gauche : **1,2 cm** ;
+- marge droite : **1,2 cm** ;
+- titres : **Cooper Black, 20 pt** ;
+- corps de texte : **Arial Narrow, 13 pt** ;
+- signature : **Arial Narrow, 13 pt**.
+
+L’en-tête administratif reste inchangé et le pied de page automatique reste supprimé.
