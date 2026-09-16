@@ -289,6 +289,88 @@ function printBaseStyles(){return `@page{size:A4 portrait;margin:13mm 14mm 18mm}
 .list-print table,.list-print table *{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:13pt!important}
 .record-print .official-signature{right:1.2cm}
 .official-footer{display:none!important}
+
+/* V1.21 — Bloc date + signature flexible, sans chevauchement */
+body.record-print{
+  min-height:270mm;
+  padding-bottom:0!important;
+  display:flex;
+  flex-direction:column;
+}
+.record-print .print-main{flex:0 0 auto;min-width:0}
+.record-print .official-signature,
+.record-print.convocation-print .official-signature{
+  position:static!important;
+  right:auto!important;
+  bottom:auto!important;
+  width:43%;
+  margin-left:auto;
+  margin-top:auto;
+  padding-top:9mm;
+  text-align:center;
+  break-inside:avoid!important;
+  page-break-inside:avoid!important;
+  flex:0 0 auto;
+  line-height:1.2;
+}
+.record-print .official-body,
+.record-print .absence-body,
+.record-print .agent-sheet,
+.record-print.convocation-print .official-body{margin-bottom:0!important}
+.official-signature .made-at{
+  margin:0 0 5mm;
+  line-height:1.2;
+  text-align:center;
+  white-space:normal;
+}
+.official-signature .signer-title{
+  margin:0 0 7mm;
+  line-height:1.2;
+  text-align:center;
+}
+.official-signature .signature-media{
+  min-height:18mm;
+  height:auto;
+  display:flex;
+  justify-content:center;
+  align-items:flex-end;
+  gap:4mm;
+  position:relative;
+  margin:0 0 3mm;
+}
+.official-signature .signature-image{
+  max-width:42mm;
+  max-height:18mm;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  position:static;
+}
+.official-signature .stamp-image{
+  max-width:24mm;
+  max-height:24mm;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  position:static;
+  opacity:.82;
+}
+.official-signature .signer-name{
+  margin:0;
+  line-height:1.2;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+.official-signature .signer-position{
+  margin-top:1.5mm;
+  line-height:1.2;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+@media print{
+  body.record-print{min-height:270mm}
+  .record-print .official-signature{break-inside:avoid!important;page-break-inside:avoid!important}
+}
 `}
 
 
@@ -320,7 +402,7 @@ function officialFooterHtml(){return ''}
 
 function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass=''}){
   const bodyClass=(signature?'record-print':'list-print')+(documentClass?` ${documentClass}`:'');
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body class="${bodyClass}">${officialHeaderHtml(settings,{reference,hideReference})}${body}${signature?officialSignatureHtml(settings,date):''}</body></html>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${signature?officialSignatureHtml(settings,date):''}</body></html>`;
 }
 
 async function launchPrint(html){

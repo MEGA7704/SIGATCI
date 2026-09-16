@@ -283,3 +283,6 @@ Tous les imprimés A4 utilisent désormais :
 - signature : **Arial Narrow, 13 pt**.
 
 L’en-tête administratif reste inchangé et le pied de page automatique reste supprimé.
+
+## V1.21 — Date et signature flexibles
+La zone « Fait à ..., le ... » et la signature sont désormais en flux d'impression flexible : elles ne recouvrent plus le corps du texte, ne s'empilent plus et sont repoussées vers le bas lorsque l'espace le permet. Si le document est long, le bloc reste groupé et se place après le contenu ou sur la page suivante.
