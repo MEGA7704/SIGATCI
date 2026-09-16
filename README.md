@@ -262,3 +262,6 @@ La section **Paramètres > En-tête des imprimés** permet à chaque Administrat
 - Formulaire Convocation adapté.
 - Corps des documents : interligne 1,15 ; espacement des paragraphes 1,7 em.
 - Date retirée de l'en-tête et déplacée sous la forme « Fait à …, le … » au-dessus de la signature.
+
+## V1.17 — Convocations
+La présentation PDF des convocations a été alignée sur le modèle administratif fourni : introduction centrée, tableau d'identification, objet, personne à voir, mention de présence, date en bas et bloc signature à droite. Le popup d'édition a également été adapté à cette formule.

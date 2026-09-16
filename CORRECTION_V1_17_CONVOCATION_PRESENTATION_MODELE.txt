@@ -1,0 +1,10 @@
+SIGAT V1.17 — CORRECTION CIBLÉE CONVOCATIONS
+
+- Remplacement de la présentation PDF de la convocation selon le modèle fourni.
+- Corps du document : introduction centrée, tableau M./Mme/Mlle / Profession / Domicile / Date / Heures, bloc Objet, bloc Personne à voir, mention finale.
+- Le titre CONVOCATION reste centré et souligné, avec espacement professionnel après l'en-tête.
+- La date d'établissement reste au bas de page, au-dessus du bloc signature.
+- Le bloc signature reste centré dans l'angle inférieur droit.
+- Popup Ajouter/Modifier adapté à la formule : Civilité, Nom et Prénoms, Profession, Domicile, Date de présentation, Heure, Objet, Personne à voir.
+- Objet et Personne à voir utilisent toute la largeur du popup pour améliorer la saisie.
+- La correction anti-double ouverture de la fenêtre d'impression est conservée.

@@ -99,6 +99,9 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 #editorDialog.convocation-editor #dynamicFields{display:contents}
 #editorDialog.convocation-editor .field{margin-bottom:8px}
 #editorDialog.convocation-editor .field input,#editorDialog.convocation-editor .field select,#editorDialog.convocation-editor .field textarea{min-height:36px;padding:7px 10px}
-#editorDialog.convocation-editor textarea{min-height:54px;resize:none}
+#editorDialog.convocation-editor textarea{min-height:66px;resize:none}
+#editorDialog.convocation-editor .convocation-object-field{grid-column:1/-1}
+#editorDialog.convocation-editor .convocation-person-field{grid-column:1/-1}
+#editorDialog.convocation-editor .convocation-object-field textarea{min-height:74px}
 @media(max-width:900px){#editorDialog.convocation-editor{width:min(820px,calc(100vw - 18px));max-height:94vh;overflow:hidden}#editorDialog.convocation-editor .dialog-body{overflow:auto;max-height:72vh}#editorDialog.convocation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){#editorDialog.convocation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}}
