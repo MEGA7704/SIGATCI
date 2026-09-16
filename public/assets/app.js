@@ -371,6 +371,22 @@ body.record-print{
   body.record-print{min-height:270mm}
   .record-print .official-signature{break-inside:avoid!important;page-break-inside:avoid!important}
 }
+
+/* V1.22 — Typographie spécifique : Autorisations d’absence uniquement */
+.record-print.absence-print .document-title{
+  font-family:"Cooper Black",Cooper,serif!important;
+  font-size:22pt!important;
+}
+.record-print.absence-print .absence-body,
+.record-print.absence-print .absence-body *{
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.record-print.absence-print .absence-body .request,
+.record-print.absence-print .absence-body p{
+  line-height:1.5!important;
+}
 `}
 
 
@@ -463,7 +479,7 @@ async function printRecord(record){
       const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,documentClass:moduleKey==='convocations'?'convocation-print':''});
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,documentClass:moduleKey==='convocations'?'convocation-print':moduleKey==='absences'?'absence-print':''});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
