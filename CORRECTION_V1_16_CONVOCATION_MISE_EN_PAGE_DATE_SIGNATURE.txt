@@ -1,0 +1,9 @@
+SIGAT V1.16 — Correction ciblée Convocations et présentation PDF
+
+- Le corps de la convocation reprend la formule fournie : M./Mme/Mlle, Profession, Domicile, présentation au service avec date/heure et pièce d'identité, Objet de la convocation, Personne à voir, puis la mention de présence nécessaire.
+- Le popup Convocation utilise désormais : Civilité, Profession, Domicile, Date de présentation, Heure de présentation, Objet de la convocation, Personne à voir.
+- Compatibilité maintenue avec les anciennes données « motif » et « voir » à l'impression.
+- Sur tous les documents imprimés : interligne du corps à 1,15 et espacement des paragraphes à 1,7 em.
+- La date a été supprimée de l'en-tête supérieur.
+- La mention « Fait à [localité], le [date] » apparaît en bas à droite, centrée au-dessus de la signature.
+- La signature reste centrée dans son bloc en bas à droite.

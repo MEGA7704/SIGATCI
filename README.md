@@ -256,3 +256,9 @@ La section **Paramètres > En-tête des imprimés** permet à chaque Administrat
 - Tous les imprimés utilisent désormais un titre souligné et une présentation centrale plus homogène.
 - Correction du déclenchement d’impression en double : une seule fenêtre d’impression est lancée par clic.
 - Ajout d’une action **Supprimer** avec confirmation professionnelle. La suppression est définitive et journalisée côté serveur.
+
+## V1.16 — Convocations et date/signature des PDF
+- Nouveau corps officiel des convocations conforme au modèle fourni.
+- Formulaire Convocation adapté.
+- Corps des documents : interligne 1,15 ; espacement des paragraphes 1,7 em.
+- Date retirée de l'en-tête et déplacée sous la forme « Fait à …, le … » au-dessus de la signature.
