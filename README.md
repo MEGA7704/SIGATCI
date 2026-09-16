@@ -265,3 +265,7 @@ La section **Paramètres > En-tête des imprimés** permet à chaque Administrat
 
 ## V1.17 — Convocations
 La présentation PDF des convocations a été alignée sur le modèle administratif fourni : introduction centrée, tableau d'identification, objet, personne à voir, mention de présence, date en bas et bloc signature à droite. Le popup d'édition a également été adapté à cette formule.
+
+## V1.19 — Marges des imprimés et suppression du pied de page
+
+Tous les imprimés A4 utilisent désormais une marge uniforme de **1,5 cm sur les quatre côtés**. Le pied de page automatique contenant le nom de la structure et la date/heure d'impression a été supprimé. L'en-tête administratif reste inchangé.
