@@ -371,3 +371,10 @@ La section **Documents administratifs** intègre désormais un espace **Demande 
 - En-têtes : 12 pt, interligne 1,5.
 - N°/numéro de référence : rouge et gras ; suffixe administratif conservé en noir.
 - AMPLIATIONS : titre 12 pt ; liste et nombres 10 pt sans gras.
+
+## V1.37 — En-têtes 10 pt et référence ciblée
+- Tous les en-têtes d’impression utilisent désormais une taille de 10 pt avec un interligne de 1.
+- Dans la référence administrative, le préfixe `N°` reste noir.
+- Seuls les chiffres du numéro de référence sont affichés en rouge et en gras.
+- Le `/` et le suffixe administratif restent noirs.
+- L’aperçu des paramètres d’impression est aligné sur ces nouvelles règles.

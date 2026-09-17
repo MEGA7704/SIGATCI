@@ -65,14 +65,14 @@ function ampliationRowsHtml(destinationsValue,numbersValue){
 
 function preview(){
   const f=document.getElementById('printSettingsForm'),v=k=>f.elements[k]?.value||'';
-  const left=[v('ministry'),v('cabinet'),v('regionalDirection'),v('departmentalDirection'),v('cantonment'),v('post')].filter(Boolean).map(x=>`<div style="margin:0 0 3px;font-size:12pt;line-height:1.5;font-weight:500">${esc(x)}</div><div style="font-size:9px;line-height:1.5;letter-spacing:3px">- - - - -</div>`).join('');
+  const left=[v('ministry'),v('cabinet'),v('regionalDirection'),v('departmentalDirection'),v('cantonment'),v('post')].filter(Boolean).map(x=>`<div style="margin:0 0 3px;font-size:10pt;line-height:1;font-weight:500">${esc(x)}</div><div style="font-size:8px;line-height:1;letter-spacing:3px">- - - - -</div>`).join('');
   const emblem=v('emblemData')?`<img src="${esc(v('emblemData'))}" style="max-width:75px;max-height:75px">`:'';
   const ampliations=String(v('ampliations')||'').trim();
   const ampliationRows=ampliationRowsHtml(ampliations,v('ampliationNumbers'));
   const ampliationsHtml=ampliationRows?`<div style="width:48%;align-self:end;font-family:'Arial Narrow',Arial,sans-serif;font-size:10pt;font-weight:400"><strong style="display:block;text-decoration:underline;font-size:12pt;line-height:1.15;margin-bottom:7px">AMPLIATIONS</strong>${ampliationRows}</div>`:`<div style="width:48%"></div>`;
   const signatureHtml=`<div style="width:48%;text-align:center"><div>${esc(v('signerTitle')||'Le responsable de la structure')}</div><div style="height:50px"></div><strong style="text-decoration:underline">${esc(v('signerName')||'Nom du responsable')}</strong><div>${esc(v('signerPosition'))}</div></div>`;
   const refSuffix=v('referencePrefix')?`/<span style="color:#111;font-weight:500">${esc(v('referencePrefix'))}</span>`:'';
-  const html=`<div class="print-settings-preview"><div>${left}</div><div style="text-align:center">${emblem}</div><div style="text-align:center;font-size:12pt;line-height:1.5"><strong>${esc(v('republic')||'REPUBLIQUE DE COTE D’IVOIRE')}</strong><br><em>${esc(v('motto')||'Union – Discipline – Travail')}</em></div></div><div style="margin-top:14px;font-size:12pt;line-height:1.5"><span style="color:#d00000;font-weight:900">N°____________</span>${refSuffix}</div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-top:45px">${ampliationsHtml}${signatureHtml}</div>`;
+  const html=`<div class="print-settings-preview"><div>${left}</div><div style="text-align:center">${emblem}</div><div style="text-align:center;font-size:10pt;line-height:1"><strong>${esc(v('republic')||'REPUBLIQUE DE COTE D’IVOIRE')}</strong><br><em>${esc(v('motto')||'Union – Discipline – Travail')}</em></div></div><div style="margin-top:14px;font-size:10pt;line-height:1"><span style="color:#111;font-weight:500">N°____________</span>${refSuffix}</div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-top:45px">${ampliationsHtml}${signatureHtml}</div>`;
   professionalDialog({title:'Aperçu des paramètres d’impression',html,confirmText:'Fermer'});
 }
 document.addEventListener('DOMContentLoaded',boot);

@@ -938,29 +938,31 @@ body.record-print{
 .record-print.explanation-print .explanation-text,.record-print.explanation-print .explanation-response{white-space:normal;overflow-wrap:anywhere}
 .record-print.explanation-print .explanation-deadline{margin:8mm 0 0!important;line-height:1.35!important;text-align:justify!important}
 
-/* V1.36 — Harmonisation générale des en-têtes et des AMPLIATIONS */
+/* V1.37 — En-tête général : 10 pt, interligne 1, seul le chiffre de référence en rouge/gras */
 .official-left,
 .official-right,
 .official-reference{
-  font-size:12pt!important;
-  line-height:1.5!important;
+  font-size:10pt!important;
+  line-height:1!important;
 }
 .official-left .admin-line,
 .official-right .motto,
 .official-reference{
-  line-height:1.5!important;
+  line-height:1!important;
 }
 .official-left .admin-separator,
 .official-right .admin-separator{
-  line-height:1.5!important;
+  line-height:1!important;
 }
-.official-reference .reference-mark{
-  color:#d00000!important;
-  font-weight:900!important;
-}
+.official-reference .reference-prefix,
+.official-reference .reference-nondigit,
 .official-reference .reference-suffix{
   color:#111!important;
   font-weight:500!important;
+}
+.official-reference .reference-number{
+  color:#d00000!important;
+  font-weight:900!important;
 }
 .official-ampliations{
   font-size:10pt!important;
@@ -996,7 +998,12 @@ function formattedReference(reference,s){
       number=raw.replace(/^N[°ºo]?\s*/i,'').trim()||'____________';
     }
   }
-  return `<span class="reference-mark">N°${esc(number)}</span>${suffix?`/<span class="reference-suffix">${esc(suffix)}</span>`:''}`;
+  // Seuls les chiffres du numéro deviennent rouges et gras. Le préfixe N°,
+  // les séparateurs/lettres éventuels et le suffixe administratif restent noirs.
+  const numberHtml=Array.from(number).map(ch=>/\d/.test(ch)
+    ?`<span class="reference-number">${esc(ch)}</span>`
+    :`<span class="reference-nondigit">${esc(ch)}</span>`).join('');
+  return `<span class="reference-prefix">N°</span>${numberHtml}${suffix?`/<span class="reference-suffix">${esc(suffix)}</span>`:''}`;
 }
 function officialHeaderHtml(s,{reference='',hideReference=false}={}){
   const left=[s.ministry,s.cabinet,s.regionalDirection,s.departmentalDirection,s.cantonment,s.post].map(adminLineHtml).join('');
