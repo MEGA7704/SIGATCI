@@ -58,9 +58,9 @@ function ampliationRowsHtml(destinationsValue,numbersValue){
     const label=String(raw||'').trim().replace(/^[-–—•*]+\s*/,'');
     if(!label)return;
     const number=String(numbers[i]||'').trim();
-    rows.push(`<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:baseline;margin:3px 0"><span>- ${esc(label)}</span><strong style="min-width:28px;text-align:right">${number?esc(number):''}</strong></div>`);
+    rows.push(`<div style="display:table-row"><span style="display:table-cell;width:178px;padding:2px 0;vertical-align:baseline;overflow-wrap:anywhere;font-family:'Arial Narrow',Arial,sans-serif;font-size:12pt;line-height:1.15">- ${esc(label)}</span><strong style="display:table-cell;width:34px;padding:2px 0;text-align:center;white-space:nowrap;vertical-align:baseline;font-family:'Arial Narrow',Arial,sans-serif;font-size:12pt;line-height:1.15">${number?esc(number):''}</strong></div>`);
   });
-  return rows.join('');
+  return rows.length?`<div style="display:table;width:212px;max-width:100%;border-collapse:collapse;table-layout:fixed">${rows.join('')}</div>`:'';
 }
 
 function preview(){
@@ -69,7 +69,7 @@ function preview(){
   const emblem=v('emblemData')?`<img src="${esc(v('emblemData'))}" style="max-width:75px;max-height:75px">`:'';
   const ampliations=String(v('ampliations')||'').trim();
   const ampliationRows=ampliationRowsHtml(ampliations,v('ampliationNumbers'));
-  const ampliationsHtml=ampliationRows?`<div style="width:48%;align-self:end"><strong style="text-decoration:underline">AMPLIATIONS</strong><div style="margin-top:7px">${ampliationRows}</div></div>`:`<div style="width:48%"></div>`;
+  const ampliationsHtml=ampliationRows?`<div style="width:48%;align-self:end;font-family:'Arial Narrow',Arial,sans-serif"><strong style="display:block;text-decoration:underline;font-size:14pt;line-height:1.15;margin-bottom:7px">AMPLIATIONS</strong>${ampliationRows}</div>`:`<div style="width:48%"></div>`;
   const signatureHtml=`<div style="width:48%;text-align:center"><div>${esc(v('signerTitle')||'Le responsable de la structure')}</div><div style="height:50px"></div><strong style="text-decoration:underline">${esc(v('signerName')||'Nom du responsable')}</strong><div>${esc(v('signerPosition'))}</div></div>`;
   const html=`<div class="print-settings-preview"><div>${left}</div><div style="text-align:center">${emblem}</div><div style="text-align:center"><strong>${esc(v('republic')||'REPUBLIQUE DE COTE D’IVOIRE')}</strong><br><em>${esc(v('motto')||'Union – Discipline – Travail')}</em></div></div><div style="margin-top:14px"><strong>N°____________${v('referencePrefix')?'/'+esc(v('referencePrefix')):''}</strong></div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-top:45px">${ampliationsHtml}${signatureHtml}</div>`;
   professionalDialog({title:'Aperçu des paramètres d’impression',html,confirmText:'Fermer'});

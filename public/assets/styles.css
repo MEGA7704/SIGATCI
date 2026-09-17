@@ -147,6 +147,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 }
 
 /* === SIGAT V1.24 — AMPLIATIONS : tirets automatiques + nombres/exemplaires === */
-.ampliations-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ampliations-settings-grid{grid-template-columns:minmax(0,2.8fr) minmax(130px,.8fr);column-gap:10px;align-items:start}
 .ampliations-settings-grid textarea{min-height:132px;resize:vertical}
-@media(max-width:700px){.ampliations-settings-grid{grid-template-columns:1fr}.ampliations-settings-grid .full{grid-column:1}}
+.ampliations-settings-grid .field:nth-child(2){min-width:0}
+@media(max-width:700px){.ampliations-settings-grid{grid-template-columns:1fr;row-gap:12px}.ampliations-settings-grid .full{grid-column:1}}

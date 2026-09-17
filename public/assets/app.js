@@ -434,27 +434,45 @@ body.record-print{
   min-width:0;
   align-self:end;
   font-family:"Arial Narrow",Arial,sans-serif!important;
-  font-size:13pt!important;
-  line-height:1.2;
+  font-size:12pt!important;
+  line-height:1.15;
   text-align:left;
   overflow-wrap:anywhere;
 }
 .official-ampliations .ampliations-title{
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:14pt!important;
+  line-height:1.15;
   font-weight:800;
   text-decoration:underline;
   text-underline-offset:2px;
   margin-bottom:2.5mm;
 }
-.official-ampliations .ampliations-content{display:block}
-.official-ampliations .ampliation-row{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  gap:4mm;
-  align-items:baseline;
-  margin:1.2mm 0;
+.official-ampliations .ampliations-content{
+  display:table;
+  width:56mm;
+  max-width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
 }
-.official-ampliations .ampliation-label{min-width:0;overflow-wrap:anywhere}
-.official-ampliations .ampliation-number{min-width:8mm;text-align:right;font-weight:700;white-space:nowrap}
+.official-ampliations .ampliation-row{display:table-row}
+.official-ampliations .ampliation-label{
+  display:table-cell;
+  width:47mm;
+  min-width:0;
+  overflow-wrap:anywhere;
+  padding:.65mm 0;
+  vertical-align:baseline;
+}
+.official-ampliations .ampliation-number{
+  display:table-cell;
+  width:9mm;
+  padding:.65mm 0;
+  text-align:center;
+  font-weight:700;
+  white-space:nowrap;
+  vertical-align:baseline;
+}
 @media print{
   .official-bottom-row{break-inside:avoid!important;page-break-inside:avoid!important}
 }

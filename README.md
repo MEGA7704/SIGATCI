@@ -300,3 +300,12 @@ Correction ciblée des PDF d’autorisations d’absence : titre Cooper Black 22
 
 ## V1.24 — Ampliations : tirets et nombres
 La section AMPLIATIONS ajoute automatiquement un tiret devant chaque destinataire et permet d’indiquer un nombre / nombre d’exemplaires correspondant à chaque ligne.
+
+
+## V1.25 — Ampliations
+La colonne « Nombres / exemplaires » a été rapprochée des destinataires tout en conservant un alignement vertical régulier des nombres sur les PDF et dans l’aperçu.
+
+## V1.26 — Présentation AMPLIATIONS
+- Titre AMPLIATIONS : 14 pt.
+- Liste : 12 pt.
+- Colonne des nombres fixe et parfaitement alignée verticalement.
