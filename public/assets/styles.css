@@ -205,3 +205,38 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog .smart-autofill-field{grid-template-columns:1fr}
   #editorDialog .smart-autofill-field>label,#editorDialog .smart-autofill-field>.smart-source-select,#editorDialog .smart-autofill-field>.smart-help{grid-column:1}
 }
+
+/* V1.29 — Documents administratifs : Cessation / Reprise / Autorisations d’absence */
+.document-page-head{margin-bottom:10px}
+.document-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.document-tab{appearance:none;border:1px solid #b9c8c1;background:#fff;color:#173f33;border-radius:12px;padding:11px 18px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.document-tab:hover{border-color:#0b5a43;background:#f4f8f6}
+.document-tab.is-active{background:#0b4d3b;color:#fff;border-color:#0b4d3b;box-shadow:0 5px 16px rgba(11,77,59,.18)}
+.document-workspace{padding-top:14px}
+.document-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:0 0 14px;border-bottom:1px solid #e1e8e4;margin-bottom:12px}
+.document-section-head h2{margin:2px 0 4px;color:#173f33}
+.document-section-kicker{text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:900;color:#8b7a3b}
+.document-section-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#editorDialog.document-service-editor{width:min(1180px,calc(100vw - 24px));max-height:none;overflow:visible}
+#editorDialog.document-service-editor .dialog-body{overflow:visible;max-height:none;padding:13px 18px}
+#editorDialog.document-service-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.document-service-editor #dynamicFields{display:contents}
+#editorDialog.document-service-editor .field{margin-bottom:8px}
+#editorDialog.document-service-editor .field input,#editorDialog.document-service-editor .field select,#editorDialog.document-service-editor .field textarea{min-height:36px;padding:7px 10px}
+#editorDialog.document-service-editor textarea{min-height:70px;resize:none}
+#editorDialog.document-service-editor .document-wide-field{grid-column:span 2}
+@media(max-width:900px){
+  .document-section-head{align-items:flex-start;flex-direction:column}
+  .document-section-actions{width:100%;justify-content:flex-start}
+  #editorDialog.document-service-editor{width:min(820px,calc(100vw - 18px));max-height:94vh;overflow:hidden}
+  #editorDialog.document-service-editor .dialog-body{overflow:auto;max-height:72vh}
+  #editorDialog.document-service-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .document-tabs{display:grid;grid-template-columns:1fr;gap:8px}
+  .document-tab{padding:10px 8px;font-size:13px}
+  .document-section-actions{display:grid;grid-template-columns:1fr;width:100%}
+  .document-section-actions .btn{width:100%}
+  #editorDialog.document-service-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+  #editorDialog.document-service-editor .document-wide-field{grid-column:1}
+}

@@ -322,3 +322,16 @@ La colonne « Nombres / exemplaires » a été rapprochée des destinataires tou
 
 ## V1.28 — Préremplissage intelligent
 Le formulaire **Fin de stage** propose désormais les stages en cours et préremplit automatiquement les informations connues, tout en laissant tous les champs modifiables. Un moteur de suggestions et de préremplissage contextuel est aussi actif dans les autres modules lorsque des données déjà enregistrées peuvent être réutilisées sans ambiguïté.
+
+## V1.29 — Documents administratifs regroupés
+- Documents administratifs contient désormais Cessation de service, Reprise de service et Autorisations d’absence dans une même page.
+- Cessation et Reprise disposent chacune de leur registre, bouton d’ajout, formulaire métier et PDF administratif.
+- Reprise de service peut être préremplie intelligemment à partir d’une cessation existante.
+- Autorisations d’absence est déplacée sans perte de données ; l’ancienne URL redirige vers le nouvel emplacement.
+
+## V1.30 — Certificats de cessation et reprise adaptés aux modèles
+- Les formulaires **Cessation de service** et **Reprise de service** ont été réorganisés selon les deux modèles administratifs fournis.
+- Ajout du champ **Option** pour restituer des mentions comme « Moniteur des PVA (Option Eaux et Forêts) ».
+- La **Reprise de service** comprend maintenant la nature du congé / absence, proposée par défaut comme « congé administratif ».
+- Le préremplissage intelligent d’une reprise depuis une cessation récupère l’identité, la situation administrative, l’option, le poste d’origine, la date de cessation et les références connues.
+- Les deux PDF reprennent la rédaction des exemples tout en conservant l’en-tête, les marges, la signature flexible et les ampliations configurées.

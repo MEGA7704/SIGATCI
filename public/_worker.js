@@ -946,6 +946,16 @@ async function apiLoad(env, request) {
       params.push('FIN_STAGE');
     }
   }
+  if (module === 'documents') {
+    const documentType = String(url.searchParams.get('documentType') || '').toUpperCase();
+    if (documentType === 'CESSATION_SERVICE') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._document_type') = ? OR UPPER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type'),'')) LIKE '%CESSATION%')`;
+      params.push('CESSATION_SERVICE');
+    } else if (documentType === 'REPRISE_SERVICE') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._document_type') = ? OR UPPER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type'),'')) LIKE '%REPRISE%')`;
+      params.push('REPRISE_SERVICE');
+    }
+  }
   const count = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} r WHERE ${where}`).bind(...params).first();
   const rows = await env.SIGAT_DB.prepare(`
     SELECT r.id,r.organization_id,r.reference,r.title,r.event_date,r.status,r.data_json,r.created_at,r.updated_at,

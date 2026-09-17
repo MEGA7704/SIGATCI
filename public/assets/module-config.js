@@ -1,6 +1,52 @@
 export const MODULE_CONFIG={
   personnel:{title:'Personnel',singular:'Agent',subtitle:'Gestion des agents, matricules, fonctions et statuts.',fields:[['photo','Photo de l’agent','image'],['matricule','Matricule','text'],['emploi','Emploi','text'],['grade','Grade','text'],['classe','Classe','text'],['echelon','Échelon','text'],['fonction','Fonction','text'],['qualite','Qualité','text'],['telephone','Téléphone','text']]},
-  documents:{title:'Documents administratifs',singular:'Document',subtitle:'Attestations, certificats, autorisations et documents officiels.',fields:[['type','Type de document','select','ATTESTATION DE PRÉSENCE|ATTESTATION DE FIN DE STAGE|CERTIFICAT DE PRISE DE SERVICE|CERTIFICAT DE CESSATION DE SERVICE|AUTORISATION D’ABSENCE|AUTRE'],['signataire','Signataire','text'],['objet','Objet','textarea']]},
+  documents:{title:'Documents administratifs',singular:'Document administratif',subtitle:'Attestations, certificats, autorisations et documents officiels.',fields:[],documentTypes:{
+    CESSATION_SERVICE:{label:'Cessation de service',singular:'Cessation de service',addLabel:'Ajouter Cessation',backendModule:'documents',fields:[
+      ['grade_appellation','Grade / appellation (ex. Sergent-chef)','text'],
+      ['matricule','Matricule','text'],
+      ['emploi','Emploi / corps (ex. Moniteur des PVA)','text'],
+      ['option_emploi','Option (ex. Eaux et Forêts)','text'],
+      ['classe','Classe (ex. 1ère classe)','text'],
+      ['echelon','Échelon (ex. 2ème échelon)','text'],
+      ['ancien_service','Service / poste d’origine','text'],
+      ['nouvelle_affectation','Nouveau poste d’affectation','text'],
+      ['decision_numero','N° de la décision de mutation','text'],
+      ['decision_date','Date de la décision de mutation','date'],
+      ['decision_objet','Objet / libellé de la décision de mutation','textarea'],
+      ['date_cessation','Date effective de cessation de service','date']
+    ]},
+    REPRISE_SERVICE:{label:'Reprise de service',singular:'Reprise de service',addLabel:'Ajouter Reprise',backendModule:'documents',fields:[
+      ['grade_appellation','Grade / appellation (ex. Sergent-chef)','text'],
+      ['matricule','Matricule','text'],
+      ['emploi','Emploi / corps (ex. Moniteur des PVA)','text'],
+      ['option_emploi','Option (ex. Eaux et Forêts)','text'],
+      ['classe','Classe (ex. 1ère classe)','text'],
+      ['echelon','Échelon (ex. 1er échelon)','text'],
+      ['date_cessation','Date de cessation des activités professionnelles','date'],
+      ['certificat_cessation_numero','N° du certificat de cessation de service','text'],
+      ['certificat_cessation_date','Date du certificat de cessation (facultatif)','date'],
+      ['certificat_cessation_origine','Autorité / service ayant établi le certificat de cessation','text'],
+      ['duree_conge_jours','Durée du congé (jours)','number'],
+      ['type_conge','Nature du congé / absence','text'],
+      ['decision_numero','N° de la décision autorisant le congé','text'],
+      ['decision_date','Date de la décision','date'],
+      ['decision_autorite','Autorité ayant pris la décision','text'],
+      ['service_reprise','Poste / service de reprise (facultatif)','text'],
+      ['date_reprise','Date effective de reprise de service','date'],
+      ['heure_reprise','Heure de reprise','time']
+    ]},
+    ABSENCE:{label:'Autorisations d’absence',singular:'Autorisation d’absence',addLabel:'Ajouter autorisation',backendModule:'absences',fields:[
+      ['date_demande',"Date de la demande d’absence",'date'],
+      ['date_debut',"Date de début de l’absence",'date'],
+      ['date_fin',"Date de fin de l’absence",'date'],
+      ['nombre_jours',"Nombre de jours",'computed'],
+      ['grade',"Grade / Appellation",'text'],
+      ['matricule','Matricule','text'],
+      ['emploi','Emploi','text'],
+      ['destination','Destination','text'],
+      ['motif','Motif','textarea']
+    ]}
+  }},
   absences:{title:"Autorisations d’absence",singular:"Autorisation d’absence",subtitle:"Rédaction, édition PDF et gestion des autorisations d’absence.",fields:[['date_demande',"Date de la demande d’absence",'date'],['date_debut',"Date de début de l’absence",'date'],['date_fin',"Date de fin de l’absence",'date'],['nombre_jours',"Nombre de jours",'computed'],['grade',"Grade / Appellation",'text'],['matricule','Matricule','text'],['emploi','Emploi','text'],['destination','Destination','text'],['motif','Motif','textarea']]},
   stages:{title:'Stages',singular:'Stage',subtitle:'Stagiaires, mises en stage et attestations de fin de stage.',fields:[],stageTypes:{MISE_STAGE:{label:'Mise en stage',singular:'Mise en stage',addLabel:'Ajouter mise en stage',fields:[['qualite_stagiaire','Qualité du stagiaire','text'],['matricule_stagiaire','Matricule / numéro du stagiaire','text'],['note_service_numero','N° de la note de service','text'],['note_service_date','Date de la note de service','date'],['note_service_origine','Autorité / service émetteur de la note','text'],['date_debut','Date de début du stage','date'],['heure_debut','Heure de début','time'],['duree_mois','Durée du stage (mois)','number'],['date_fin','Date de fin du stage','date'],['theme','Thème du stage','textarea']]},FIN_STAGE:{label:'Fin de stage',singular:'Fin de stage',addLabel:'Ajouter fin de stage',fields:[['qualite_stagiaire','Qualité du stagiaire','text'],['matricule_stagiaire','Matricule / numéro du stagiaire','text'],['niveau_recrutement','Niveau de recrutement / niveau d’études','text'],['date_debut','Date de début du stage','date'],['date_fin','Date de fin du stage','date'],['lettre_mise_stage_numero','N° de la lettre de mise en stage','text'],['lettre_mise_stage_date','Date de la lettre de mise en stage','date']]}}},
   convocations:{title:'Convocations',singular:'Convocation',subtitle:'Registre et édition des convocations administratives.',fields:[['civilite','Civilité (M./Mme/Mlle)','select','M.|Mme|Mlle'],['profession','Profession','text'],['domicile','Domicile','text'],['date_presentation','Date de présentation','date'],['heure','Heure de présentation','time'],['objet_convocation','Objet de la convocation','textarea'],['personne_a_voir','Personne à voir','text']]},

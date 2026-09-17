@@ -1,6 +1,6 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
 import {MODULE_CONFIG} from './module-config.js';
-let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE';
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE';
 const moduleKey=document.body.dataset.module||'';
 const config=MODULE_CONFIG[moduleKey];
 function stageTypeOf(record){
@@ -8,14 +8,37 @@ function stageTypeOf(record){
   return t==='MISE_STAGE'||t==='FIN_STAGE'?t:'FIN_STAGE';
 }
 function stageConfig(type=currentStageType){return config?.stageTypes?.[type]||null}
-function activeFields(record=null){return moduleKey==='stages'?(stageConfig(record?stageTypeOf(record):editorStageType)?.fields||[]):(config?.fields||[])}
-function activeSingular(record=null){return moduleKey==='stages'?(stageConfig(record?stageTypeOf(record):editorStageType)?.singular||'Stage'):(config?.singular||'Document')}
+function documentTypeOf(record){
+  const t=String(record?.data?._document_type||'').toUpperCase();
+  if(['CESSATION_SERVICE','REPRISE_SERVICE','ABSENCE'].includes(t))return t;
+  const legacy=String(record?.data?.type||'').toUpperCase();
+  if(legacy.includes('CESSATION'))return 'CESSATION_SERVICE';
+  if(legacy.includes('REPRISE'))return 'REPRISE_SERVICE';
+  return currentDocumentType;
+}
+function documentConfig(type=currentDocumentType){return config?.documentTypes?.[type]||null}
+function effectiveModule(type=currentDocumentType){return moduleKey==='documents'?(documentConfig(type)?.backendModule||'documents'):moduleKey}
+function activeFields(record=null){
+  if(moduleKey==='stages')return stageConfig(record?stageTypeOf(record):editorStageType)?.fields||[];
+  if(moduleKey==='documents')return documentConfig(record?documentTypeOf(record):editorDocumentType)?.fields||[];
+  return config?.fields||[];
+}
+function activeSingular(record=null){
+  if(moduleKey==='stages')return stageConfig(record?stageTypeOf(record):editorStageType)?.singular||'Stage';
+  if(moduleKey==='documents')return documentConfig(record?documentTypeOf(record):editorDocumentType)?.singular||'Document administratif';
+  return config?.singular||'Document';
+}
 
 
 /* V1.28 — Préremplissage intelligent transversal.
    Les liaisons ci-dessous réutilisent uniquement les données de la structure connectée.
    Les valeurs injectées restent toujours modifiables par l'utilisateur. */
 const SMART_AUTOFILL={
+  documents:{
+    CESSATION_SERVICE:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son identité et sa situation administrative. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade',matricule:'data.matricule',emploi:'data.emploi',classe:'data.classe',echelon:'data.echelon',ancien_service:'$source_organization'}},
+    REPRISE_SERVICE:{sourceModule:'documents',sourceDocumentType:'CESSATION_SERVICE',label:'Cessation de service existante',help:"Sélectionnez un certificat de cessation déjà enregistré : SIGAT reprend automatiquement l’agent, sa situation administrative, la date de cessation et les références du certificat. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade_appellation',matricule:'data.matricule',emploi:'data.emploi',option_emploi:'data.option_emploi',classe:'data.classe',echelon:'data.echelon',service_reprise:'data.ancien_service',date_cessation:'data.date_cessation',certificat_cessation_numero:'$reference',certificat_cessation_date:'$event_date',certificat_cessation_origine:'$source_responsible'}},
+    ABSENCE:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}}
+  },
   absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
   convocations:{sourceModule:'personnel',label:'Personne déjà enregistrée dans le personnel',help:"Le nom et la profession sont proposés automatiquement, puis restent modifiables.",copyTitle:true,map:{profession:'data.emploi'}},
   missions:{sourceModule:'personnel',label:'Chef de mission',help:"Choisissez un agent pour renseigner le chef de mission. Le champ reste modifiable.",map:{chef_mission:'$title'}},
@@ -32,11 +55,13 @@ function smartProfile(){
   const entry=SMART_AUTOFILL[moduleKey];
   if(!entry)return null;
   if(moduleKey==='stages')return entry[editorStageType]||null;
+  if(moduleKey==='documents')return entry[editorDocumentType]||null;
   return entry;
 }
-function ownLoadUrl(module,{stageType='',limit=100}={}){
+function ownLoadUrl(module,{stageType='',documentType='',limit=100}={}){
   const q=new URLSearchParams({module,page:'1',limit:String(limit),search:'',ownedOnly:'1'});
   if(stageType)q.set('stageType',stageType);
+  if(documentType)q.set('documentType',documentType);
   return `/api/load?${q.toString()}`;
 }
 function smartStageKey(r){
@@ -64,7 +89,7 @@ async function loadSmartCandidates(profile,record=null){
       return !endedKeys.has(smartStageKey(r));
     });
   }
-  const resp=await api(ownLoadUrl(profile.sourceModule,{stageType:profile.sourceStageType||''}));
+  const resp=await api(ownLoadUrl(profile.sourceModule,{stageType:profile.sourceStageType||'',documentType:profile.sourceDocumentType||''}));
   return resp.items||[];
 }
 function smartCandidateLabel(profile,r){
@@ -76,12 +101,15 @@ function smartCandidateLabel(profile,r){
   if(profile.sourceModule==='personnel'){
     const d=r.data||{};return [r.title,d.matricule,d.fonction||d.emploi].filter(Boolean).join(' — ');
   }
+  if(profile.sourceModule==='documents')return [r.title,r.reference,r.event_date?fmtDate(r.event_date):''].filter(Boolean).join(' — ');
   return [r.reference,r.title].filter(Boolean).join(' — ');
 }
 function smartGet(r,path){
   if(path==='$title')return r?.title??'';
   if(path==='$reference')return r?.reference??'';
   if(path==='$event_date')return String(r?.event_date||'').slice(0,10);
+  if(path==='$source_organization')return r?.source_organization??session?.user?.organizationName??'';
+  if(path==='$source_responsible')return stageResponsibleIntro(r);
   if(path.startsWith('data.'))return r?.data?.[path.slice(5)]??'';
   return '';
 }
@@ -142,7 +170,9 @@ async function mountSmartAutofill(record=null){
 async function mountHistorySuggestions(record=null){
   try{
     const stageType=moduleKey==='stages'?editorStageType:'';
-    const resp=await api(ownLoadUrl(moduleKey,{stageType}));
+    const historyModule=moduleKey==='documents'?effectiveModule(editorDocumentType):moduleKey;
+    const documentType=moduleKey==='documents'&&historyModule==='documents'?editorDocumentType:'';
+    const resp=await api(ownLoadUrl(historyModule,{stageType,documentType}));
     const items=(resp.items||[]).filter(r=>Number(r.id)!==Number(record?.id||0));
     const title=document.getElementById('recordTitle');
     if(title&&items.length){
@@ -166,7 +196,7 @@ function navHTML(user){
   const childLink=CHILD_LABEL[user.organizationType]?`<a href="${withScope('/structures-rattachees/')}">${CHILD_LABEL[user.organizationType]}</a>`:'';
   const userAdminLink=user.role==='ORGANIZATION_ADMIN'?'<a href="/utilisateurs/">Utilisateurs</a>':'';
   const A=p=>withScope(p);
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button type="button">Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents</a><a href="${A('/absences/')}">Autorisations d’absence</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button type="button">Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button type="button">Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button type="button">Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button type="button">Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents administratifs</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button type="button">Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button type="button">Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button type="button">Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
 }
 
 function bindResponsiveNav(){
@@ -247,8 +277,34 @@ function setStageView(type){
   loadRecords();
 }
 
+function setupDocumentsModule(){
+  document.getElementById('pageTitle').textContent=config.title;
+  document.getElementById('pageSubtitle').textContent=config.subtitle;
+  bindCommonModuleControls();
+  const printBtn=document.getElementById('printListBtn');
+  if(printBtn)printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
+  document.querySelectorAll('[data-document-tab]').forEach(btn=>btn.addEventListener('click',()=>setDocumentView(btn.dataset.documentTab)));
+  const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();
+  setDocumentView(['CESSATION_SERVICE','REPRISE_SERVICE','ABSENCE'].includes(requested)?requested:'CESSATION_SERVICE');
+}
+
+function setDocumentView(type){
+  if(!['CESSATION_SERVICE','REPRISE_SERVICE','ABSENCE'].includes(type))type='CESSATION_SERVICE';
+  currentDocumentType=type;editorDocumentType=type;currentPage=1;
+  document.querySelectorAll('[data-document-tab]').forEach(btn=>{const on=btn.dataset.documentTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
+  const cfg=documentConfig(type)||{};
+  const title=document.getElementById('documentViewTitle');if(title)title.textContent=cfg.label||'Documents administratifs';
+  const sub=document.getElementById('documentViewSubtitle');
+  if(sub)sub.textContent=type==='CESSATION_SERVICE'?'Rédaction et gestion des certificats de cessation de service.':type==='REPRISE_SERVICE'?'Rédaction et gestion des certificats de reprise de service.':"Rédaction, édition PDF et gestion des autorisations d’absence.";
+  const addBtn=document.getElementById('addBtn');
+  if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,type)}
+  const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);
+  loadRecords();
+}
+
 function setupModule(){
   if(moduleKey==='stages'){setupStageModule();return}
+  if(moduleKey==='documents'){setupDocumentsModule();return}
   document.getElementById('pageTitle').textContent=config.title;
   document.getElementById('pageSubtitle').textContent=config.subtitle;
   const addBtn=document.getElementById('addBtn');
@@ -265,8 +321,10 @@ function setupModule(){
 async function loadRecords(){
   try{
     const scope=new URLSearchParams(location.search).get('scopeOrg');
+    const dataModule=effectiveModule();
     const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
-    const d=await api(`/api/load?module=${encodeURIComponent(moduleKey)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
+    const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
+    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
     if(currentPage>d.totalPages){currentPage=d.totalPages;return loadRecords()}
     lastItems=d.items||[];renderRows(lastItems);
     document.getElementById('pageInfo').textContent=`Page ${d.page} / ${d.totalPages} — ${d.total} enregistrement(s)`;
@@ -282,7 +340,7 @@ function renderRows(items){
     tb.querySelector(`[data-view="${r.id}"]`)?.addEventListener('click',()=>openDetails(r));
     tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
     if(!r.owned)return;
-    tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r));
+    tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r,null,moduleKey==='documents'?currentDocumentType:null));
     tb.querySelector(`[data-archive="${r.id}"]`)?.addEventListener('click',e=>archiveRecord(r,e.currentTarget));
     tb.querySelector(`[data-delete="${r.id}"]`)?.addEventListener('click',e=>deleteRecord(r,e.currentTarget));
   });
@@ -344,24 +402,28 @@ function absenceSignerTitle(){
   return 'Le Responsable du service';
 }
 function updateAbsenceDays(){
-  if(moduleKey!=='absences')return;
+  if(!(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE')))return;
   const a=document.querySelector('#dynamicFields [data-key="date_debut"]');
   const b=document.querySelector('#dynamicFields [data-key="date_fin"]');
   const n=document.querySelector('#dynamicFields [data-key="nombre_jours"]');
   if(n)n.value=inclusiveDays(a?.value,b?.value);
 }
 
-function openEditor(record=null,stageTypeOverride=null){
+function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
   const isPersonnel=moduleKey==='personnel';
-  const isAbsence=moduleKey==='absences';
+  const isDocument=moduleKey==='documents';
   const isConvocation=moduleKey==='convocations';
   const isStage=moduleKey==='stages';
   if(isStage)editorStageType=stageTypeOverride||(record?stageTypeOf(record):currentStageType);
+  if(isDocument)editorDocumentType=documentTypeOverride||(record?documentTypeOf(record):currentDocumentType);
+  const isAbsence=moduleKey==='absences'||(isDocument&&editorDocumentType==='ABSENCE');
+  const isServiceDocument=isDocument&&['CESSATION_SERVICE','REPRISE_SERVICE'].includes(editorDocumentType);
   d.classList.toggle('personnel-editor',isPersonnel);
   d.classList.toggle('absence-editor',isAbsence);
   d.classList.toggle('convocation-editor',isConvocation);
   d.classList.toggle('stage-editor',isStage);
+  d.classList.toggle('document-service-editor',isServiceDocument);
   const singular=activeSingular(record);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${singular}`:`Ajouter — ${singular}`;
   document.getElementById('recordId').value=record?.id||'';
@@ -409,6 +471,14 @@ function openEditor(record=null,stageTypeOverride=null){
       statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="ANNULÉE">ANNULÉE</option>';
       statusInput.value=record?.status||'ÉMISE';
     }
+  }else if(isServiceDocument){
+    refField.querySelector('label').textContent='Référence / N° certificat';
+    dateField.querySelector('label').textContent="Date d’établissement";
+    titleField.querySelector('label').textContent='Nom et Prénoms de l’agent *';
+    titleField.classList.remove('full');
+    statusField.classList.remove('personnel-status-hidden');
+    statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMIS">ÉMIS</option><option value="ANNULÉ">ANNULÉ</option>';
+    statusInput.value=record?.status||'ÉMIS';
   }else{
     dateField.querySelector('label').textContent='Date';
     titleField.querySelector('label').textContent='Intitulé / nom principal *';
@@ -424,6 +494,7 @@ function openEditor(record=null,stageTypeOverride=null){
     }
     if(isStage&&key==='theme')wrap.classList.add('stage-theme-field');
     if(isStage&&key==='note_service_origine')wrap.classList.add('stage-wide-field');
+    if(isServiceDocument&&['decision_objet','certificat_cessation_origine','decision_autorite','type_conge'].includes(key))wrap.classList.add('document-wide-field');
     const lab=document.createElement('label');lab.textContent=label;wrap.appendChild(lab);
     if(type==='image'){
       const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key=key;hidden.value=record?.data?.[key]||'';
@@ -440,6 +511,11 @@ function openEditor(record=null,stageTypeOverride=null){
     el.dataset.key=key;el.value=record?.data?.[key]??'';
     if(isStage&&!record&&key==='qualite_stagiaire')el.value='élève Sous-officier';
     if(isStage&&!record&&editorStageType==='MISE_STAGE'&&key==='note_service_origine')el.value='Direction des Ressources Humaines et de la Formation du Ministère des Eaux et Forêts';
+    if(isServiceDocument&&!record&&key==='option_emploi')el.value='Eaux et Forêts';
+    if(isServiceDocument&&!record&&editorDocumentType==='CESSATION_SERVICE'&&key==='decision_objet')el.value='portant mutation des Agents Techniques du Ministère des Eaux et Forêts';
+    if(isServiceDocument&&!record&&editorDocumentType==='CESSATION_SERVICE'&&key==='ancien_service')el.value=session?.user?.organizationName||'';
+    if(isServiceDocument&&!record&&editorDocumentType==='REPRISE_SERVICE'&&key==='type_conge')el.value='congé administratif';
+    if(isServiceDocument&&!record&&editorDocumentType==='REPRISE_SERVICE'&&key==='service_reprise')el.value=session?.user?.organizationName||'';
     wrap.appendChild(el);area.appendChild(wrap);
   }
   const ampliationsWrap=document.createElement('div');
@@ -459,27 +535,31 @@ function openEditor(record=null,stageTypeOverride=null){
 
 async function saveRecord(e){
   e.preventDefault();
-  if(moduleKey==='absences')updateAbsenceDays();
+  if(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE'))updateAbsenceDays();
   const submit=e.submitter||document.querySelector('#recordForm button[type="submit"]');
   return withButtonLock(submit,async()=>{
     const id=document.getElementById('recordId').value;const data={};
     document.querySelectorAll('#dynamicFields [data-key]').forEach(el=>data[el.dataset.key]=el.type==='checkbox'?(el.checked?'1':'0'):el.value);
     if(moduleKey==='stages')data._stage_type=editorStageType;
+    if(moduleKey==='documents'&&editorDocumentType!=='ABSENCE')data._document_type=editorDocumentType;
     const payload={id:id?Number(id):undefined,reference:document.getElementById('recordReference').value,title:document.getElementById('recordTitle').value,eventDate:document.getElementById('recordDate').value,status:document.getElementById('recordStatus').value,data};
-    try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
+    const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):moduleKey;
+    try{await api('/api/save',{method:'POST',body:{module:saveModule,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
   },'Enregistrement…');
 }
 
 async function archiveRecord(r,button){
   const yes=await professionalConfirm('Confirmer l’archivage',`Voulez-vous archiver « ${r.title} » ? L’historique sera conservé.`,{confirmText:'Archiver'});
   if(!yes)return;
-  return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:'archive',payload:{id:r.id}}});await professionalAlert('Archivage effectué','L’élément a été archivé avec succès.');loadRecords()}catch(e){await professionalAlert('Archivage impossible',e.message)}},'Archivage…');
+  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):moduleKey;
+  return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:actionModule,action:'archive',payload:{id:r.id}}});await professionalAlert('Archivage effectué','L’élément a été archivé avec succès.');loadRecords()}catch(e){await professionalAlert('Archivage impossible',e.message)}},'Archivage…');
 }
 
 async function deleteRecord(r,button){
   const yes=await professionalConfirm('Supprimer définitivement',`Voulez-vous supprimer définitivement « ${r.title} » ? Cette action est irréversible.`,{confirmText:'Supprimer',cancelText:'Annuler',danger:true});
   if(!yes)return;
-  return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:'delete',payload:{id:r.id}}});await professionalAlert('Suppression effectuée','L’enregistrement a été supprimé définitivement.');loadRecords()}catch(e){await professionalAlert('Suppression impossible',e.message)}},'Suppression…');
+  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):moduleKey;
+  return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:actionModule,action:'delete',payload:{id:r.id}}});await professionalAlert('Suppression effectuée','L’enregistrement a été supprimé définitivement.');loadRecords()}catch(e){await professionalAlert('Suppression impossible',e.message)}},'Suppression…');
 }
 
 let printSettingsCache=null;
@@ -706,6 +786,13 @@ body.record-print{
 }
 .record-print.stage-print .stage-body{width:94%;line-height:1.35;text-align:justify}
 .record-print.stage-print .stage-body p{line-height:1.35;margin:0 0 1.55em;text-align:justify}
+
+/* V1.29 — Certificats de cessation / reprise de service */
+.record-print.service-document-print .service-document-title{margin-top:28px;margin-bottom:42px}
+.record-print.service-document-print .service-document-body,
+.record-print.service-document-print .service-document-body *{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:13pt!important}
+.record-print.service-document-print .service-document-body{width:92%;line-height:1.35;text-align:justify}
+.record-print.service-document-print .service-document-body p{line-height:1.35;margin:0 0 1.65em;text-align:justify}
 `}
 
 
@@ -830,7 +917,22 @@ async function printRecord(record){
         title='ATTESTATION DE FIN DE STAGE';
         body=`<div class="stage-document-title">ATTESTATION DE FIN DE STAGE</div><div class="official-body stage-body"><p>${esc(intro)}, soussigné(e), atteste que ${ident}${d.niveau_recrutement?`, recrue de niveau <strong>${esc(d.niveau_recrutement)}</strong>`:''}, mis(e) à la disposition du <strong>${esc(org)}</strong> sur la période allant du <strong>${esc(stageDate(d.date_debut))}</strong> au <strong>${esc(stageDate(d.date_fin))}</strong> suivant la lettre de mise en stage <strong>N° ${esc(displayValue(d.lettre_mise_stage_numero))}</strong> du <strong>${esc(stageShortDate(d.lettre_mise_stage_date))}</strong> a effectivement suivi avec assiduité et intérêt le stage sur ladite période.</p><p>En foi de quoi, il est établi la présente attestation de fin de stage pour servir et valoir ce que de droit.</p></div>`;
       }
-    }else if(moduleKey==='absences'){
+    }else if(moduleKey==='documents'&&currentDocumentType==='CESSATION_SERVICE'){
+      const d=record.data||{};const intro=stageResponsibleIntro(record);
+      const employment=[d.emploi,d.option_emploi?`(Option ${d.option_emploi})`:'' ].filter(Boolean).join(' ');
+      const identity=`${d.grade_appellation?`${esc(d.grade_appellation)} `:''}<strong>${esc(record.title)}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${employment?`, ${esc(employment)}`:''}${d.classe?` de <strong>${esc(d.classe)}</strong>`:''}${d.echelon?`, <strong>${esc(d.echelon)}</strong>`:''}`;
+      const decisionText=[d.decision_numero?`par Décision <strong>N° ${esc(d.decision_numero)}</strong>`:'',d.decision_date?`du <strong>${esc(stageShortDate(d.decision_date))}</strong>`:'',d.decision_objet?esc(d.decision_objet):''].filter(Boolean).join(' ');
+      title='CERTIFICAT DE CESSATION DE SERVICE';
+      body=`<div class="document-title service-document-title">CERTIFICAT DE CESSATION DE SERVICE</div><div class="official-body service-document-body"><p>${esc(intro)}, soussigné(e), atteste que ${identity}${d.ancien_service?`, précédemment en service au <strong>${esc(d.ancien_service)}</strong>`:''}${d.nouvelle_affectation?` et muté au <strong>${esc(d.nouvelle_affectation)}</strong>`:''}${decisionText?` ${decisionText}`:''}, cesse service le <strong>${esc(stageDate(d.date_cessation))}</strong> pour rejoindre son nouveau poste d’affectation.</p><p>En foi de quoi, le présent certificat est établi pour servir et valoir ce que de droit.</p></div>`;
+    }else if(moduleKey==='documents'&&currentDocumentType==='REPRISE_SERVICE'){
+      const d=record.data||{};const intro=stageResponsibleIntro(record);const days=Number(d.duree_conge_jours||0);const duration=days?`${esc(frenchNumber(days))} (${String(days).padStart(2,'0')}) jours`:'— jour(s)';
+      const employment=[d.emploi,d.option_emploi?`(Option ${d.option_emploi})`:'' ].filter(Boolean).join(' ');
+      const identity=`${d.grade_appellation?`${esc(d.grade_appellation)} `:''}<strong>${esc(record.title)}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${employment?`, ${esc(employment)}`:''}${d.classe?` de <strong>${esc(d.classe)}</strong>`:''}${d.echelon?`, <strong>${esc(d.echelon)}</strong>`:''}`;
+      const leaveType=String(d.type_conge||'congé administratif').trim();
+      const resumePlace=d.service_reprise?`à son ancien poste, <strong>${esc(d.service_reprise)}</strong>`:'à son ancien poste';
+      title='CERTIFICAT DE REPRISE DE SERVICE';
+      body=`<div class="document-title service-document-title">CERTIFICAT DE REPRISE DE SERVICE</div><div class="official-body service-document-body"><p>${esc(intro)}, soussigné(e), certifie que ${identity}, qui a cessé ses activités professionnelles le <strong>${esc(stageShortDate(d.date_cessation))}</strong>${d.certificat_cessation_numero?` conformément au certificat de cessation de service <strong>N° ${esc(d.certificat_cessation_numero)}</strong>`:''}${d.certificat_cessation_date?` du <strong>${esc(stageShortDate(d.certificat_cessation_date))}</strong>`:''}${d.certificat_cessation_origine?` émanant de <strong>${esc(d.certificat_cessation_origine)}</strong>`:''} pour bénéficier de <strong>${duration}</strong> de ${esc(leaveType)}${d.decision_numero?` suivant la décision <strong>N° ${esc(d.decision_numero)}</strong>`:''}${d.decision_date?` du <strong>${esc(stageShortDate(d.decision_date))}</strong>`:''}${d.decision_autorite?` de <strong>${esc(d.decision_autorite)}</strong>`:''} a repris le service ${resumePlace} le <strong>${esc(stageShortDate(d.date_reprise))}</strong>${d.heure_reprise?` à <strong>${esc(stageTime(d.heure_reprise))}</strong>`:''}.</p><p>En foi de quoi, le présent certificat est établi pour servir et valoir ce que de droit.</p></div>`;
+    }else if(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE')){
       const d=record.data||{};
       const days=Number(d.nombre_jours||inclusiveDays(d.date_debut,d.date_fin)||0);
       const dayText=days?`${frenchNumber(days)} (${String(days).padStart(2,'0')})`:'—';
@@ -859,7 +961,8 @@ async function printRecord(record){
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass:moduleKey==='convocations'?'convocation-print':moduleKey==='absences'?'absence-print':moduleKey==='stages'?'stage-print':''});
+    const documentClass=moduleKey==='convocations'?'convocation-print':(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','REPRISE_SERVICE'].includes(currentDocumentType))?'service-document-print':'';
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
@@ -869,7 +972,7 @@ async function printCurrentList(){
   try{
     const s=await ensurePrintSettings();
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
-    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):config.title.toUpperCase();
+    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE':'REGISTRE DES AUTORISATIONS D’ABSENCE'):config.title.toUpperCase();
     const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);
