@@ -312,3 +312,19 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog.pv-editor .field.full{grid-column:1/-1}
   #editorDialog.pv-editor textarea{min-height:92px}
 }
+\n/* === SIGAT V1.34 — AMPLIATIONS propres à chaque document === */
+.document-ampliations-field{padding:12px!important}
+.document-ampliations-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px}
+.document-ampliations-head>div:first-child{min-width:0;flex:1 1 auto}
+.document-ampliations-head>div:first-child>strong{display:block;color:#173f33;font-size:14px;margin-bottom:3px}
+.document-ampliations-head>div:first-child>small{display:block;color:var(--muted);line-height:1.4}
+.document-ampliations-head>.ampliations-toggle{flex:0 0 min(290px,42%);border-left:1px solid #d9e2de;padding-left:14px}
+.document-ampliations-grid{display:grid;grid-template-columns:minmax(0,2.7fr) minmax(120px,.8fr);gap:10px;align-items:start}
+.document-ampliations-grid .field{margin:0!important;min-width:0}
+.document-ampliations-grid textarea{width:100%;min-height:112px!important;resize:vertical!important;white-space:pre-wrap}
+@media(max-width:700px){
+  .document-ampliations-head{display:block}
+  .document-ampliations-head>.ampliations-toggle{margin-top:10px;border-left:0;border-top:1px solid #d9e2de;padding:10px 0 0;max-width:none}
+  .document-ampliations-grid{grid-template-columns:1fr}
+  .document-ampliations-grid textarea{min-height:104px!important}
+}

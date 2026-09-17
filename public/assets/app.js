@@ -613,10 +613,26 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     wrap.appendChild(el);area.appendChild(wrap);
   }
   const ampliationsWrap=document.createElement('div');
-  ampliationsWrap.className='field full ampliations-toggle-field';
+  ampliationsWrap.className='field full ampliations-toggle-field document-ampliations-field';
   const ampliationsChecked=['1','true','yes','oui'].includes(String(record?.data?._show_ampliations||'').toLowerCase());
-  ampliationsWrap.innerHTML=`<label class="ampliations-toggle"><input type="checkbox" data-key="_show_ampliations" ${ampliationsChecked?'checked':''}><span><strong>Afficher AMPLIATIONS sur le PDF</strong><small>Si activé, la liste configurée dans Paramètres → En-tête des imprimés apparaîtra en bas à gauche, sur la même ligne que la signature.</small></span></label>`;
+  const hasOwn=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
+  const hasDocumentAmpliations=hasOwn(record?.data,'_ampliations');
+  const hasDocumentAmpliationNumbers=hasOwn(record?.data,'_ampliation_numbers');
+  const initialAmpliations=hasDocumentAmpliations?String(record?.data?._ampliations||''):String(printSettingsCache?.ampliations||'');
+  const initialAmpliationNumbers=hasDocumentAmpliationNumbers?String(record?.data?._ampliation_numbers||''):String(printSettingsCache?.ampliationNumbers||'');
+  ampliationsWrap.innerHTML=`<div class="document-ampliations-head"><div><strong>AMPLIATIONS du document</strong><small>Les destinataires sont préremplis depuis Paramètres → En-tête des imprimés. Vous pouvez les modifier ici : ces changements resteront propres à ce document et ne modifieront ni les paramètres généraux ni les autres documents.</small></div><label class="ampliations-toggle"><input type="checkbox" data-key="_show_ampliations" ${ampliationsChecked?'checked':''}><span><strong>Afficher sur le PDF</strong><small>Active ou masque les ampliations uniquement pour ce document.</small></span></label></div><div class="document-ampliations-grid"><div class="field"><label>Destinataires / ampliations</label><textarea rows="5" data-key="_ampliations" placeholder="Un destinataire par ligne">${esc(initialAmpliations)}</textarea></div><div class="field"><label>Nombres / exemplaires</label><textarea rows="5" data-key="_ampliation_numbers" placeholder="Un nombre par ligne">${esc(initialAmpliationNumbers)}</textarea></div></div>`;
   area.appendChild(ampliationsWrap);
+  if(!hasDocumentAmpliations||!hasDocumentAmpliationNumbers){
+    const docId=String(record?.id||'');
+    ensurePrintSettings().then(settings=>{
+      const currentId=String(document.getElementById('recordId')?.value||'');
+      if(currentId!==docId)return;
+      const dest=ampliationsWrap.querySelector('[data-key="_ampliations"]');
+      const nums=ampliationsWrap.querySelector('[data-key="_ampliation_numbers"]');
+      if(!hasDocumentAmpliations&&dest&&!dest.value.trim())dest.value=String(settings?.ampliations||'');
+      if(!hasDocumentAmpliationNumbers&&nums&&!nums.value.trim())nums.value=String(settings?.ampliationNumbers||'');
+    }).catch(()=>{});
+  }
   if(isAbsence){
     const start=document.querySelector('#dynamicFields [data-key="date_debut"]');
     const end=document.querySelector('#dynamicFields [data-key="date_fin"]');
@@ -1085,8 +1101,12 @@ async function printRecord(record){
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
+    const hasOwn=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
+    const documentSettings={...s};
+    if(hasOwn(record.data,'_ampliations'))documentSettings.ampliations=String(record.data?._ampliations||'');
+    if(hasOwn(record.data,'_ampliation_numbers'))documentSettings.ampliationNumbers=String(record.data?._ampliation_numbers||'');
     const documentClass=moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':'';
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass});
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:documentSettings,signature:true,showAmpliations,documentClass});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }

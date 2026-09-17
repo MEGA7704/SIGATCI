@@ -354,3 +354,11 @@ Ajout des sous-registres Cessation de service / congé et Prise de service / mut
 
 ### V1.33 — Popup Procès-verbal responsive
 Le formulaire d'ajout/modification d'un procès-verbal est maintenant présenté en 2 colonnes sur PC/tablette et 1 colonne sur téléphone. Le popup est limité à la hauteur de l'écran et son contenu défile verticalement sans dépasser la fenêtre de l'utilisateur.
+
+
+## V1.34 — Ampliations modifiables par document
+- Chaque formulaire de rédaction affiche les AMPLIATIONS préremplies depuis les paramètres de la structure.
+- Les destinataires et les nombres/exemplaires peuvent être modifiés directement dans le document.
+- Ces modifications sont enregistrées uniquement dans le document concerné (`data_json`) et ne modifient pas les paramètres généraux ni les autres documents.
+- L'utilisateur conserve le choix d'afficher ou non les AMPLIATIONS sur le PDF.
+- Les anciens documents sans personnalisation continuent d'utiliser les ampliations générales de la structure.
