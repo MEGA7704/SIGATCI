@@ -365,3 +365,9 @@ Le formulaire d'ajout/modification d'un procès-verbal est maintenant présenté
 
 ## V1.35 — Demande d’explication
 La section **Documents administratifs** intègre désormais un espace **Demande d’explication** avec préremplissage intelligent depuis le Personnel, formulaire dédié et PDF à deux colonnes **TEXTE / RÉPONSE** conforme au modèle administratif fourni. Les réponses peuvent être complétées ultérieurement par modification du document.
+
+
+## V1.36 — En-têtes et AMPLIATIONS
+- En-têtes : 12 pt, interligne 1,5.
+- N°/numéro de référence : rouge et gras ; suffixe administratif conservé en noir.
+- AMPLIATIONS : titre 12 pt ; liste et nombres 10 pt sans gras.

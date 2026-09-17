@@ -937,6 +937,47 @@ body.record-print{
 .record-print.explanation-print .explanation-table td{border:1px solid #111;width:50%;height:88mm;min-height:88mm;vertical-align:top;padding:4mm 3mm;text-align:justify;line-height:1.35}
 .record-print.explanation-print .explanation-text,.record-print.explanation-print .explanation-response{white-space:normal;overflow-wrap:anywhere}
 .record-print.explanation-print .explanation-deadline{margin:8mm 0 0!important;line-height:1.35!important;text-align:justify!important}
+
+/* V1.36 — Harmonisation générale des en-têtes et des AMPLIATIONS */
+.official-left,
+.official-right,
+.official-reference{
+  font-size:12pt!important;
+  line-height:1.5!important;
+}
+.official-left .admin-line,
+.official-right .motto,
+.official-reference{
+  line-height:1.5!important;
+}
+.official-left .admin-separator,
+.official-right .admin-separator{
+  line-height:1.5!important;
+}
+.official-reference .reference-mark{
+  color:#d00000!important;
+  font-weight:900!important;
+}
+.official-reference .reference-suffix{
+  color:#111!important;
+  font-weight:500!important;
+}
+.official-ampliations{
+  font-size:10pt!important;
+  line-height:1.15!important;
+  font-weight:400!important;
+}
+.official-ampliations .ampliations-title{
+  font-size:12pt!important;
+  line-height:1.15!important;
+  font-weight:800!important;
+}
+.official-ampliations .ampliation-label,
+.official-ampliations .ampliation-number{
+  font-size:10pt!important;
+  line-height:1.15!important;
+  font-weight:400!important;
+}
 `}
 
 
@@ -945,9 +986,17 @@ function adminLineHtml(v){const s=settingsLine(v);return s?`<div class="admin-li
 function formattedReference(reference,s){
   const raw=String(reference||'').trim();
   const prefix=settingsLine(s.referencePrefix);
-  if(raw&&raw!=='—'&&raw.includes('/'))return `N° ${esc(raw)}`;
-  const number=raw&&raw!=='—'?esc(raw):'____________';
-  return `N°${number}${prefix?`/${esc(prefix)}`:''}`;
+  let number='____________', suffix=prefix;
+  if(raw&&raw!=='—'){
+    const slashIndex=raw.indexOf('/');
+    if(slashIndex>=0){
+      number=raw.slice(0,slashIndex).replace(/^N[°ºo]?\s*/i,'').trim()||'____________';
+      suffix=raw.slice(slashIndex+1).trim()||prefix;
+    }else{
+      number=raw.replace(/^N[°ºo]?\s*/i,'').trim()||'____________';
+    }
+  }
+  return `<span class="reference-mark">N°${esc(number)}</span>${suffix?`/<span class="reference-suffix">${esc(suffix)}</span>`:''}`;
 }
 function officialHeaderHtml(s,{reference='',hideReference=false}={}){
   const left=[s.ministry,s.cabinet,s.regionalDirection,s.departmentalDirection,s.cantonment,s.post].map(adminLineHtml).join('');
