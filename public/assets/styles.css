@@ -252,27 +252,63 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 .convocation-section-head h2{margin:2px 0 4px;color:#173f33}
 .convocation-section-kicker{text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:900;color:#8b7a3b}
 .convocation-section-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-#editorDialog.pv-editor{width:min(1180px,calc(100vw - 24px));max-height:none;overflow:visible}
-#editorDialog.pv-editor .dialog-body{overflow:visible;max-height:none;padding:13px 18px}
-#editorDialog.pv-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;align-items:start}
+/* V1.33 — Popup Procès-verbal : 2 colonnes PC, 1 colonne téléphone, défilement adapté à l’écran */
+#editorDialog.pv-editor{
+  width:min(1040px,calc(100vw - 24px));
+  max-height:94vh;
+  max-height:94dvh;
+  overflow:hidden;
+}
+#editorDialog.pv-editor[open]{display:flex;flex-direction:column}
+#editorDialog.pv-editor #recordForm{display:flex;flex:1 1 auto;min-height:0;flex-direction:column}
+#editorDialog.pv-editor .dialog-head{flex:0 0 auto}
+#editorDialog.pv-editor .dialog-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
+  max-height:none;
+  padding:14px 18px;
+}
+#editorDialog.pv-editor .dialog-foot{flex:0 0 auto}
+#editorDialog.pv-editor #recordForm>.dialog-body>.form-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  column-gap:18px;
+  row-gap:0;
+  align-items:start;
+  width:100%;
+}
 #editorDialog.pv-editor #dynamicFields{display:contents}
-#editorDialog.pv-editor .field{margin-bottom:8px}
-#editorDialog.pv-editor .field input,#editorDialog.pv-editor .field select,#editorDialog.pv-editor .field textarea{min-height:36px;padding:7px 10px}
-#editorDialog.pv-editor textarea{min-height:76px;resize:vertical}
+#editorDialog.pv-editor .field{margin-bottom:9px;min-width:0}
+#editorDialog.pv-editor .field input,#editorDialog.pv-editor .field select,#editorDialog.pv-editor .field textarea{min-height:38px;padding:8px 10px}
+#editorDialog.pv-editor textarea{min-height:82px;resize:vertical}
 #editorDialog.pv-editor .pv-wide-field{grid-column:1/-1}
-#editorDialog.pv-editor .pv-wide-field textarea{min-height:82px}
+#editorDialog.pv-editor .pv-wide-field textarea{min-height:90px}
 @media(max-width:900px){
   .convocation-section-head{align-items:flex-start;flex-direction:column}
   .convocation-section-actions{width:100%;justify-content:flex-start}
-  #editorDialog.pv-editor{width:min(820px,calc(100vw - 18px));max-height:94vh;overflow:hidden}
-  #editorDialog.pv-editor .dialog-body{overflow:auto;max-height:72vh}
-  #editorDialog.pv-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #editorDialog.pv-editor{width:min(760px,calc(100vw - 18px));max-height:94vh;max-height:94dvh}
 }
 @media(max-width:620px){
   .convocation-tabs{display:grid;grid-template-columns:1fr;gap:8px}
   .convocation-tab{padding:10px 8px;font-size:13px}
   .convocation-section-actions{display:grid;grid-template-columns:1fr;width:100%}
   .convocation-section-actions .btn{width:100%}
-  #editorDialog.pv-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+  #editorDialog.pv-editor{
+    width:calc(100vw - 12px);
+    max-width:none;
+    max-height:96vh;
+    max-height:96dvh;
+    border-radius:14px;
+  }
+  #editorDialog.pv-editor .dialog-head{padding:12px 14px}
+  #editorDialog.pv-editor .dialog-body{padding:12px 14px}
+  #editorDialog.pv-editor .dialog-foot{padding:11px 14px;gap:8px;position:sticky;bottom:0;background:#fff}
+  #editorDialog.pv-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr;column-gap:0}
   #editorDialog.pv-editor .pv-wide-field{grid-column:1}
+  #editorDialog.pv-editor .field.full{grid-column:1/-1}
+  #editorDialog.pv-editor textarea{min-height:92px}
 }

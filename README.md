@@ -351,3 +351,6 @@ Ajout des sous-registres Cessation de service / congé et Prise de service / mut
 - Les PV peuvent être consultés, imprimés en PDF, modifiés, archivés et supprimés.
 - Une convocation possédant encore un PV ne peut pas être supprimée avant suppression du PV lié.
 - L’impression du PV reprend l’en-tête administratif, la mise en page A4, la date/signature flexible et les ampliations facultatives déjà configurées dans SIGAT.
+
+### V1.33 — Popup Procès-verbal responsive
+Le formulaire d'ajout/modification d'un procès-verbal est maintenant présenté en 2 colonnes sur PC/tablette et 1 colonne sur téléphone. Le popup est limité à la hauteur de l'écran et son contenu défile verticalement sans dépasser la fenêtre de l'utilisateur.
