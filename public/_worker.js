@@ -955,7 +955,7 @@ async function apiLoad(env, request) {
     } else if (documentType === 'REPRISE_SERVICE') {
       where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._document_type') = ? OR (json_extract(COALESCE(r.data_json,'{}'), '$._document_type') IS NULL AND UPPER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type'),'')) LIKE '%REPRISE%'))`;
       params.push('REPRISE_SERVICE');
-    } else if (['CESSATION_CONGE','PRISE_SERVICE_MUTATION'].includes(documentType)) {
+    } else if (['CESSATION_CONGE','PRISE_SERVICE_MUTATION','DEMANDE_EXPLICATION'].includes(documentType)) {
       where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._document_type') = ?`;
       params.push(documentType);
     }

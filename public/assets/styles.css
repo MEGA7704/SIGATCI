@@ -328,3 +328,19 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .document-ampliations-grid{grid-template-columns:1fr}
   .document-ampliations-grid textarea{min-height:104px!important}
 }
+
+/* V1.35 — Documents administratifs : demande d’explication */
+#editorDialog.document-explanation-editor{width:min(980px,calc(100vw - 24px));max-height:94vh;overflow:hidden}
+#editorDialog.document-explanation-editor .dialog-body{overflow:auto;max-height:72vh;padding:13px 18px}
+#editorDialog.document-explanation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.document-explanation-editor #dynamicFields{display:contents}
+#editorDialog.document-explanation-editor .field{margin-bottom:9px}
+#editorDialog.document-explanation-editor .field input,#editorDialog.document-explanation-editor .field select,#editorDialog.document-explanation-editor .field textarea{min-height:38px;padding:8px 10px}
+#editorDialog.document-explanation-editor .document-explanation-wide-field{grid-column:1/-1}
+#editorDialog.document-explanation-editor .document-explanation-wide-field textarea{min-height:105px;resize:vertical}
+@media(max-width:620px){
+  #editorDialog.document-explanation-editor{width:calc(100vw - 14px);max-height:96vh}
+  #editorDialog.document-explanation-editor .dialog-body{max-height:74vh;padding:12px}
+  #editorDialog.document-explanation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+  #editorDialog.document-explanation-editor .document-explanation-wide-field{grid-column:1}
+}

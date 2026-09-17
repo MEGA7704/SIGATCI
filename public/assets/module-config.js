@@ -69,6 +69,15 @@ export const MODULE_CONFIG={
       ['decision_objet','Objet / libellé de la décision de mutation','textarea'],
       ['date_prise_service','Date effective de prise de service','date']
     ]},
+    DEMANDE_EXPLICATION:{label:'Demande d’explication',singular:'Demande d’explication',addLabel:'Ajouter demande d’explication',backendModule:'documents',fields:[
+      ['civilite','Civilité','select','Monsieur|Madame|Mademoiselle'],
+      ['matricule','Matricule','text'],
+      ['emploi_qualite','Emploi / qualité (ex. MPVA)','text'],
+      ['service_affectation','Service d’affectation','text'],
+      ['texte_demande','Texte / faits motivant la demande d’explication','textarea'],
+      ['delai_reponse_heures','Délai de réponse (heures)','number'],
+      ['reponse_agent','Réponse de l’agent (facultatif)','textarea']
+    ]},
     ABSENCE:{label:'Autorisations d’absence',singular:'Autorisation d’absence',addLabel:'Ajouter autorisation',backendModule:'absences',fields:[
       ['date_demande',"Date de la demande d’absence",'date'],
       ['date_debut',"Date de début de l’absence",'date'],

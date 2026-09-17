@@ -362,3 +362,6 @@ Le formulaire d'ajout/modification d'un procès-verbal est maintenant présenté
 - Ces modifications sont enregistrées uniquement dans le document concerné (`data_json`) et ne modifient pas les paramètres généraux ni les autres documents.
 - L'utilisateur conserve le choix d'afficher ou non les AMPLIATIONS sur le PDF.
 - Les anciens documents sans personnalisation continuent d'utiliser les ampliations générales de la structure.
+
+## V1.35 — Demande d’explication
+La section **Documents administratifs** intègre désormais un espace **Demande d’explication** avec préremplissage intelligent depuis le Personnel, formulaire dédié et PDF à deux colonnes **TEXTE / RÉPONSE** conforme au modèle administratif fourni. Les réponses peuvent être complétées ultérieurement par modification du document.
