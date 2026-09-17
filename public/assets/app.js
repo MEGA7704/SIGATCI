@@ -11,6 +11,154 @@ function stageConfig(type=currentStageType){return config?.stageTypes?.[type]||n
 function activeFields(record=null){return moduleKey==='stages'?(stageConfig(record?stageTypeOf(record):editorStageType)?.fields||[]):(config?.fields||[])}
 function activeSingular(record=null){return moduleKey==='stages'?(stageConfig(record?stageTypeOf(record):editorStageType)?.singular||'Stage'):(config?.singular||'Document')}
 
+
+/* V1.28 — Préremplissage intelligent transversal.
+   Les liaisons ci-dessous réutilisent uniquement les données de la structure connectée.
+   Les valeurs injectées restent toujours modifiables par l'utilisateur. */
+const SMART_AUTOFILL={
+  absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
+  convocations:{sourceModule:'personnel',label:'Personne déjà enregistrée dans le personnel',help:"Le nom et la profession sont proposés automatiquement, puis restent modifiables.",copyTitle:true,map:{profession:'data.emploi'}},
+  missions:{sourceModule:'personnel',label:'Chef de mission',help:"Choisissez un agent pour renseigner le chef de mission. Le champ reste modifiable.",map:{chef_mission:'$title'}},
+  controles:{sourceModule:'personnel',label:"Agent / chef d’équipe",help:"Choisissez un agent pour initialiser l’équipe. Vous pouvez ensuite compléter ou modifier librement.",map:{equipe:'$title'}},
+  formations:{sourceModule:'personnel',label:'Participant à ajouter',help:"Choisissez un agent pour initialiser la liste des participants. Le contenu reste modifiable.",map:{participants:'$title'}},
+  materiel:{sourceModule:'personnel',label:'Responsable du matériel',help:"Choisissez un agent pour renseigner le responsable. Le champ reste modifiable.",map:{responsable:'$title'}},
+  saisies:{sourceModule:'infractions',label:'Dossier d’infraction lié',help:"Sélectionnez une infraction existante pour reprendre sa référence dans le dossier de saisie.",map:{dossier:'$reference'}},
+  stages:{
+    FIN_STAGE:{sourceModule:'stages',sourceStageType:'MISE_STAGE',ongoingOnly:true,label:'Stage en cours à clôturer',help:"SIGAT présente les stages en cours de votre structure. La sélection préremplit l’attestation de fin de stage ; tous les champs restent modifiables.",copyTitle:true,map:{qualite_stagiaire:'data.qualite_stagiaire',matricule_stagiaire:'data.matricule_stagiaire',date_debut:'data.date_debut',date_fin:'data.date_fin',lettre_mise_stage_numero:'data.note_service_numero',lettre_mise_stage_date:'data.note_service_date'},sourceIdKey:'_source_stage_id'}
+  }
+};
+
+function smartProfile(){
+  const entry=SMART_AUTOFILL[moduleKey];
+  if(!entry)return null;
+  if(moduleKey==='stages')return entry[editorStageType]||null;
+  return entry;
+}
+function ownLoadUrl(module,{stageType='',limit=100}={}){
+  const q=new URLSearchParams({module,page:'1',limit:String(limit),search:'',ownedOnly:'1'});
+  if(stageType)q.set('stageType',stageType);
+  return `/api/load?${q.toString()}`;
+}
+function smartStageKey(r){
+  const data=r?.data||{};
+  const matricule=String(data.matricule_stagiaire||'').trim().toLowerCase().replace(/\s+/g,'');
+  if(matricule)return `m:${matricule}`;
+  return `n:${String(r?.title||'').trim().toLowerCase()}|${String(data.date_debut||'').slice(0,10)}`;
+}
+async function loadSmartCandidates(profile,record=null){
+  if(profile.ongoingOnly&&profile.sourceModule==='stages'){
+    const [startsResp,endsResp]=await Promise.all([
+      api(ownLoadUrl('stages',{stageType:'MISE_STAGE'})),
+      api(ownLoadUrl('stages',{stageType:'FIN_STAGE'}))
+    ]);
+    const currentId=Number(record?.id||0);
+    const currentSourceId=Number(record?.data?._source_stage_id||0);
+    const finals=(endsResp.items||[]).filter(r=>Number(r.id)!==currentId&&String(r.status||'').toUpperCase()!=='ANNULÉE');
+    const endedIds=new Set(finals.map(r=>Number(r.data?._source_stage_id||0)).filter(Boolean));
+    const endedKeys=new Set(finals.map(smartStageKey));
+    return (startsResp.items||[]).filter(r=>{
+      const status=String(r.status||'').toUpperCase();
+      if(Number(r.id)===currentSourceId)return true;
+      if(['ANNULÉE','ARCHIVED','TERMINÉ'].includes(status))return false;
+      if(endedIds.has(Number(r.id)))return false;
+      return !endedKeys.has(smartStageKey(r));
+    });
+  }
+  const resp=await api(ownLoadUrl(profile.sourceModule,{stageType:profile.sourceStageType||''}));
+  return resp.items||[];
+}
+function smartCandidateLabel(profile,r){
+  if(profile.sourceModule==='stages'){
+    const d=r.data||{};
+    const parts=[r.title,d.matricule_stagiaire,d.date_debut&&d.date_fin?`${fmtDate(d.date_debut)} → ${fmtDate(d.date_fin)}`:d.date_debut?fmtDate(d.date_debut):''].filter(Boolean);
+    return parts.join(' — ');
+  }
+  if(profile.sourceModule==='personnel'){
+    const d=r.data||{};return [r.title,d.matricule,d.fonction||d.emploi].filter(Boolean).join(' — ');
+  }
+  return [r.reference,r.title].filter(Boolean).join(' — ');
+}
+function smartGet(r,path){
+  if(path==='$title')return r?.title??'';
+  if(path==='$reference')return r?.reference??'';
+  if(path==='$event_date')return String(r?.event_date||'').slice(0,10);
+  if(path.startsWith('data.'))return r?.data?.[path.slice(5)]??'';
+  return '';
+}
+function setEditorDataValue(key,value,{append=false}={}){
+  const el=document.querySelector(`#dynamicFields [data-key="${CSS.escape(key)}"]`);
+  if(!el)return;
+  const next=String(value??'');
+  if(append&&el.value&&next&&!el.value.split(/\n|,/).map(x=>x.trim().toLowerCase()).includes(next.trim().toLowerCase())) el.value=`${el.value.trim()}\n${next}`;
+  else if(!append||!el.value) el.value=next;
+  el.dispatchEvent(new Event('change',{bubbles:true}));
+}
+function applySmartCandidate(profile,r){
+  if(!r)return;
+  if(profile.copyTitle)document.getElementById('recordTitle').value=r.title||'';
+  for(const [target,source] of Object.entries(profile.map||{})){
+    const append=['participants','equipe'].includes(target);
+    setEditorDataValue(target,smartGet(r,source),{append});
+  }
+  const sourceKey=profile.sourceIdKey||'_smart_source_id';
+  const hidden=document.querySelector(`#dynamicFields [data-key="${CSS.escape(sourceKey)}"]`);
+  if(hidden)hidden.value=String(r.id||'');
+  const sourceModule=document.querySelector('#dynamicFields [data-key="_smart_source_module"]');
+  if(sourceModule)sourceModule.value=profile.sourceModule||'';
+  showToast('Champs préremplis. Vous pouvez les modifier avant l’enregistrement.');
+}
+async function mountSmartAutofill(record=null){
+  const profile=smartProfile();
+  const area=document.getElementById('dynamicFields');
+  if(!area)return;
+  const info=document.createElement('div');
+  info.className='field full smart-system-note';
+  info.innerHTML='<div class="smart-note"><strong>Assistance intelligente SIGAT</strong><span>Les données déjà enregistrées sont réutilisées lorsqu’un rapprochement est possible. Les champs préremplis restent toujours modifiables.</span></div>';
+  area.prepend(info);
+  if(!profile)return;
+  const wrap=document.createElement('div');wrap.className='field full smart-autofill-field';
+  const label=document.createElement('label');label.textContent=profile.label||'Préremplissage intelligent';
+  const select=document.createElement('select');select.className='smart-source-select';select.disabled=true;
+  select.innerHTML='<option value="">Chargement des données…</option>';
+  const help=document.createElement('small');help.className='smart-help';help.textContent=profile.help||'';
+  const sourceId=document.createElement('input');sourceId.type='hidden';sourceId.dataset.key=profile.sourceIdKey||'_smart_source_id';sourceId.value=record?.data?.[profile.sourceIdKey||'_smart_source_id']||'';
+  const sourceModule=document.createElement('input');sourceModule.type='hidden';sourceModule.dataset.key='_smart_source_module';sourceModule.value=profile.sourceModule||'';
+  wrap.append(label,select,help,sourceId,sourceModule);info.after(wrap);
+  try{
+    const candidates=await loadSmartCandidates(profile,record);
+    select.innerHTML='<option value="">— Saisie manuelle / ne pas préremplir —</option>';
+    for(const r of candidates){const op=document.createElement('option');op.value=String(r.id);op.textContent=smartCandidateLabel(profile,r);select.appendChild(op)}
+    const current=String(sourceId.value||'');if(current&&candidates.some(r=>String(r.id)===current))select.value=current;
+    select.disabled=false;
+    if(!candidates.length){help.textContent=`${profile.help||''} Aucun enregistrement correspondant n’est actuellement disponible.`.trim()}
+    select.addEventListener('change',()=>{
+      const selected=candidates.find(r=>String(r.id)===select.value);
+      if(!selected){sourceId.value='';return}
+      applySmartCandidate(profile,selected);
+    });
+  }catch(err){select.innerHTML='<option value="">Préremplissage indisponible — saisie manuelle possible</option>';help.textContent=err.message||'Impossible de charger les données existantes.'}
+}
+
+async function mountHistorySuggestions(record=null){
+  try{
+    const stageType=moduleKey==='stages'?editorStageType:'';
+    const resp=await api(ownLoadUrl(moduleKey,{stageType}));
+    const items=(resp.items||[]).filter(r=>Number(r.id)!==Number(record?.id||0));
+    const title=document.getElementById('recordTitle');
+    if(title&&items.length){
+      const id=`smart-title-${moduleKey}`;let dl=document.getElementById(id);if(dl)dl.remove();dl=document.createElement('datalist');dl.id=id;
+      [...new Set(items.map(r=>String(r.title||'').trim()).filter(Boolean))].slice(0,80).forEach(v=>{const o=document.createElement('option');o.value=v;dl.appendChild(o)});
+      document.body.appendChild(dl);title.setAttribute('list',id);
+    }
+    for(const el of document.querySelectorAll('#dynamicFields input[data-key][type="text"]')){
+      if(String(el.dataset.key||'').startsWith('_'))continue;
+      const key=el.dataset.key,values=[...new Set(items.map(r=>String(r.data?.[key]??'').trim()).filter(Boolean))].slice(0,80);
+      if(!values.length)continue;
+      const id=`smart-${moduleKey}-${key}`;let dl=document.getElementById(id);if(dl)dl.remove();dl=document.createElement('datalist');dl.id=id;values.forEach(v=>{const o=document.createElement('option');o.value=v;dl.appendChild(o)});document.body.appendChild(dl);el.setAttribute('list',id);
+    }
+  }catch{/* Les suggestions sont une aide : la saisie manuelle reste disponible. */}
+}
+
 const TYPE_LABEL={PEF:'Poste des Eaux et Forêts',CANTONNEMENT:'Cantonnement',DIRECTION_REGIONALE:'Direction Régionale',DIRECTION_DEPARTEMENTALE:'Direction Départementale'};
 const CHILD_LABEL={CANTONNEMENT:'Mes PEF',DIRECTION_REGIONALE:'Mes Cantonnements',DIRECTION_DEPARTEMENTALE:'Mes Directions Régionales'};
 function withScope(path){const q=new URLSearchParams(location.search).get('scopeOrg');return q?`${path}?scopeOrg=${encodeURIComponent(q)}`:path;}
@@ -254,8 +402,13 @@ function openEditor(record=null,stageTypeOverride=null){
     titleField.querySelector('label').textContent='Nom et Prénoms du stagiaire *';
     titleField.classList.remove('full');
     statusField.classList.remove('personnel-status-hidden');
-    statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="ANNULÉE">ANNULÉE</option>';
-    statusInput.value=record?.status||'ÉMISE';
+    if(editorStageType==='MISE_STAGE'){
+      statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="EN COURS">EN COURS</option><option value="ÉMISE">ÉMISE</option><option value="TERMINÉ">TERMINÉ</option><option value="ANNULÉE">ANNULÉE</option>';
+      statusInput.value=record?.status||'EN COURS';
+    }else{
+      statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="ANNULÉE">ANNULÉE</option>';
+      statusInput.value=record?.status||'ÉMISE';
+    }
   }else{
     dateField.querySelector('label').textContent='Date';
     titleField.querySelector('label').textContent='Intitulé / nom principal *';
@@ -300,6 +453,8 @@ function openEditor(record=null,stageTypeOverride=null){
     start?.addEventListener('change',updateAbsenceDays);end?.addEventListener('change',updateAbsenceDays);updateAbsenceDays();
   }
   d.showModal();
+  mountSmartAutofill(record);
+  mountHistorySuggestions(record);
 }
 
 async function saveRecord(e){

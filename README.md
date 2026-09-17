@@ -318,3 +318,7 @@ La colonne « Nombres / exemplaires » a été rapprochée des destinataires tou
 - Le popup **Ajouter fin de stage** reprend les champs du modèle fourni : stagiaire, qualité, matricule, niveau, période de stage, lettre de mise en stage et date de la lettre.
 - Les PDF **ATTESTATION DE MISE EN STAGE** et **ATTESTATION DE FIN DE STAGE** sont rédigés automatiquement selon les formules fournies, avec titre encadré, en-tête officiel SIGAT, date/signature flexibles et option AMPLIATIONS.
 - Les anciens enregistrements de stages sans type explicite sont conservés et apparaissent dans **Fin de stage** pour compatibilité.
+
+
+## V1.28 — Préremplissage intelligent
+Le formulaire **Fin de stage** propose désormais les stages en cours et préremplit automatiquement les informations connues, tout en laissant tous les champs modifiables. Un moteur de suggestions et de préremplissage contextuel est aussi actif dans les autres modules lorsque des données déjà enregistrées peuvent être réutilisées sans ambiguïté.

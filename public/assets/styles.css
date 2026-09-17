@@ -187,3 +187,21 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 }
 #editorDialog.stage-editor .stage-wide-field{grid-column:span 2}
 @media(max-width:620px){#editorDialog.stage-editor .stage-wide-field{grid-column:1}}
+
+/* V1.28 — Assistance intelligente / préremplissage contextuel */
+#editorDialog .smart-system-note,
+#editorDialog .smart-autofill-field{grid-column:1/-1!important}
+#editorDialog .smart-system-note{margin:0 0 7px!important}
+.smart-note{display:flex;align-items:center;gap:10px;border:1px solid #cfe0d7;background:#f3f8f5;border-radius:11px;padding:8px 11px;color:#234c3d;font-size:12px;line-height:1.35}
+.smart-note strong{white-space:nowrap;color:#0f5b41}
+.smart-note span{color:#53675f}
+#editorDialog .smart-autofill-field{display:grid;grid-template-columns:minmax(190px,.65fr) minmax(320px,1.35fr);gap:4px 12px;align-items:center;border:1px solid #d9e4df;background:#fbfdfc;border-radius:12px;padding:9px 11px;margin:0 0 10px!important}
+#editorDialog .smart-autofill-field>label{grid-column:1;font-size:12px;font-weight:800;color:#163f32;margin:0}
+#editorDialog .smart-autofill-field>.smart-source-select{grid-column:2;width:100%;min-height:38px;padding:7px 10px;border:1px solid #cbd8d2;border-radius:9px;background:#fff}
+#editorDialog .smart-autofill-field>.smart-help{grid-column:1/-1;color:#687a72;font-size:11px;line-height:1.35}
+#editorDialog .smart-autofill-field>.smart-source-select:disabled{background:#f0f3f2;color:#75827d}
+@media(max-width:760px){
+  .smart-note{align-items:flex-start;flex-direction:column;gap:2px}
+  #editorDialog .smart-autofill-field{grid-template-columns:1fr}
+  #editorDialog .smart-autofill-field>label,#editorDialog .smart-autofill-field>.smart-source-select,#editorDialog .smart-autofill-field>.smart-help{grid-column:1}
+}

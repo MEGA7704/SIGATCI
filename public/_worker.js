@@ -924,8 +924,9 @@ async function apiLoad(env, request) {
   const page = Math.max(1, Number(url.searchParams.get('page') || 1));
   const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
   const search = String(url.searchParams.get('search') || '').trim();
+  const ownedOnly = url.searchParams.get('ownedOnly') === '1';
   const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
-  const ids = await accessibleOrganizationIds(env, auth.user, scopeOrg);
+  const ids = ownedOnly ? [Number(auth.user.organization_id)] : await accessibleOrganizationIds(env, auth.user, scopeOrg);
   if (!ids.length) return bad('Structure hors de votre périmètre hiérarchique.',403,'OUT_OF_SCOPE');
   const { sql, binds } = makeInClause(ids);
   let where = `r.organization_id IN (${sql}) AND r.archived_at IS NULL`;
@@ -963,6 +964,43 @@ async function apiLoad(env, request) {
 
 function safeJson(v) { try { return JSON.parse(v || '{}'); } catch { return {}; } }
 
+/* V1.28 — Liaison intelligente Mise en stage -> Fin de stage. */
+async function validateStageSource(env, orgId, sourceId, ignoreFinalId = 0) {
+  sourceId = Number(sourceId || 0);
+  if (!sourceId) return null;
+  const source = await env.SIGAT_DB.prepare(`SELECT id,status,data_json FROM internships WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(sourceId, orgId).first();
+  if (!source) throw new Error('Le stage en cours sélectionné est introuvable dans votre structure.');
+  const sourceData = safeJson(source.data_json);
+  if (String(sourceData._stage_type || '').toUpperCase() !== 'MISE_STAGE') throw new Error('La source sélectionnée n’est pas une mise en stage.');
+  const dup = await env.SIGAT_DB.prepare(`
+    SELECT id FROM internships
+    WHERE organization_id=? AND archived_at IS NULL AND id<>?
+      AND json_extract(COALESCE(data_json,'{}'),'$._stage_type')='FIN_STAGE'
+      AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_stage_id') AS INTEGER)=?
+      AND UPPER(COALESCE(status,''))<>'ANNULÉE'
+    LIMIT 1
+  `).bind(orgId, Number(ignoreFinalId || 0), sourceId).first();
+  if (dup) throw new Error('Une fin de stage est déjà enregistrée pour ce stage.');
+  return source;
+}
+
+async function syncStageSourceStatus(env, orgId, sourceId) {
+  sourceId = Number(sourceId || 0);
+  if (!sourceId) return;
+  const activeFinal = await env.SIGAT_DB.prepare(`
+    SELECT COUNT(*) AS c FROM internships
+    WHERE organization_id=? AND archived_at IS NULL
+      AND json_extract(COALESCE(data_json,'{}'),'$._stage_type')='FIN_STAGE'
+      AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_stage_id') AS INTEGER)=?
+      AND UPPER(COALESCE(status,''))<>'ANNULÉE'
+  `).bind(orgId, sourceId).first();
+  if (Number(activeFinal?.c || 0) > 0) {
+    await env.SIGAT_DB.prepare(`UPDATE internships SET status=CASE WHEN UPPER(COALESCE(status,''))='ANNULÉE' THEN status ELSE 'TERMINÉ' END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(sourceId, orgId).run();
+  } else {
+    await env.SIGAT_DB.prepare(`UPDATE internships SET status='EN COURS',updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND UPPER(COALESCE(status,''))='TERMINÉ'`).bind(sourceId, orgId).run();
+  }
+}
+
 async function apiSave(env, request) {
   const auth = await getSession(env, request, { allowExpired: false });
   if (!auth) return bad('Session invalide.', 401);
@@ -978,36 +1016,58 @@ async function apiSave(env, request) {
   await ensureModuleTable(env, table);
   const orgId = Number(auth.user.organization_id);
   const payload = body?.payload || {};
+  const incomingData = payload?.data && typeof payload.data === 'object' ? payload.data : {};
+  const incomingStageType = module === 'stages' ? String(incomingData._stage_type || '').toUpperCase() : '';
+  const incomingSourceStageId = incomingStageType === 'FIN_STAGE' ? Number(incomingData._source_stage_id || 0) : 0;
 
   if (action === 'create') {
     const title = String(payload.title || '').trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
+    if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
+      try { await validateStageSource(env, orgId, incomingSourceStageId, 0); }
+      catch (e) { return bad(String(e?.message || e)); }
+    }
     const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
-      .bind(orgId, payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(payload.data || {}), auth.user.id).run();
+      .bind(orgId, payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), auth.user.id).run();
+    if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);
     await audit(env, request, { action: 'RECORD_CREATED', organization_id: orgId, actor_user_id: auth.user.id, user_id: auth.user.id, target_type: module, target_id: r.meta.last_row_id, description: title });
     return ok({ id: r.meta.last_row_id });
   }
 
   const id = Number(payload.id);
   if (!id) return bad('Identifiant manquant.');
-  const owned = await env.SIGAT_DB.prepare(`SELECT id FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).first();
+  const owned = await env.SIGAT_DB.prepare(`SELECT id,status,data_json FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).first();
   if (!owned) return bad('Cette donnée ne peut pas être modifiée par votre structure.', 403, 'NOT_OWNER');
+  const previousData = module === 'stages' ? safeJson(owned.data_json) : {};
+  const previousStageType = module === 'stages' ? String(previousData._stage_type || '').toUpperCase() : '';
+  const previousSourceStageId = previousStageType === 'FIN_STAGE' ? Number(previousData._source_stage_id || 0) : 0;
 
   if (action === 'update') {
     const title = String(payload.title || '').trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
+    if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
+      try { await validateStageSource(env, orgId, incomingSourceStageId, id); }
+      catch (e) { return bad(String(e?.message || e)); }
+    }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
-      .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(payload.data || {}), id, orgId).run();
+      .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();
+    if (module === 'stages') {
+      if (previousSourceStageId && previousSourceStageId !== incomingSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
+      if (incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);
+    }
     await audit(env, request, { action: 'RECORD_UPDATED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id, description: title });
     return ok();
   }
 
   if (action === 'delete') {
     await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
+    if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
     await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
     return ok();
   }
+
   await env.SIGAT_DB.prepare(`UPDATE ${table} SET status='ARCHIVED',archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(id, orgId).run();
+  if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
   await audit(env, request, { action: 'RECORD_ARCHIVED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
   return ok();
 }
@@ -1331,7 +1391,7 @@ async function superAuditLogs(env, request) {
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.18-pdf-typography-margins', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.28-smart-autofill-system', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
