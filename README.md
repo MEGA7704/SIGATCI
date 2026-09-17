@@ -290,3 +290,9 @@ La zone « Fait à ..., le ... » et la signature sont désormais en flux d'impr
 
 ## V1.22 — Autorisations d’absence
 Correction ciblée des PDF d’autorisations d’absence : titre Cooper Black 22 pt, corps Arial Narrow 14 pt, interligne 1,5. Les autres imprimés restent inchangés.
+
+## V1.23 — AMPLIATIONS et menu principal mobile
+- **Paramètres > En-tête des imprimés** contient maintenant une section **AMPLIATIONS** pour enregistrer la liste des destinataires à faire apparaître en bas des documents.
+- Chaque popup Ajouter / Modifier propose **Afficher AMPLIATIONS sur le PDF** : l'utilisateur décide document par document si le bloc doit être imprimé.
+- Lorsqu'il est activé, **AMPLIATIONS** apparaît de façon flexible en bas à gauche, sur la même ligne que la zone **Fait à… / signature** placée à droite.
+- Le menu principal est désormais accessible sur téléphone grâce à un bouton **Menu** avec navigation verticale et sous-menus tactiles. La correction couvre les espaces de structure, les paramètres d'impression et le Super Admin.

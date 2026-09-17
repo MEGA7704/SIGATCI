@@ -11,12 +11,26 @@ function navHTML(user){
   const childLink=CHILD_LABEL[user.organizationType]?`<a href="${withScope('/structures-rattachees/')}">${CHILD_LABEL[user.organizationType]}</a>`:'';
   const userAdminLink=user.role==='ORGANIZATION_ADMIN'?'<a href="/utilisateurs/">Utilisateurs</a>':'';
   const A=p=>withScope(p);
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><nav class="nav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button>Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents</a><a href="${A('/absences/')}">Autorisations d’absence</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button>Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button>Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button>Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`}
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button type="button">Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents</a><a href="${A('/absences/')}">Autorisations d’absence</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button type="button">Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button type="button">Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button type="button">Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+}
+
+function bindResponsiveNav(){
+  const toggle=document.getElementById('mobileMenuBtn');
+  const nav=document.getElementById('mainNav');
+  if(!toggle||!nav)return;
+  const close=()=>{nav.classList.remove('is-open');toggle.setAttribute('aria-expanded','false');nav.querySelectorAll('.nav-group.is-open').forEach(g=>g.classList.remove('is-open'))};
+  toggle.addEventListener('click',()=>{const open=!nav.classList.contains('is-open');nav.classList.toggle('is-open',open);toggle.setAttribute('aria-expanded',open?'true':'false')});
+  nav.querySelectorAll('.nav-group>button').forEach(btn=>btn.addEventListener('click',e=>{if(matchMedia('(max-width:1100px)').matches){e.preventDefault();const group=btn.closest('.nav-group');const willOpen=!group.classList.contains('is-open');nav.querySelectorAll('.nav-group.is-open').forEach(g=>g!==group&&g.classList.remove('is-open'));group.classList.toggle('is-open',willOpen)}}));
+  nav.querySelectorAll('a').forEach(a=>a.addEventListener('click',close));
+  addEventListener('resize',()=>{if(innerWidth>1100)close()});
+}
+
 
 async function boot(){
   try{session=await loadSession()}catch{return}
   if(session.user.role==='SUPER_ADMIN'){location.href='/superadmin/dashboard/';return}
   document.body.insertAdjacentHTML('afterbegin',navHTML(session.user));
+  bindResponsiveNav();
   document.getElementById('logoutBtn').onclick=e=>withButtonLock(e.currentTarget,logout,'Déconnexion…');
   document.getElementById('avatar').textContent=(session.user.displayName||'U').trim()[0]?.toUpperCase()||'U';
   if(session.user.role!=='ORGANIZATION_ADMIN') document.querySelectorAll('[data-admin-only]').forEach(el=>el.remove());
@@ -222,6 +236,11 @@ function openEditor(record=null){
     else{el=document.createElement('input');el.type=type==='computed'?'number':(type||'text');if(type==='computed'){el.readOnly=true;el.classList.add('computed-field')}}
     el.dataset.key=key;el.value=record?.data?.[key]??'';wrap.appendChild(el);area.appendChild(wrap);
   }
+  const ampliationsWrap=document.createElement('div');
+  ampliationsWrap.className='field full ampliations-toggle-field';
+  const ampliationsChecked=['1','true','yes','oui'].includes(String(record?.data?._show_ampliations||'').toLowerCase());
+  ampliationsWrap.innerHTML=`<label class="ampliations-toggle"><input type="checkbox" data-key="_show_ampliations" ${ampliationsChecked?'checked':''}><span><strong>Afficher AMPLIATIONS sur le PDF</strong><small>Si activé, la liste configurée dans Paramètres → En-tête des imprimés apparaîtra en bas à gauche, sur la même ligne que la signature.</small></span></label>`;
+  area.appendChild(ampliationsWrap);
   if(isAbsence){
     const start=document.querySelector('#dynamicFields [data-key="date_debut"]');
     const end=document.querySelector('#dynamicFields [data-key="date_fin"]');
@@ -236,7 +255,7 @@ async function saveRecord(e){
   const submit=e.submitter||document.querySelector('#recordForm button[type="submit"]');
   return withButtonLock(submit,async()=>{
     const id=document.getElementById('recordId').value;const data={};
-    document.querySelectorAll('#dynamicFields [data-key]').forEach(el=>data[el.dataset.key]=el.value);
+    document.querySelectorAll('#dynamicFields [data-key]').forEach(el=>data[el.dataset.key]=el.type==='checkbox'?(el.checked?'1':'0'):el.value);
     const payload={id:id?Number(id):undefined,reference:document.getElementById('recordReference').value,title:document.getElementById('recordTitle').value,eventDate:document.getElementById('recordDate').value,status:document.getElementById('recordStatus').value,data};
     try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${config.singular} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
   },'Enregistrement…');
@@ -387,6 +406,49 @@ body.record-print{
 .record-print.absence-print .absence-body p{
   line-height:1.5!important;
 }
+
+/* V1.23 — AMPLIATIONS et zone basse flexible */
+.official-bottom-row{
+  width:100%;
+  margin-top:auto;
+  padding-top:9mm;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:8mm;
+  align-items:end;
+  break-inside:avoid;
+  page-break-inside:avoid;
+  flex:0 0 auto;
+}
+.official-bottom-row .official-signature{
+  position:static!important;
+  right:auto!important;
+  bottom:auto!important;
+  width:100%!important;
+  margin:0!important;
+  padding-top:0!important;
+  align-self:end;
+}
+.official-ampliations-placeholder{min-width:0}
+.official-ampliations{
+  min-width:0;
+  align-self:end;
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:13pt!important;
+  line-height:1.2;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.official-ampliations .ampliations-title{
+  font-weight:800;
+  text-decoration:underline;
+  text-underline-offset:2px;
+  margin-bottom:2.5mm;
+}
+.official-ampliations .ampliations-content{white-space:pre-line}
+@media print{
+  .official-bottom-row{break-inside:avoid!important;page-break-inside:avoid!important}
+}
 `}
 
 
@@ -414,11 +476,17 @@ function officialSignatureHtml(s,date=''){
   const stamp=s.stampData?`<img class="stamp-image" src="${esc(s.stampData)}" alt="Cachet">`:'';
   return `<div class="official-signature">${madeAt?`<div class="made-at">${madeAt}</div>`:''}<div class="signer-title">${esc(title)}</div><div class="signature-media">${sig}${stamp}</div>${name?`<div class="signer-name">${esc(name)}</div>`:''}${position?`<div class="signer-position">${esc(position)}</div>`:''}</div>`;
 }
+function officialAmpliationsHtml(s){
+  const text=settingsLine(s.ampliations);
+  if(!text)return '<div class="official-ampliations-placeholder"></div>';
+  return `<div class="official-ampliations"><div class="ampliations-title">AMPLIATIONS</div><div class="ampliations-content">${esc(text)}</div></div>`;
+}
 function officialFooterHtml(){return ''}
 
-function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass=''}){
+function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass='',showAmpliations=false}){
   const bodyClass=(signature?'record-print':'list-print')+(documentClass?` ${documentClass}`:'');
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${signature?officialSignatureHtml(settings,date):''}</body></html>`;
+  const bottom=signature?`<div class="official-bottom-row">${showAmpliations&&settingsLine(settings.ampliations)?officialAmpliationsHtml(settings):'<div class="official-ampliations-placeholder"></div>'}${officialSignatureHtml(settings,date)}</div>`:'';
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
 }
 
 async function launchPrint(html){
@@ -479,7 +547,8 @@ async function printRecord(record){
       const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,documentClass:moduleKey==='convocations'?'convocation-print':moduleKey==='absences'?'absence-print':''});
+    const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass:moduleKey==='convocations'?'convocation-print':moduleKey==='absences'?'absence-print':''});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }

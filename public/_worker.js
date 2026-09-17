@@ -1195,7 +1195,7 @@ async function superUserAction(env, request, kind) {
 
 
 const PRINT_SETTING_KEYS = Object.freeze([
-  'ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData'
+  'ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations'
 ]);
 
 function defaultSignerTitle(type) {
@@ -1236,7 +1236,8 @@ async function organizationPrintDefaults(env, organizationId) {
     signerPosition: '',
     emblemData: '',
     signatureData: '',
-    stampData: ''
+    stampData: '',
+    ampliations: ''
   };
 }
 
@@ -1262,14 +1263,14 @@ async function apiPrintSettingsSave(env, request) {
   for (const key of PRINT_SETTING_KEYS) {
     let value = String(values[key] ?? '').trim();
     const isImage = ['emblemData','signatureData','stampData'].includes(key);
-    const max = isImage ? 450000 : 500;
+    const max = isImage ? 450000 : (key === 'ampliations' ? 4000 : 500);
     if (value.length > max) return bad(`La valeur « ${key} » est trop volumineuse.`);
     if (isImage && value && !/^data:image\/(png|jpeg|webp);base64,/i.test(value)) return bad(`Image invalide pour « ${key} ».`);
     await env.SIGAT_DB.prepare(`INSERT INTO settings(organization_id,setting_key,setting_value,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP)
       ON CONFLICT(organization_id,setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=CURRENT_TIMESTAMP`)
       .bind(orgId,key,value).run();
   }
-  await audit(env, request, { action:'PRINT_SETTINGS_UPDATED', organization_id:orgId, user_id:auth.user.id, actor_user_id:auth.user.id, target_type:'settings', target_id:'print', description:'En-tête, référence et signature des impressions mis à jour' });
+  await audit(env, request, { action:'PRINT_SETTINGS_UPDATED', organization_id:orgId, user_id:auth.user.id, actor_user_id:auth.user.id, target_type:'settings', target_id:'print', description:'En-tête, référence, ampliations et signature des impressions mis à jour' });
   return ok({ saved:true });
 }
 
