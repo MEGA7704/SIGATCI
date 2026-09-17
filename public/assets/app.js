@@ -10,7 +10,7 @@ function stageTypeOf(record){
 function stageConfig(type=currentStageType){return config?.stageTypes?.[type]||null}
 function documentTypeOf(record){
   const t=String(record?.data?._document_type||'').toUpperCase();
-  if(['CESSATION_SERVICE','REPRISE_SERVICE','ABSENCE'].includes(t))return t;
+  if(['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION','ABSENCE'].includes(t))return t;
   const legacy=String(record?.data?.type||'').toUpperCase();
   if(legacy.includes('CESSATION'))return 'CESSATION_SERVICE';
   if(legacy.includes('REPRISE'))return 'REPRISE_SERVICE';
@@ -36,7 +36,9 @@ function activeSingular(record=null){
 const SMART_AUTOFILL={
   documents:{
     CESSATION_SERVICE:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son identité et sa situation administrative. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade',matricule:'data.matricule',emploi:'data.emploi',classe:'data.classe',echelon:'data.echelon',ancien_service:'$source_organization'}},
-    REPRISE_SERVICE:{sourceModule:'documents',sourceDocumentType:'CESSATION_SERVICE',label:'Cessation de service existante',help:"Sélectionnez un certificat de cessation déjà enregistré : SIGAT reprend automatiquement l’agent, sa situation administrative, la date de cessation et les références du certificat. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade_appellation',matricule:'data.matricule',emploi:'data.emploi',option_emploi:'data.option_emploi',classe:'data.classe',echelon:'data.echelon',service_reprise:'data.ancien_service',date_cessation:'data.date_cessation',certificat_cessation_numero:'$reference',certificat_cessation_date:'$event_date',certificat_cessation_origine:'$source_responsible'}},
+    CESSATION_CONGE:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son identité et sa situation administrative. Les informations du congé restent à compléter et tous les champs sont modifiables.",copyTitle:true,map:{grade_appellation:'data.grade',matricule:'data.matricule',emploi:'data.emploi',classe:'data.classe',echelon:'data.echelon'}},
+    REPRISE_SERVICE:{sourceModule:'documents',sourceDocumentType:'CESSATION_CONGE',label:'Cessation de service / congé existante',help:"Sélectionnez une cessation de service / congé déjà enregistrée : SIGAT reprend automatiquement l’agent, la période, la décision et la date prévue de reprise. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade_appellation',matricule:'data.matricule',emploi:'data.emploi',option_emploi:'data.option_emploi',classe:'data.classe',echelon:'data.echelon',service_reprise:'$source_organization',date_cessation:'data.date_cessation',certificat_cessation_numero:'$reference',certificat_cessation_date:'$event_date',certificat_cessation_origine:'$source_responsible',duree_conge_jours:'data.duree_conge_jours',type_conge:'data.type_conge',decision_numero:'data.decision_numero',decision_date:'data.decision_date',decision_autorite:'data.decision_autorite',date_reprise:'data.date_reprise_prevue',heure_reprise:'data.heure_reprise_prevue'}},
+    PRISE_SERVICE_MUTATION:{sourceModule:'documents',sourceDocumentType:'CESSATION_SERVICE',label:'Cessation de service / mutation existante',help:"Sélectionnez une cessation de service / mutation déjà enregistrée pour reprendre automatiquement l’identité de l’agent, l’ancienne affectation et la décision de mutation. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade_appellation',matricule:'data.matricule',emploi:'data.emploi',option_emploi:'data.option_emploi',classe:'data.classe',echelon:'data.echelon',ancien_service:'data.ancien_service',nouvelle_affectation:'data.nouvelle_affectation',decision_numero:'data.decision_numero',decision_date:'data.decision_date',decision_objet:'data.decision_objet'}},
     ABSENCE:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}}
   },
   absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
@@ -285,17 +287,17 @@ function setupDocumentsModule(){
   if(printBtn)printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
   document.querySelectorAll('[data-document-tab]').forEach(btn=>btn.addEventListener('click',()=>setDocumentView(btn.dataset.documentTab)));
   const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();
-  setDocumentView(['CESSATION_SERVICE','REPRISE_SERVICE','ABSENCE'].includes(requested)?requested:'CESSATION_SERVICE');
+  setDocumentView(['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION','ABSENCE'].includes(requested)?requested:'CESSATION_SERVICE');
 }
 
 function setDocumentView(type){
-  if(!['CESSATION_SERVICE','REPRISE_SERVICE','ABSENCE'].includes(type))type='CESSATION_SERVICE';
+  if(!['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION','ABSENCE'].includes(type))type='CESSATION_SERVICE';
   currentDocumentType=type;editorDocumentType=type;currentPage=1;
   document.querySelectorAll('[data-document-tab]').forEach(btn=>{const on=btn.dataset.documentTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
   const cfg=documentConfig(type)||{};
   const title=document.getElementById('documentViewTitle');if(title)title.textContent=cfg.label||'Documents administratifs';
   const sub=document.getElementById('documentViewSubtitle');
-  if(sub)sub.textContent=type==='CESSATION_SERVICE'?'Rédaction et gestion des certificats de cessation de service.':type==='REPRISE_SERVICE'?'Rédaction et gestion des certificats de reprise de service.':"Rédaction, édition PDF et gestion des autorisations d’absence.";
+  if(sub)sub.textContent=type==='CESSATION_SERVICE'?'Rédaction et gestion des certificats de cessation de service liés aux mutations.':type==='CESSATION_CONGE'?'Rédaction et gestion des certificats de cessation de service pour congé.':type==='REPRISE_SERVICE'?'Rédaction et gestion des certificats de reprise de service après congé.':type==='PRISE_SERVICE_MUTATION'?'Rédaction et gestion des certificats de prise de service après mutation.':"Rédaction, édition PDF et gestion des autorisations d’absence.";
   const addBtn=document.getElementById('addBtn');
   if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,type)}
   const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);
@@ -418,7 +420,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   if(isStage)editorStageType=stageTypeOverride||(record?stageTypeOf(record):currentStageType);
   if(isDocument)editorDocumentType=documentTypeOverride||(record?documentTypeOf(record):currentDocumentType);
   const isAbsence=moduleKey==='absences'||(isDocument&&editorDocumentType==='ABSENCE');
-  const isServiceDocument=isDocument&&['CESSATION_SERVICE','REPRISE_SERVICE'].includes(editorDocumentType);
+  const isServiceDocument=isDocument&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(editorDocumentType);
   d.classList.toggle('personnel-editor',isPersonnel);
   d.classList.toggle('absence-editor',isAbsence);
   d.classList.toggle('convocation-editor',isConvocation);
@@ -494,7 +496,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     }
     if(isStage&&key==='theme')wrap.classList.add('stage-theme-field');
     if(isStage&&key==='note_service_origine')wrap.classList.add('stage-wide-field');
-    if(isServiceDocument&&['decision_objet','certificat_cessation_origine','decision_autorite','type_conge'].includes(key))wrap.classList.add('document-wide-field');
+    if(isServiceDocument&&['decision_objet','certificat_cessation_origine','decision_autorite','type_conge','lieu_conge'].includes(key))wrap.classList.add('document-wide-field');
     const lab=document.createElement('label');lab.textContent=label;wrap.appendChild(lab);
     if(type==='image'){
       const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key=key;hidden.value=record?.data?.[key]||'';
@@ -514,8 +516,12 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(isServiceDocument&&!record&&key==='option_emploi')el.value='Eaux et Forêts';
     if(isServiceDocument&&!record&&editorDocumentType==='CESSATION_SERVICE'&&key==='decision_objet')el.value='portant mutation des Agents Techniques du Ministère des Eaux et Forêts';
     if(isServiceDocument&&!record&&editorDocumentType==='CESSATION_SERVICE'&&key==='ancien_service')el.value=session?.user?.organizationName||'';
+    if(isServiceDocument&&!record&&editorDocumentType==='CESSATION_CONGE'&&key==='type_conge')el.value='congé administratif annuel';
+    if(isServiceDocument&&!record&&editorDocumentType==='CESSATION_CONGE'&&key==='annee_conge')el.value=String(new Date().getFullYear());
     if(isServiceDocument&&!record&&editorDocumentType==='REPRISE_SERVICE'&&key==='type_conge')el.value='congé administratif';
     if(isServiceDocument&&!record&&editorDocumentType==='REPRISE_SERVICE'&&key==='service_reprise')el.value=session?.user?.organizationName||'';
+    if(isServiceDocument&&!record&&editorDocumentType==='PRISE_SERVICE_MUTATION'&&key==='decision_objet')el.value='portant mutation des Agents Techniques du Ministère des Eaux et Forêts';
+    if(isServiceDocument&&!record&&editorDocumentType==='PRISE_SERVICE_MUTATION'&&key==='nouvelle_affectation')el.value=session?.user?.organizationName||'';
     wrap.appendChild(el);area.appendChild(wrap);
   }
   const ampliationsWrap=document.createElement('div');
@@ -924,6 +930,13 @@ async function printRecord(record){
       const decisionText=[d.decision_numero?`par Décision <strong>N° ${esc(d.decision_numero)}</strong>`:'',d.decision_date?`du <strong>${esc(stageShortDate(d.decision_date))}</strong>`:'',d.decision_objet?esc(d.decision_objet):''].filter(Boolean).join(' ');
       title='CERTIFICAT DE CESSATION DE SERVICE';
       body=`<div class="document-title service-document-title">CERTIFICAT DE CESSATION DE SERVICE</div><div class="official-body service-document-body"><p>${esc(intro)}, soussigné(e), atteste que ${identity}${d.ancien_service?`, précédemment en service au <strong>${esc(d.ancien_service)}</strong>`:''}${d.nouvelle_affectation?` et muté au <strong>${esc(d.nouvelle_affectation)}</strong>`:''}${decisionText?` ${decisionText}`:''}, cesse service le <strong>${esc(stageDate(d.date_cessation))}</strong> pour rejoindre son nouveau poste d’affectation.</p><p>En foi de quoi, le présent certificat est établi pour servir et valoir ce que de droit.</p></div>`;
+    }else if(moduleKey==='documents'&&currentDocumentType==='CESSATION_CONGE'){
+      const d=record.data||{};const intro=stageResponsibleIntro(record);const days=Number(d.duree_conge_jours||0);const duration=days?`${esc(frenchNumber(days))} (${String(days).padStart(2,'0')}) jours`:'— jour(s)';
+      const employment=[d.emploi,d.option_emploi?`(Option ${d.option_emploi})`:'' ].filter(Boolean).join(' ');
+      const identity=`${d.grade_appellation?`${esc(d.grade_appellation)} `:''}<strong>${esc(record.title)}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${employment?`, ${esc(employment)}`:''}${d.classe?` <strong>${esc(d.classe)}</strong>`:''}${d.echelon?`, <strong>${esc(d.echelon)}</strong>`:''}`;
+      const leaveType=String(d.type_conge||'congé administratif annuel').trim();
+      title='CERTIFICAT DE CESSATION DE SERVICE';
+      body=`<div class="document-title service-document-title">CERTIFICAT DE CESSATION DE SERVICE</div><div class="official-body service-document-body"><p>${esc(intro)}, soussigné(e), certifie que ${identity}, bénéficiaire d’un <strong>${esc(leaveType)}</strong> de <strong>${duration}</strong>${d.annee_conge?` au titre de l’année <strong>${esc(d.annee_conge)}</strong>`:''}${d.decision_numero?` conformément à la décision <strong>N° ${esc(d.decision_numero)}</strong>`:''}${d.decision_date?` du <strong>${esc(stageShortDate(d.decision_date))}</strong>`:''}${d.decision_autorite?` de <strong>${esc(d.decision_autorite)}</strong>`:''}, cesse ses activités professionnelles le <strong>${esc(stageShortDate(d.date_cessation))}</strong>${d.lieu_conge?` pour en jouir à ses frais à <strong>${esc(d.lieu_conge)}</strong>`:''}.</p><p>À l’issue de ce ${esc(leaveType)}${days?` de <strong>${esc(days)} jours</strong>`:''}, l’intéressé(e) reprendra service à son poste habituel le <strong>${esc(stageShortDate(d.date_reprise_prevue))}</strong>${d.heure_reprise_prevue?` à <strong>${esc(stageTime(d.heure_reprise_prevue))}</strong>`:''}.</p><p>En foi de quoi, le présent certificat est établi pour servir et valoir ce que de droit.</p></div>`;
     }else if(moduleKey==='documents'&&currentDocumentType==='REPRISE_SERVICE'){
       const d=record.data||{};const intro=stageResponsibleIntro(record);const days=Number(d.duree_conge_jours||0);const duration=days?`${esc(frenchNumber(days))} (${String(days).padStart(2,'0')}) jours`:'— jour(s)';
       const employment=[d.emploi,d.option_emploi?`(Option ${d.option_emploi})`:'' ].filter(Boolean).join(' ');
@@ -932,6 +945,13 @@ async function printRecord(record){
       const resumePlace=d.service_reprise?`à son ancien poste, <strong>${esc(d.service_reprise)}</strong>`:'à son ancien poste';
       title='CERTIFICAT DE REPRISE DE SERVICE';
       body=`<div class="document-title service-document-title">CERTIFICAT DE REPRISE DE SERVICE</div><div class="official-body service-document-body"><p>${esc(intro)}, soussigné(e), certifie que ${identity}, qui a cessé ses activités professionnelles le <strong>${esc(stageShortDate(d.date_cessation))}</strong>${d.certificat_cessation_numero?` conformément au certificat de cessation de service <strong>N° ${esc(d.certificat_cessation_numero)}</strong>`:''}${d.certificat_cessation_date?` du <strong>${esc(stageShortDate(d.certificat_cessation_date))}</strong>`:''}${d.certificat_cessation_origine?` émanant de <strong>${esc(d.certificat_cessation_origine)}</strong>`:''} pour bénéficier de <strong>${duration}</strong> de ${esc(leaveType)}${d.decision_numero?` suivant la décision <strong>N° ${esc(d.decision_numero)}</strong>`:''}${d.decision_date?` du <strong>${esc(stageShortDate(d.decision_date))}</strong>`:''}${d.decision_autorite?` de <strong>${esc(d.decision_autorite)}</strong>`:''} a repris le service ${resumePlace} le <strong>${esc(stageShortDate(d.date_reprise))}</strong>${d.heure_reprise?` à <strong>${esc(stageTime(d.heure_reprise))}</strong>`:''}.</p><p>En foi de quoi, le présent certificat est établi pour servir et valoir ce que de droit.</p></div>`;
+    }else if(moduleKey==='documents'&&currentDocumentType==='PRISE_SERVICE_MUTATION'){
+      const d=record.data||{};const intro=stageResponsibleIntro(record);
+      const employment=[d.emploi,d.option_emploi?`(Option ${d.option_emploi})`:'' ].filter(Boolean).join(' ');
+      const identity=`${d.grade_appellation?`${esc(d.grade_appellation)} `:''}<strong>${esc(record.title)}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${employment?`, ${esc(employment)}`:''}${d.categorie?`, Catégorie <strong>${esc(d.categorie)}</strong>`:''}${d.grade_administratif?`, Grade <strong>${esc(d.grade_administratif)}</strong>`:''}${d.classe?`, <strong>${esc(d.classe)}</strong>`:''}${d.echelon?`, <strong>${esc(d.echelon)}</strong>`:''}`;
+      const decisionText=[d.decision_numero?`suivant la Décision <strong>N° ${esc(d.decision_numero)}</strong>`:'',d.decision_date?`du <strong>${esc(stageShortDate(d.decision_date))}</strong>`:'',d.decision_objet?esc(d.decision_objet):''].filter(Boolean).join(' ');
+      title='CERTIFICAT DE PRISE DE SERVICE';
+      body=`<div class="document-title service-document-title">CERTIFICAT DE PRISE DE SERVICE</div><div class="official-body service-document-body"><p>${esc(intro)}, soussigné(e), certifie que ${identity}${d.ancien_service?`, précédemment en service au <strong>${esc(d.ancien_service)}</strong>`:''}${d.nouvelle_affectation?`, muté(e) au <strong>${esc(d.nouvelle_affectation)}</strong>`:''}${decisionText?`, ${decisionText}`:''}, a pris service le <strong>${esc(stageDate(d.date_prise_service))}</strong> à son nouveau poste.</p><p>En foi de quoi, le présent certificat de prise de service est établi pour servir et valoir ce que de droit.</p></div>`;
     }else if(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE')){
       const d=record.data||{};
       const days=Number(d.nombre_jours||inclusiveDays(d.date_debut,d.date_fin)||0);
@@ -961,7 +981,7 @@ async function printRecord(record){
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
-    const documentClass=moduleKey==='convocations'?'convocation-print':(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','REPRISE_SERVICE'].includes(currentDocumentType))?'service-document-print':'';
+    const documentClass=moduleKey==='convocations'?'convocation-print':(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':'';
     const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
@@ -972,7 +992,7 @@ async function printCurrentList(){
   try{
     const s=await ensurePrintSettings();
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
-    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE':'REGISTRE DES AUTORISATIONS D’ABSENCE'):config.title.toUpperCase();
+    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE / MUTATION':currentDocumentType==='CESSATION_CONGE'?'REGISTRE DES CESSATIONS DE SERVICE / CONGÉ':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE / CONGÉ':currentDocumentType==='PRISE_SERVICE_MUTATION'?'REGISTRE DES PRISES DE SERVICE / MUTATION':'REGISTRE DES AUTORISATIONS D’ABSENCE'):config.title.toUpperCase();
     const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);

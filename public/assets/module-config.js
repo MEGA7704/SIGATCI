@@ -1,7 +1,7 @@
 export const MODULE_CONFIG={
   personnel:{title:'Personnel',singular:'Agent',subtitle:'Gestion des agents, matricules, fonctions et statuts.',fields:[['photo','Photo de l’agent','image'],['matricule','Matricule','text'],['emploi','Emploi','text'],['grade','Grade','text'],['classe','Classe','text'],['echelon','Échelon','text'],['fonction','Fonction','text'],['qualite','Qualité','text'],['telephone','Téléphone','text']]},
   documents:{title:'Documents administratifs',singular:'Document administratif',subtitle:'Attestations, certificats, autorisations et documents officiels.',fields:[],documentTypes:{
-    CESSATION_SERVICE:{label:'Cessation de service',singular:'Cessation de service',addLabel:'Ajouter Cessation',backendModule:'documents',fields:[
+    CESSATION_SERVICE:{label:'Cessation de service / mutation',singular:'Cessation de service / mutation',addLabel:'Ajouter Cessation / mutation',backendModule:'documents',fields:[
       ['grade_appellation','Grade / appellation (ex. Sergent-chef)','text'],
       ['matricule','Matricule','text'],
       ['emploi','Emploi / corps (ex. Moniteur des PVA)','text'],
@@ -15,7 +15,25 @@ export const MODULE_CONFIG={
       ['decision_objet','Objet / libellé de la décision de mutation','textarea'],
       ['date_cessation','Date effective de cessation de service','date']
     ]},
-    REPRISE_SERVICE:{label:'Reprise de service',singular:'Reprise de service',addLabel:'Ajouter Reprise',backendModule:'documents',fields:[
+    CESSATION_CONGE:{label:'Cessation de service / congé',singular:'Cessation de service / congé',addLabel:'Ajouter Cessation / congé',backendModule:'documents',fields:[
+      ['grade_appellation','Grade / appellation (ex. Sergent-chef)','text'],
+      ['matricule','Matricule','text'],
+      ['emploi','Emploi / corps (ex. Moniteur des PVA)','text'],
+      ['option_emploi','Option (ex. Eaux et Forêts)','text'],
+      ['classe','Classe (ex. 1ère classe)','text'],
+      ['echelon','Échelon (ex. 2ème échelon)','text'],
+      ['type_conge','Nature du congé (ex. congé administratif annuel)','text'],
+      ['duree_conge_jours','Durée du congé (jours)','number'],
+      ['annee_conge','Année au titre de laquelle le congé est accordé','number'],
+      ['decision_numero','N° de la décision autorisant le congé','text'],
+      ['decision_date','Date de la décision','date'],
+      ['decision_autorite','Autorité ayant pris la décision','text'],
+      ['date_cessation','Date de cessation des activités professionnelles','date'],
+      ['lieu_conge','Lieu où l’agent jouira de son congé','text'],
+      ['date_reprise_prevue','Date prévue de reprise de service','date'],
+      ['heure_reprise_prevue','Heure prévue de reprise','time']
+    ]},
+    REPRISE_SERVICE:{label:'Reprise de service / congé',singular:'Reprise de service / congé',addLabel:'Ajouter Reprise / congé',backendModule:'documents',fields:[
       ['grade_appellation','Grade / appellation (ex. Sergent-chef)','text'],
       ['matricule','Matricule','text'],
       ['emploi','Emploi / corps (ex. Moniteur des PVA)','text'],
@@ -34,6 +52,22 @@ export const MODULE_CONFIG={
       ['service_reprise','Poste / service de reprise (facultatif)','text'],
       ['date_reprise','Date effective de reprise de service','date'],
       ['heure_reprise','Heure de reprise','time']
+    ]},
+    PRISE_SERVICE_MUTATION:{label:'Prise de service / mutation',singular:'Prise de service / mutation',addLabel:'Ajouter Prise / mutation',backendModule:'documents',fields:[
+      ['grade_appellation','Grade / appellation (ex. Adjudant)','text'],
+      ['matricule','Matricule','text'],
+      ['emploi','Emploi / corps (ex. Moniteur des PVA)','text'],
+      ['option_emploi','Option (ex. Eaux et Forêts)','text'],
+      ['categorie','Catégorie (ex. C)','text'],
+      ['grade_administratif','Grade administratif (ex. C2)','text'],
+      ['classe','Classe (ex. classe principale)','text'],
+      ['echelon','Échelon (ex. 2ème échelon)','text'],
+      ['ancien_service','Service / poste précédent','text'],
+      ['nouvelle_affectation','Nouveau poste d’affectation','text'],
+      ['decision_numero','N° de la décision de mutation','text'],
+      ['decision_date','Date de la décision de mutation','date'],
+      ['decision_objet','Objet / libellé de la décision de mutation','textarea'],
+      ['date_prise_service','Date effective de prise de service','date']
     ]},
     ABSENCE:{label:'Autorisations d’absence',singular:'Autorisation d’absence',addLabel:'Ajouter autorisation',backendModule:'absences',fields:[
       ['date_demande',"Date de la demande d’absence",'date'],

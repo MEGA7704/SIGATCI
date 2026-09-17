@@ -335,3 +335,7 @@ Le formulaire **Fin de stage** propose désormais les stages en cours et prérem
 - La **Reprise de service** comprend maintenant la nature du congé / absence, proposée par défaut comme « congé administratif ».
 - Le préremplissage intelligent d’une reprise depuis une cessation récupère l’identité, la situation administrative, l’option, le poste d’origine, la date de cessation et les références connues.
 - Les deux PDF reprennent la rédaction des exemples tout en conservant l’en-tête, les marges, la signature flexible et les ampliations configurées.
+
+
+## V1.31 — Documents administratifs : mutation / congé
+Ajout des sous-registres Cessation de service / congé et Prise de service / mutation, renommage des registres existants Cessation de service / mutation et Reprise de service / congé, formulaires et PDF adaptés aux modèles fournis, avec préremplissage intelligent.
