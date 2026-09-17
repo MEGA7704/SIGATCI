@@ -1,6 +1,6 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
 import {MODULE_CONFIG} from './module-config.js';
-let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE';
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const config=MODULE_CONFIG[moduleKey];
 function stageTypeOf(record){
@@ -17,15 +17,21 @@ function documentTypeOf(record){
   return currentDocumentType;
 }
 function documentConfig(type=currentDocumentType){return config?.documentTypes?.[type]||null}
-function effectiveModule(type=currentDocumentType){return moduleKey==='documents'?(documentConfig(type)?.backendModule||'documents'):moduleKey}
+function effectiveModule(type=currentDocumentType){
+  if(moduleKey==='documents')return documentConfig(type)?.backendModule||'documents';
+  if(moduleKey==='convocations'&&currentConvocationView==='PV')return 'convocation_pv';
+  return moduleKey;
+}
 function activeFields(record=null){
   if(moduleKey==='stages')return stageConfig(record?stageTypeOf(record):editorStageType)?.fields||[];
   if(moduleKey==='documents')return documentConfig(record?documentTypeOf(record):editorDocumentType)?.fields||[];
+  if(moduleKey==='convocations'&&editorConvocationView==='PV')return config?.pvFields||[];
   return config?.fields||[];
 }
 function activeSingular(record=null){
   if(moduleKey==='stages')return stageConfig(record?stageTypeOf(record):editorStageType)?.singular||'Stage';
   if(moduleKey==='documents')return documentConfig(record?documentTypeOf(record):editorDocumentType)?.singular||'Document administratif';
+  if(moduleKey==='convocations'&&editorConvocationView==='PV')return config?.pvSingular||'Procès-verbal de rencontre';
   return config?.singular||'Document';
 }
 
@@ -42,7 +48,10 @@ const SMART_AUTOFILL={
     ABSENCE:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}}
   },
   absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
-  convocations:{sourceModule:'personnel',label:'Personne déjà enregistrée dans le personnel',help:"Le nom et la profession sont proposés automatiquement, puis restent modifiables.",copyTitle:true,map:{profession:'data.emploi'}},
+  convocations:{
+    CONVOCATIONS:{sourceModule:'personnel',label:'Personne déjà enregistrée dans le personnel',help:"Le nom et la profession sont proposés automatiquement, puis restent modifiables.",copyTitle:true,map:{profession:'data.emploi'}},
+    PV:{sourceModule:'convocations',label:'Convocation à l’origine de la rencontre',help:"Sélectionnez la convocation concernée : la personne, la date, l’heure, l’objet et le responsable sont préremplis. Tous les champs restent modifiables.",copyTitle:true,map:{convocation_reference:'$reference',profession:'data.profession',domicile:'data.domicile',date_rencontre:'data.date_presentation',heure_debut:'data.heure',objet_rencontre:'data.objet_convocation',personne_a_voir:'data.personne_a_voir'},sourceIdKey:'_source_convocation_id'}
+  },
   missions:{sourceModule:'personnel',label:'Chef de mission',help:"Choisissez un agent pour renseigner le chef de mission. Le champ reste modifiable.",map:{chef_mission:'$title'}},
   controles:{sourceModule:'personnel',label:"Agent / chef d’équipe",help:"Choisissez un agent pour initialiser l’équipe. Vous pouvez ensuite compléter ou modifier librement.",map:{equipe:'$title'}},
   formations:{sourceModule:'personnel',label:'Participant à ajouter',help:"Choisissez un agent pour initialiser la liste des participants. Le contenu reste modifiable.",map:{participants:'$title'}},
@@ -58,6 +67,7 @@ function smartProfile(){
   if(!entry)return null;
   if(moduleKey==='stages')return entry[editorStageType]||null;
   if(moduleKey==='documents')return entry[editorDocumentType]||null;
+  if(moduleKey==='convocations')return entry[editorConvocationView]||null;
   return entry;
 }
 function ownLoadUrl(module,{stageType='',documentType='',limit=100}={}){
@@ -73,6 +83,16 @@ function smartStageKey(r){
   return `n:${String(r?.title||'').trim().toLowerCase()}|${String(data.date_debut||'').slice(0,10)}`;
 }
 async function loadSmartCandidates(profile,record=null){
+  if(profile.sourceModule==='convocations'&&moduleKey==='convocations'&&editorConvocationView==='PV'){
+    const [convResp,pvResp]=await Promise.all([
+      api(ownLoadUrl('convocations',{limit:100})),
+      api(ownLoadUrl('convocation_pv',{limit:100}))
+    ]);
+    const currentPvId=Number(record?.id||0);
+    const currentSourceId=Number(record?.data?._source_convocation_id||0);
+    const used=new Set((pvResp.items||[]).filter(x=>Number(x.id)!==currentPvId&&String(x.status||'').toUpperCase()!=='ANNULÉ').map(x=>Number(x.data?._source_convocation_id||0)).filter(Boolean));
+    return (convResp.items||[]).filter(x=>Number(x.id)===currentSourceId||!used.has(Number(x.id)));
+  }
   if(profile.ongoingOnly&&profile.sourceModule==='stages'){
     const [startsResp,endsResp]=await Promise.all([
       api(ownLoadUrl('stages',{stageType:'MISE_STAGE'})),
@@ -104,6 +124,7 @@ function smartCandidateLabel(profile,r){
     const d=r.data||{};return [r.title,d.matricule,d.fonction||d.emploi].filter(Boolean).join(' — ');
   }
   if(profile.sourceModule==='documents')return [r.title,r.reference,r.event_date?fmtDate(r.event_date):''].filter(Boolean).join(' — ');
+  if(profile.sourceModule==='convocations'){const d=r.data||{};return [r.title,r.reference,d.date_presentation?fmtDate(d.date_presentation):'',d.objet_convocation].filter(Boolean).join(' — ')}
   return [r.reference,r.title].filter(Boolean).join(' — ');
 }
 function smartGet(r,path){
@@ -166,13 +187,18 @@ async function mountSmartAutofill(record=null){
       if(!selected){sourceId.value='';return}
       applySmartCandidate(profile,selected);
     });
+    if(pendingSmartSourceRecord){
+      const wanted=candidates.find(r=>String(r.id)===String(pendingSmartSourceRecord.id));
+      if(wanted){select.value=String(wanted.id);applySmartCandidate(profile,wanted)}
+      pendingSmartSourceRecord=null;
+    }
   }catch(err){select.innerHTML='<option value="">Préremplissage indisponible — saisie manuelle possible</option>';help.textContent=err.message||'Impossible de charger les données existantes.'}
 }
 
 async function mountHistorySuggestions(record=null){
   try{
     const stageType=moduleKey==='stages'?editorStageType:'';
-    const historyModule=moduleKey==='documents'?effectiveModule(editorDocumentType):moduleKey;
+    const historyModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':moduleKey);
     const documentType=moduleKey==='documents'&&historyModule==='documents'?editorDocumentType:'';
     const resp=await api(ownLoadUrl(historyModule,{stageType,documentType}));
     const items=(resp.items||[]).filter(r=>Number(r.id)!==Number(record?.id||0));
@@ -304,9 +330,54 @@ function setDocumentView(type){
   loadRecords();
 }
 
+function setupConvocationsModule(){
+  document.getElementById('pageTitle').textContent=config.title;
+  document.getElementById('pageSubtitle').textContent=config.subtitle;
+  bindCommonModuleControls();
+  const printBtn=document.getElementById('printListBtn');
+  if(printBtn)printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
+  document.querySelectorAll('[data-convocation-tab]').forEach(btn=>btn.addEventListener('click',()=>setConvocationView(btn.dataset.convocationTab)));
+  const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();
+  setConvocationView(requested==='PV'?'PV':'CONVOCATIONS');
+}
+
+function setConvocationView(type){
+  if(!['CONVOCATIONS','PV'].includes(type))type='CONVOCATIONS';
+  currentConvocationView=type;editorConvocationView=type;currentPage=1;
+  document.querySelectorAll('[data-convocation-tab]').forEach(btn=>{const on=btn.dataset.convocationTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
+  const title=document.getElementById('convocationViewTitle');if(title)title.textContent=type==='PV'?'Procès-verbaux des rencontres':'Convocations';
+  const sub=document.getElementById('convocationViewSubtitle');if(sub)sub.textContent=type==='PV'?'Rédaction, modification, impression et suppression des procès-verbaux issus des convocations.':'Rédaction, impression et suivi des convocations administratives.';
+  const head=document.getElementById('convocationNameHeader');if(head)head.textContent=type==='PV'?'Personne concernée':'Personne / intitulé';
+  const addBtn=document.getElementById('addBtn');
+  if(addBtn){addBtn.textContent=type==='PV'?'Ajouter procès-verbal':'Ajouter convocation';addBtn.onclick=()=>openEditor()}
+  const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);
+  loadRecords();
+}
+
+async function manageConvocationPv(convocation){
+  try{
+    const scope=new URLSearchParams(location.search).get('scopeOrg');
+    const q=new URLSearchParams({module:'convocation_pv',page:'1',limit:'10',search:'',sourceConvocationId:String(convocation.id)});
+    if(scope)q.set('scopeOrg',scope);
+    const resp=await api(`/api/load?${q.toString()}`);
+    const existing=(resp.items||[])[0]||null;
+    setConvocationView('PV');
+    if(existing){
+      editorConvocationView='PV';
+      if(existing.owned)openEditor(existing);
+      else openDetails(existing);
+      return;
+    }
+    if(!convocation.owned){await professionalAlert('Procès-verbal','Aucun procès-verbal n’est encore enregistré pour cette convocation.');return}
+    pendingSmartSourceRecord=convocation;
+    openEditor(null,null,null,convocation);
+  }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le procès-verbal lié à cette convocation.')}
+}
+
 function setupModule(){
   if(moduleKey==='stages'){setupStageModule();return}
   if(moduleKey==='documents'){setupDocumentsModule();return}
+  if(moduleKey==='convocations'){setupConvocationsModule();return}
   document.getElementById('pageTitle').textContent=config.title;
   document.getElementById('pageSubtitle').textContent=config.subtitle;
   const addBtn=document.getElementById('addBtn');
@@ -337,17 +408,19 @@ async function loadRecords(){
 function renderRows(items){
   const tb=document.getElementById('recordsBody');
   if(!items.length){tb.innerHTML='<tr><td colspan="7" class="muted">Aucune donnée enregistrée.</td></tr>';return}
-  tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong></td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div></td></tr>`).join('');
+  const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
+  const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
+  tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div></td></tr>`).join('');
   items.forEach(r=>{
     tb.querySelector(`[data-view="${r.id}"]`)?.addEventListener('click',()=>openDetails(r));
     tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
+    if(isConvocationRegister)tb.querySelector(`[data-pv="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>manageConvocationPv(r),'Ouverture…'));
     if(!r.owned)return;
     tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r,null,moduleKey==='documents'?currentDocumentType:null));
     tb.querySelector(`[data-archive="${r.id}"]`)?.addEventListener('click',e=>archiveRecord(r,e.currentTarget));
     tb.querySelector(`[data-delete="${r.id}"]`)?.addEventListener('click',e=>deleteRecord(r,e.currentTarget));
   });
 }
-
 function fieldLabel(key,record=null){const f=activeFields(record).find(x=>x[0]===key);return f?.[1]||key.replaceAll('_',' ');}
 function displayValue(value){if(value===null||value===undefined||value==='')return '—';return String(value);}
 
@@ -411,19 +484,24 @@ function updateAbsenceDays(){
   if(n)n.value=inclusiveDays(a?.value,b?.value);
 }
 
-function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null){
+function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null,smartSourceRecord=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
   const isPersonnel=moduleKey==='personnel';
   const isDocument=moduleKey==='documents';
-  const isConvocation=moduleKey==='convocations';
+  const isConvocationModule=moduleKey==='convocations';
   const isStage=moduleKey==='stages';
   if(isStage)editorStageType=stageTypeOverride||(record?stageTypeOf(record):currentStageType);
   if(isDocument)editorDocumentType=documentTypeOverride||(record?documentTypeOf(record):currentDocumentType);
+  if(isConvocationModule)editorConvocationView=currentConvocationView;
+  if(smartSourceRecord)pendingSmartSourceRecord=smartSourceRecord;
+  const isConvocation=isConvocationModule&&editorConvocationView==='CONVOCATIONS';
+  const isConvocationPv=isConvocationModule&&editorConvocationView==='PV';
   const isAbsence=moduleKey==='absences'||(isDocument&&editorDocumentType==='ABSENCE');
   const isServiceDocument=isDocument&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(editorDocumentType);
   d.classList.toggle('personnel-editor',isPersonnel);
   d.classList.toggle('absence-editor',isAbsence);
   d.classList.toggle('convocation-editor',isConvocation);
+  d.classList.toggle('pv-editor',isConvocationPv);
   d.classList.toggle('stage-editor',isStage);
   d.classList.toggle('document-service-editor',isServiceDocument);
   const singular=activeSingular(record);
@@ -460,6 +538,14 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="REMISE">REMISE</option><option value="PRÉSENTÉ">PRÉSENTÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'ÉMISE';
+  }else if(isConvocationPv){
+    refField.querySelector('label').textContent='Référence / N° du procès-verbal';
+    dateField.querySelector('label').textContent="Date d’établissement du procès-verbal";
+    titleField.querySelector('label').textContent='Personne convoquée / personne concernée *';
+    titleField.classList.remove('full');
+    statusField.classList.remove('personnel-status-hidden');
+    statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉTABLI">ÉTABLI</option><option value="VALIDÉ">VALIDÉ</option><option value="ANNULÉ">ANNULÉ</option>';
+    statusInput.value=record?.status||'ÉTABLI';
   }else if(isStage){
     refField.querySelector('label').textContent='Référence / N° attestation';
     dateField.querySelector('label').textContent="Date d’établissement";
@@ -494,6 +580,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
       if(key==='objet_convocation')wrap.classList.add('convocation-object-field');
       if(key==='personne_a_voir')wrap.classList.add('convocation-person-field');
     }
+    if(isConvocationPv&&['objet_rencontre','personnes_presentes','resume_echanges','conclusions_decisions','observations'].includes(key))wrap.classList.add('pv-wide-field');
     if(isStage&&key==='theme')wrap.classList.add('stage-theme-field');
     if(isStage&&key==='note_service_origine')wrap.classList.add('stage-wide-field');
     if(isServiceDocument&&['decision_objet','certificat_cessation_origine','decision_autorite','type_conge','lieu_conge'].includes(key))wrap.classList.add('document-wide-field');
@@ -511,6 +598,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
     else{el=document.createElement('input');el.type=type==='computed'?'number':(type||'text');if(type==='computed'){el.readOnly=true;el.classList.add('computed-field')}}
     el.dataset.key=key;el.value=record?.data?.[key]??'';
+    if(isConvocationPv&&!record&&key==='lieu_rencontre')el.value=session?.user?.organizationName||'';
     if(isStage&&!record&&key==='qualite_stagiaire')el.value='élève Sous-officier';
     if(isStage&&!record&&editorStageType==='MISE_STAGE'&&key==='note_service_origine')el.value='Direction des Ressources Humaines et de la Formation du Ministère des Eaux et Forêts';
     if(isServiceDocument&&!record&&key==='option_emploi')el.value='Eaux et Forêts';
@@ -549,7 +637,7 @@ async function saveRecord(e){
     if(moduleKey==='stages')data._stage_type=editorStageType;
     if(moduleKey==='documents'&&editorDocumentType!=='ABSENCE')data._document_type=editorDocumentType;
     const payload={id:id?Number(id):undefined,reference:document.getElementById('recordReference').value,title:document.getElementById('recordTitle').value,eventDate:document.getElementById('recordDate').value,status:document.getElementById('recordStatus').value,data};
-    const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):moduleKey;
+    const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':moduleKey);
     try{await api('/api/save',{method:'POST',body:{module:saveModule,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
   },'Enregistrement…');
 }
@@ -557,14 +645,14 @@ async function saveRecord(e){
 async function archiveRecord(r,button){
   const yes=await professionalConfirm('Confirmer l’archivage',`Voulez-vous archiver « ${r.title} » ? L’historique sera conservé.`,{confirmText:'Archiver'});
   if(!yes)return;
-  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):moduleKey;
+  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):(moduleKey==='convocations'&&currentConvocationView==='PV'?'convocation_pv':moduleKey);
   return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:actionModule,action:'archive',payload:{id:r.id}}});await professionalAlert('Archivage effectué','L’élément a été archivé avec succès.');loadRecords()}catch(e){await professionalAlert('Archivage impossible',e.message)}},'Archivage…');
 }
 
 async function deleteRecord(r,button){
   const yes=await professionalConfirm('Supprimer définitivement',`Voulez-vous supprimer définitivement « ${r.title} » ? Cette action est irréversible.`,{confirmText:'Supprimer',cancelText:'Annuler',danger:true});
   if(!yes)return;
-  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):moduleKey;
+  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):(moduleKey==='convocations'&&currentConvocationView==='PV'?'convocation_pv':moduleKey);
   return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:actionModule,action:'delete',payload:{id:r.id}}});await professionalAlert('Suppression effectuée','L’enregistrement a été supprimé définitivement.');loadRecords()}catch(e){await professionalAlert('Suppression impossible',e.message)}},'Suppression…');
 }
 
@@ -799,6 +887,13 @@ body.record-print{
 .record-print.service-document-print .service-document-body *{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:13pt!important}
 .record-print.service-document-print .service-document-body{width:92%;line-height:1.35;text-align:justify}
 .record-print.service-document-print .service-document-body p{line-height:1.35;margin:0 0 1.65em;text-align:justify}
+
+/* V1.32 — Procès-verbal lié à une convocation */
+.record-print.pv-print .pv-body,
+.record-print.pv-print .pv-body *{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:13pt!important}
+.record-print.pv-print .pv-body{width:92%;line-height:1.35;text-align:justify}
+.record-print.pv-print .pv-body p{line-height:1.35;margin:0 0 1.55em;text-align:justify;white-space:normal}
+.record-print.pv-print .document-title{margin-top:30px;margin-bottom:40px}
 `}
 
 
@@ -960,7 +1055,7 @@ async function printRecord(record){
       const phrase=`Une autorisation d’absence de <strong>${esc(dayText)} jour${days>1?'s':''}</strong> allant du <strong>${esc(longFrDate(d.date_debut))}</strong> au <strong>${esc(longFrDate(d.date_fin))}</strong> inclus est accordée à <strong>${esc([d.grade,record.title].filter(Boolean).join(' '))}</strong>${d.matricule?`, Matricule <strong>${esc(d.matricule)}</strong>`:''}${d.emploi?`, ${esc(d.emploi)}`:''} en service au <strong>${esc(org)}</strong>${d.destination?` en vue de se rendre à <strong>${esc(d.destination)}</strong>`:''}${d.motif?` pour ${esc(d.motif)}`:''}.`;
       title='AUTORISATION D’ABSENCE';
       body=`<div class="document-title">AUTORISATION D’ABSENCE</div><div class="absence-body"><div class="request">Vu la demande d’absence en date du <strong>${esc(longFrDate(d.date_demande))}</strong>,</div><p>${phrase}</p></div>`;
-    }else if(moduleKey==='convocations'){
+    }else if(moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS'){
       const d=record.data||{};
       const civ=String(d.civilite||'M.').trim();
       const presentDate=d.date_presentation?longFrDate(d.date_presentation):'—';
@@ -970,6 +1065,15 @@ async function printRecord(record){
       const personText=String(d.personne_a_voir||d.voir||'').trim();
       title='CONVOCATION';
       body=`<div class="document-title">CONVOCATION</div><div class="official-body convocation-body"><div class="convocation-intro">Est prié(e) de bien vouloir se présenter au <strong>${esc(structure)}</strong><br>muni d’une pièce d’identité</div><table class="convocation-table"><tbody><tr><td class="convocation-label">M./Mme/Mlle</td><td class="convocation-colon">:</td><td class="convocation-value">${esc(`${civ} ${record.title}`.trim())}</td></tr><tr><td class="convocation-label">Profession</td><td class="convocation-colon">:</td><td class="convocation-value">${esc(displayValue(d.profession))}</td></tr><tr><td class="convocation-label">Domicile</td><td class="convocation-colon">:</td><td class="convocation-value">${esc(displayValue(d.domicile))}</td></tr><tr><td class="convocation-label">Date</td><td class="convocation-colon">:</td><td class="convocation-value">${esc(presentDate)}</td></tr><tr><td class="convocation-label">Heures</td><td class="convocation-colon">:</td><td class="convocation-value">${esc(presentTime)}</td></tr></tbody></table><div class="convocation-section"><div class="convocation-section-title">Objet de la convocation :</div><div class="convocation-box">${esc(objectText)}</div></div><div class="convocation-section"><div class="convocation-person-box"><span class="label">Personne à voir</span><span>:</span><span class="value">${esc(personText)}</span></div></div><p class="convocation-final">Votre présence à la date et à l’heure indiquée est nécessaire.</p></div>`;
+    }else if(moduleKey==='convocations'&&currentConvocationView==='PV'){
+      const d=record.data||{};
+      const meetingDate=d.date_rencontre?longFrDate(d.date_rencontre):'—';
+      const start=d.heure_debut?stageTime(d.heure_debut):'—';
+      const end=d.heure_fin?stageTime(d.heure_fin):'';
+      const sourceRef=String(d.convocation_reference||'').trim();
+      const place=String(d.lieu_rencontre||record.source_organization||session?.user?.organizationName||'').trim();
+      title='PROCÈS-VERBAL DE RENCONTRE';
+      body=`<div class="document-title">PROCÈS-VERBAL DE RENCONTRE</div><div class="official-body pv-body"><p>Le <strong>${esc(meetingDate)}</strong> à <strong>${esc(start)}</strong>${end?`, jusqu’à <strong>${esc(end)}</strong>`:''}, s’est tenue à <strong>${esc(place||'—')}</strong> une rencontre faisant suite à la convocation${sourceRef?` <strong>N° ${esc(sourceRef)}</strong>`:''} adressée à <strong>${esc(d.personne_convoquee||record.title)}</strong>${d.profession?`, ${esc(d.profession)}`:''}${d.domicile?`, domicilié(e) à ${esc(d.domicile)}`:''}.</p><p><strong>Objet de la rencontre :</strong><br>${esc(displayValue(d.objet_rencontre))}</p>${d.personne_a_voir?`<p><strong>Responsable / personne ayant reçu le convoqué :</strong><br>${esc(d.personne_a_voir)}</p>`:''}${d.personnes_presentes?`<p><strong>Personnes présentes :</strong><br>${esc(d.personnes_presentes).split('\n').join('<br>')}</p>`:''}<p><strong>Déroulement / résumé des échanges :</strong><br>${esc(displayValue(d.resume_echanges)).split('\n').join('<br>')}</p><p><strong>Conclusions / décisions arrêtées :</strong><br>${esc(displayValue(d.conclusions_decisions)).split('\n').join('<br>')}</p>${d.observations?`<p><strong>Observations :</strong><br>${esc(d.observations).split('\n').join('<br>')}</p>`:''}<p>En foi de quoi, le présent procès-verbal est établi pour servir et valoir ce que de droit.</p></div>`;
     }else if(moduleKey==='personnel'){
       const v=key=>esc(displayValue(record.data?.[key]));
       const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
@@ -981,7 +1085,7 @@ async function printRecord(record){
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
-    const documentClass=moduleKey==='convocations'?'convocation-print':(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':'';
+    const documentClass=moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':'';
     const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
@@ -992,7 +1096,7 @@ async function printCurrentList(){
   try{
     const s=await ensurePrintSettings();
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
-    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE / MUTATION':currentDocumentType==='CESSATION_CONGE'?'REGISTRE DES CESSATIONS DE SERVICE / CONGÉ':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE / CONGÉ':currentDocumentType==='PRISE_SERVICE_MUTATION'?'REGISTRE DES PRISES DE SERVICE / MUTATION':'REGISTRE DES AUTORISATIONS D’ABSENCE'):config.title.toUpperCase();
+    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE / MUTATION':currentDocumentType==='CESSATION_CONGE'?'REGISTRE DES CESSATIONS DE SERVICE / CONGÉ':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE / CONGÉ':currentDocumentType==='PRISE_SERVICE_MUTATION'?'REGISTRE DES PRISES DE SERVICE / MUTATION':'REGISTRE DES AUTORISATIONS D’ABSENCE'):moduleKey==='convocations'?(currentConvocationView==='PV'?'REGISTRE DES PROCÈS-VERBAUX DE RENCONTRE':'REGISTRE DES CONVOCATIONS'):config.title.toUpperCase();
     const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);

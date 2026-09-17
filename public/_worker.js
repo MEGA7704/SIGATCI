@@ -233,7 +233,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.18-pdf-typography-margins',
+    version: '1.32-convocations-pv',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -311,6 +311,7 @@ const MODULES = Object.freeze({
   absences: 'absences',
   stages: 'internships',
   convocations: 'convocations',
+  convocation_pv: 'convocation_minutes',
   missions: 'missions',
   controles: 'controls',
   infractions: 'offenses',
@@ -959,6 +960,13 @@ async function apiLoad(env, request) {
       params.push(documentType);
     }
   }
+  if (module === 'convocation_pv') {
+    const sourceConvocationId = Number(url.searchParams.get('sourceConvocationId') || 0);
+    if (sourceConvocationId > 0) {
+      where += ` AND CAST(json_extract(COALESCE(r.data_json,'{}'), '$._source_convocation_id') AS INTEGER) = ?`;
+      params.push(sourceConvocationId);
+    }
+  }
   const count = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} r WHERE ${where}`).bind(...params).first();
   const rows = await env.SIGAT_DB.prepare(`
     SELECT r.id,r.organization_id,r.reference,r.title,r.event_date,r.status,r.data_json,r.created_at,r.updated_at,
@@ -1014,6 +1022,34 @@ async function syncStageSourceStatus(env, orgId, sourceId) {
   }
 }
 
+async function validateConvocationPvSource(env, orgId, sourceId, ignorePvId = 0) {
+  sourceId = Number(sourceId || 0);
+  if (!sourceId) throw new Error('La convocation d’origine est obligatoire pour établir le procès-verbal.');
+  const source = await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,status,data_json FROM convocations WHERE id=? AND organization_id=?`).bind(sourceId, orgId).first();
+  if (!source) throw new Error('La convocation sélectionnée est introuvable dans votre structure.');
+  await ensureModuleTable(env, 'convocation_minutes');
+  const dup = await env.SIGAT_DB.prepare(`
+    SELECT id FROM convocation_minutes
+    WHERE organization_id=? AND archived_at IS NULL AND id<>?
+      AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_convocation_id') AS INTEGER)=?
+      AND UPPER(COALESCE(status,''))<>'ANNULÉ'
+    LIMIT 1
+  `).bind(orgId, Number(ignorePvId || 0), sourceId).first();
+  if (dup) throw new Error('Un procès-verbal est déjà enregistré pour cette convocation. Modifiez le procès-verbal existant.');
+  return source;
+}
+
+async function convocationHasPv(env, orgId, convocationId) {
+  if (!(await tableExists(env, 'convocation_minutes'))) return false;
+  const row = await env.SIGAT_DB.prepare(`
+    SELECT id FROM convocation_minutes
+    WHERE organization_id=? AND archived_at IS NULL
+      AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_convocation_id') AS INTEGER)=?
+    LIMIT 1
+  `).bind(orgId, Number(convocationId || 0)).first();
+  return !!row;
+}
+
 async function apiSave(env, request) {
   const auth = await getSession(env, request, { allowExpired: false });
   if (!auth) return bad('Session invalide.', 401);
@@ -1032,12 +1068,17 @@ async function apiSave(env, request) {
   const incomingData = payload?.data && typeof payload.data === 'object' ? payload.data : {};
   const incomingStageType = module === 'stages' ? String(incomingData._stage_type || '').toUpperCase() : '';
   const incomingSourceStageId = incomingStageType === 'FIN_STAGE' ? Number(incomingData._source_stage_id || 0) : 0;
+  const incomingSourceConvocationId = module === 'convocation_pv' ? Number(incomingData._source_convocation_id || 0) : 0;
 
   if (action === 'create') {
     const title = String(payload.title || '').trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
       try { await validateStageSource(env, orgId, incomingSourceStageId, 0); }
+      catch (e) { return bad(String(e?.message || e)); }
+    }
+    if (module === 'convocation_pv') {
+      try { await validateConvocationPvSource(env, orgId, incomingSourceConvocationId, 0); }
       catch (e) { return bad(String(e?.message || e)); }
     }
     const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
@@ -1062,6 +1103,10 @@ async function apiSave(env, request) {
       try { await validateStageSource(env, orgId, incomingSourceStageId, id); }
       catch (e) { return bad(String(e?.message || e)); }
     }
+    if (module === 'convocation_pv') {
+      try { await validateConvocationPvSource(env, orgId, incomingSourceConvocationId, id); }
+      catch (e) { return bad(String(e?.message || e)); }
+    }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
       .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();
     if (module === 'stages') {
@@ -1073,6 +1118,7 @@ async function apiSave(env, request) {
   }
 
   if (action === 'delete') {
+    if (module === 'convocations' && await convocationHasPv(env, orgId, id)) return bad('Cette convocation possède un procès-verbal. Supprimez d’abord le procès-verbal lié avant de supprimer la convocation.');
     await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
     if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
     await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });

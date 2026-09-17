@@ -339,3 +339,15 @@ Le formulaire **Fin de stage** propose désormais les stages en cours et prérem
 
 ## V1.31 — Documents administratifs : mutation / congé
 Ajout des sous-registres Cessation de service / congé et Prise de service / mutation, renommage des registres existants Cessation de service / mutation et Reprise de service / congé, formulaires et PDF adaptés aux modèles fournis, avec préremplissage intelligent.
+
+
+## V1.32 — Convocations liées aux procès-verbaux
+
+- La page **Convocations** comporte désormais deux espaces dans la même page : **Convocations** et **Procès-verbaux des rencontres**.
+- Chaque ligne de convocation dispose d’un bouton **Procès-verbal** qui ouvre le PV déjà lié ou prépare un nouveau PV.
+- Le popup du PV sélectionne la convocation d’origine et préremplit automatiquement la personne convoquée, la profession, le domicile, la date, l’heure, l’objet et le responsable ; tous ces champs restent modifiables.
+- Le PV gère également le lieu, l’heure de fin, les personnes présentes, le déroulement/résumé, les conclusions/décisions et les observations.
+- Un seul PV actif est autorisé par convocation afin d’éviter les doublons.
+- Les PV peuvent être consultés, imprimés en PDF, modifiés, archivés et supprimés.
+- Une convocation possédant encore un PV ne peut pas être supprimée avant suppression du PV lié.
+- L’impression du PV reprend l’en-tête administratif, la mise en page A4, la date/signature flexible et les ampliations facultatives déjà configurées dans SIGAT.
