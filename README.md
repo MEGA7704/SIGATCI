@@ -296,3 +296,7 @@ Correction ciblée des PDF d’autorisations d’absence : titre Cooper Black 22
 - Chaque popup Ajouter / Modifier propose **Afficher AMPLIATIONS sur le PDF** : l'utilisateur décide document par document si le bloc doit être imprimé.
 - Lorsqu'il est activé, **AMPLIATIONS** apparaît de façon flexible en bas à gauche, sur la même ligne que la zone **Fait à… / signature** placée à droite.
 - Le menu principal est désormais accessible sur téléphone grâce à un bouton **Menu** avec navigation verticale et sous-menus tactiles. La correction couvre les espaces de structure, les paramètres d'impression et le Super Admin.
+
+
+## V1.24 — Ampliations : tirets et nombres
+La section AMPLIATIONS ajoute automatiquement un tiret devant chaque destinataire et permet d’indiquer un nombre / nombre d’exemplaires correspondant à chaque ligne.

@@ -445,7 +445,16 @@ body.record-print{
   text-underline-offset:2px;
   margin-bottom:2.5mm;
 }
-.official-ampliations .ampliations-content{white-space:pre-line}
+.official-ampliations .ampliations-content{display:block}
+.official-ampliations .ampliation-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:4mm;
+  align-items:baseline;
+  margin:1.2mm 0;
+}
+.official-ampliations .ampliation-label{min-width:0;overflow-wrap:anywhere}
+.official-ampliations .ampliation-number{min-width:8mm;text-align:right;font-weight:700;white-space:nowrap}
 @media print{
   .official-bottom-row{break-inside:avoid!important;page-break-inside:avoid!important}
 }
@@ -476,10 +485,22 @@ function officialSignatureHtml(s,date=''){
   const stamp=s.stampData?`<img class="stamp-image" src="${esc(s.stampData)}" alt="Cachet">`:'';
   return `<div class="official-signature">${madeAt?`<div class="made-at">${madeAt}</div>`:''}<div class="signer-title">${esc(title)}</div><div class="signature-media">${sig}${stamp}</div>${name?`<div class="signer-name">${esc(name)}</div>`:''}${position?`<div class="signer-position">${esc(position)}</div>`:''}</div>`;
 }
+function normalizedAmpliationRows(s){
+  const destinations=String(s?.ampliations||'').replace(/\r/g,'').split('\n');
+  const numbers=String(s?.ampliationNumbers||'').replace(/\r/g,'').split('\n');
+  const rows=[];
+  destinations.forEach((raw,i)=>{
+    const label=String(raw||'').trim().replace(/^[-–—•*]+\s*/,'');
+    if(!label)return;
+    rows.push({label,number:String(numbers[i]||'').trim()});
+  });
+  return rows;
+}
 function officialAmpliationsHtml(s){
-  const text=settingsLine(s.ampliations);
-  if(!text)return '<div class="official-ampliations-placeholder"></div>';
-  return `<div class="official-ampliations"><div class="ampliations-title">AMPLIATIONS</div><div class="ampliations-content">${esc(text)}</div></div>`;
+  const rows=normalizedAmpliationRows(s);
+  if(!rows.length)return '<div class="official-ampliations-placeholder"></div>';
+  const content=rows.map(row=>`<div class="ampliation-row"><div class="ampliation-label">- ${esc(row.label)}</div><div class="ampliation-number">${row.number?esc(row.number):''}</div></div>`).join('');
+  return `<div class="official-ampliations"><div class="ampliations-title">AMPLIATIONS</div><div class="ampliations-content">${content}</div></div>`;
 }
 function officialFooterHtml(){return ''}
 

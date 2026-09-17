@@ -24,8 +24,10 @@
         <div class="field image-setting"><label>Emblème / armoiries</label><input id="emblemFile" type="file" accept="image/png,image/jpeg,image/webp"><input type="hidden" name="emblemData"><div class="setting-image-preview" data-preview="emblemData"></div></div>
       </div>
       <div class="settings-section-title">AMPLIATIONS</div>
-      <div class="settings-grid">
-        <div class="field full"><label>Destinataires / ampliations</label><textarea name="ampliations" rows="5" placeholder="Exemple :&#10;- Direction Régionale du Gbêkê&#10;- Direction Départementale de Béoumi&#10;- Archives"></textarea><small class="muted">Cette liste peut être affichée ou masquée séparément sur chaque document au moment de sa rédaction. Lorsqu’elle est activée, elle apparaît en bas à gauche, sur la même ligne que la signature.</small></div>
+      <div class="settings-grid ampliations-settings-grid">
+        <div class="field"><label>Destinataires / ampliations</label><textarea name="ampliations" rows="6" placeholder="Exemple :&#10;Direction Régionale du Gbêkê&#10;Direction Départementale de Béoumi&#10;Archives"></textarea><small class="muted">Saisissez un destinataire par ligne. Le tiret « - » est ajouté automatiquement devant chaque ligne sur le document imprimé.</small></div>
+        <div class="field"><label>Nombres / exemplaires</label><textarea name="ampliationNumbers" rows="6" placeholder="Exemple :&#10;01&#10;01&#10;02"></textarea><small class="muted">Saisissez un nombre par ligne, dans le même ordre que les destinataires. Exemple : 01, 01, 02.</small></div>
+        <div class="field full"><small class="muted">Cette liste peut être affichée ou masquée séparément sur chaque document au moment de sa rédaction. Lorsqu’elle est activée, elle apparaît en bas à gauche, sur la même ligne que la signature.</small></div>
       </div>
       <div class="settings-section-title">Responsable signataire</div>
       <div class="settings-grid">

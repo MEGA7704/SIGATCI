@@ -1,7 +1,7 @@
 import {api,esc,loadSession,withButtonLock,professionalAlert,professionalDialog} from './common.js';
 
 let session=null;
-const keys=['ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations'];
+const keys=['ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations','ampliationNumbers'];
 const CHILD_LABEL={CANTONNEMENT:'Mes PEF',DIRECTION_REGIONALE:'Mes Cantonnements',DIRECTION_DEPARTEMENTALE:'Mes Directions Régionales'};
 
 function navHTML(user){
@@ -49,12 +49,27 @@ async function boot(){
   document.getElementById('previewBtn').onclick=preview;
 }
 async function save(e){e.preventDefault();const btn=e.submitter;return withButtonLock(btn,async()=>{const form=e.currentTarget,settings={};keys.forEach(k=>settings[k]=String(form.elements[k]?.value||'').trim());try{await api('/api/print-settings',{method:'POST',body:{settings}});await professionalAlert('Paramètres enregistrés','L’en-tête, les ampliations et la signature seront désormais disponibles sur les impressions de votre structure.')}catch(err){await professionalAlert('Enregistrement impossible',err.message)}},'Enregistrement…')}
+
+function ampliationRowsHtml(destinationsValue,numbersValue){
+  const destinations=String(destinationsValue||'').replace(/\r/g,'').split('\n');
+  const numbers=String(numbersValue||'').replace(/\r/g,'').split('\n');
+  const rows=[];
+  destinations.forEach((raw,i)=>{
+    const label=String(raw||'').trim().replace(/^[-–—•*]+\s*/,'');
+    if(!label)return;
+    const number=String(numbers[i]||'').trim();
+    rows.push(`<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:baseline;margin:3px 0"><span>- ${esc(label)}</span><strong style="min-width:28px;text-align:right">${number?esc(number):''}</strong></div>`);
+  });
+  return rows.join('');
+}
+
 function preview(){
   const f=document.getElementById('printSettingsForm'),v=k=>f.elements[k]?.value||'';
   const left=[v('ministry'),v('cabinet'),v('regionalDirection'),v('departmentalDirection'),v('cantonment'),v('post')].filter(Boolean).map(x=>`<div style="margin:4px 0;font-weight:700">${esc(x)}</div><div style="font-size:10px;letter-spacing:3px">- - - - -</div>`).join('');
   const emblem=v('emblemData')?`<img src="${esc(v('emblemData'))}" style="max-width:75px;max-height:75px">`:'';
   const ampliations=String(v('ampliations')||'').trim();
-  const ampliationsHtml=ampliations?`<div style="width:48%;white-space:pre-line;align-self:end"><strong style="text-decoration:underline">AMPLIATIONS</strong><div style="margin-top:7px">${esc(ampliations)}</div></div>`:`<div style="width:48%"></div>`;
+  const ampliationRows=ampliationRowsHtml(ampliations,v('ampliationNumbers'));
+  const ampliationsHtml=ampliationRows?`<div style="width:48%;align-self:end"><strong style="text-decoration:underline">AMPLIATIONS</strong><div style="margin-top:7px">${ampliationRows}</div></div>`:`<div style="width:48%"></div>`;
   const signatureHtml=`<div style="width:48%;text-align:center"><div>${esc(v('signerTitle')||'Le responsable de la structure')}</div><div style="height:50px"></div><strong style="text-decoration:underline">${esc(v('signerName')||'Nom du responsable')}</strong><div>${esc(v('signerPosition'))}</div></div>`;
   const html=`<div class="print-settings-preview"><div>${left}</div><div style="text-align:center">${emblem}</div><div style="text-align:center"><strong>${esc(v('republic')||'REPUBLIQUE DE COTE D’IVOIRE')}</strong><br><em>${esc(v('motto')||'Union – Discipline – Travail')}</em></div></div><div style="margin-top:14px"><strong>N°____________${v('referencePrefix')?'/'+esc(v('referencePrefix')):''}</strong></div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-top:45px">${ampliationsHtml}${signatureHtml}</div>`;
   professionalDialog({title:'Aperçu des paramètres d’impression',html,confirmText:'Fermer'});
