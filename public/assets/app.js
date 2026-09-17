@@ -1,8 +1,15 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
 import {MODULE_CONFIG} from './module-config.js';
-let session=null,currentPage=1,currentSearch='',lastItems=[];
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE';
 const moduleKey=document.body.dataset.module||'';
 const config=MODULE_CONFIG[moduleKey];
+function stageTypeOf(record){
+  const t=String(record?.data?._stage_type||'').toUpperCase();
+  return t==='MISE_STAGE'||t==='FIN_STAGE'?t:'FIN_STAGE';
+}
+function stageConfig(type=currentStageType){return config?.stageTypes?.[type]||null}
+function activeFields(record=null){return moduleKey==='stages'?(stageConfig(record?stageTypeOf(record):editorStageType)?.fields||[]):(config?.fields||[])}
+function activeSingular(record=null){return moduleKey==='stages'?(stageConfig(record?stageTypeOf(record):editorStageType)?.singular||'Stage'):(config?.singular||'Document')}
 
 const TYPE_LABEL={PEF:'Poste des Eaux et Forêts',CANTONNEMENT:'Cantonnement',DIRECTION_REGIONALE:'Direction Régionale',DIRECTION_DEPARTEMENTALE:'Direction Départementale'};
 const CHILD_LABEL={CANTONNEMENT:'Mes PEF',DIRECTION_REGIONALE:'Mes Cantonnements',DIRECTION_DEPARTEMENTALE:'Mes Directions Régionales'};
@@ -62,7 +69,38 @@ async function loadDashboard(){
   }catch(e){showToast(e.message,'error')}
 }
 
+function bindCommonModuleControls(){
+  document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(window.__s);window.__s=setTimeout(()=>{currentSearch=e.target.value;currentPage=1;loadRecords()},300)});
+  document.getElementById('recordForm').addEventListener('submit',saveRecord);
+  document.querySelectorAll('[data-close-editor]').forEach(b=>b.onclick=()=>document.getElementById('editorDialog').close());
+  document.getElementById('prevBtn').onclick=()=>{if(currentPage>1){currentPage--;loadRecords()}};
+  document.getElementById('nextBtn').onclick=()=>{currentPage++;loadRecords()};
+}
+
+function setupStageModule(){
+  document.getElementById('pageTitle').textContent=config.title;
+  document.getElementById('pageSubtitle').textContent=config.subtitle;
+  bindCommonModuleControls();
+  const printBtn=document.getElementById('printListBtn');
+  if(printBtn)printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
+  document.querySelectorAll('[data-stage-tab]').forEach(btn=>btn.addEventListener('click',()=>setStageView(btn.dataset.stageTab)));
+  setStageView('MISE_STAGE');
+}
+
+function setStageView(type){
+  if(!['MISE_STAGE','FIN_STAGE'].includes(type))type='MISE_STAGE';
+  currentStageType=type;editorStageType=type;currentPage=1;
+  document.querySelectorAll('[data-stage-tab]').forEach(btn=>{const on=btn.dataset.stageTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
+  const cfg=stageConfig(type)||{};
+  const title=document.getElementById('stageViewTitle');if(title)title.textContent=cfg.label||'Stages';
+  const sub=document.getElementById('stageViewSubtitle');if(sub)sub.textContent=type==='MISE_STAGE'?'Enregistrement et édition des attestations de mise en stage.':'Enregistrement et édition des attestations de fin de stage.';
+  const addBtn=document.getElementById('addBtn');
+  if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,type)}
+  loadRecords();
+}
+
 function setupModule(){
+  if(moduleKey==='stages'){setupStageModule();return}
   document.getElementById('pageTitle').textContent=config.title;
   document.getElementById('pageSubtitle').textContent=config.subtitle;
   const addBtn=document.getElementById('addBtn');
@@ -72,18 +110,15 @@ function setupModule(){
   printBtn.className='btn btn-secondary';printBtn.type='button';printBtn.innerHTML='Imprimer la liste / PDF';
   printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
   addBtn.parentElement.insertBefore(printBtn,addBtn);
-  document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(window.__s);window.__s=setTimeout(()=>{currentSearch=e.target.value;currentPage=1;loadRecords()},300)});
-  document.getElementById('recordForm').addEventListener('submit',saveRecord);
-  document.querySelectorAll('[data-close-editor]').forEach(b=>b.onclick=()=>document.getElementById('editorDialog').close());
-  document.getElementById('prevBtn').onclick=()=>{if(currentPage>1){currentPage--;loadRecords()}};
-  document.getElementById('nextBtn').onclick=()=>{currentPage++;loadRecords()};
+  bindCommonModuleControls();
   loadRecords();
 }
 
 async function loadRecords(){
   try{
     const scope=new URLSearchParams(location.search).get('scopeOrg');
-    const d=await api(`/api/load?module=${encodeURIComponent(moduleKey)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
+    const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
+    const d=await api(`/api/load?module=${encodeURIComponent(moduleKey)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
     if(currentPage>d.totalPages){currentPage=d.totalPages;return loadRecords()}
     lastItems=d.items||[];renderRows(lastItems);
     document.getElementById('pageInfo').textContent=`Page ${d.page} / ${d.totalPages} — ${d.total} enregistrement(s)`;
@@ -105,17 +140,18 @@ function renderRows(items){
   });
 }
 
-function fieldLabel(key){const f=config.fields.find(x=>x[0]===key);return f?.[1]||key.replaceAll('_',' ');}
+function fieldLabel(key,record=null){const f=activeFields(record).find(x=>x[0]===key);return f?.[1]||key.replaceAll('_',' ');}
 function displayValue(value){if(value===null||value===undefined||value==='')return '—';return String(value);}
 
 function openDetails(record){
   const photo=moduleKey==='personnel'&&record.data?.photo?`<div class="agent-photo-view"><img src="${esc(record.data.photo)}" alt="Photo agent"></div>`:'';
   const rows=[
     ['Référence',record.reference],['Nom / Intitulé',record.title],['Date',fmtDate(record.event_date)],['Statut',record.status],['Service source',record.source_organization],
-    ...config.fields.filter(([k])=>k!=='photo').map(([k,l])=>[l,record.data?.[k]])
+    ...(moduleKey==='stages'?[['Type de document',stageConfig(stageTypeOf(record))?.label||'Stage']]:[]),
+    ...activeFields(record).filter(([k])=>k!=='photo').map(([k,l])=>[l,record.data?.[k]])
   ];
   const html=`<div class="detail-layout">${photo}<div class="detail-grid">${rows.map(([l,v])=>`<div class="detail-item"><span>${esc(l)}</span><strong>${esc(displayValue(v))}</strong></div>`).join('')}</div></div>`;
-  professionalDialog({title:`${config.singular} — Informations`,html,confirmText:'Fermer'});
+  professionalDialog({title:`${activeSingular(record)} — Informations`,html,confirmText:'Fermer'});
 }
 
 async function compressImage(file){
@@ -167,15 +203,19 @@ function updateAbsenceDays(){
   if(n)n.value=inclusiveDays(a?.value,b?.value);
 }
 
-function openEditor(record=null){
+function openEditor(record=null,stageTypeOverride=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
   const isPersonnel=moduleKey==='personnel';
   const isAbsence=moduleKey==='absences';
   const isConvocation=moduleKey==='convocations';
+  const isStage=moduleKey==='stages';
+  if(isStage)editorStageType=stageTypeOverride||(record?stageTypeOf(record):currentStageType);
   d.classList.toggle('personnel-editor',isPersonnel);
   d.classList.toggle('absence-editor',isAbsence);
   d.classList.toggle('convocation-editor',isConvocation);
-  document.getElementById('editorTitle').textContent=record?`Modifier — ${config.singular}`:`Ajouter — ${config.singular}`;
+  d.classList.toggle('stage-editor',isStage);
+  const singular=activeSingular(record);
+  document.getElementById('editorTitle').textContent=record?`Modifier — ${singular}`:`Ajouter — ${singular}`;
   document.getElementById('recordId').value=record?.id||'';
   const refInput=document.getElementById('recordReference');
   const titleInput=document.getElementById('recordTitle');
@@ -208,6 +248,14 @@ function openEditor(record=null){
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="REMISE">REMISE</option><option value="PRÉSENTÉ">PRÉSENTÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'ÉMISE';
+  }else if(isStage){
+    refField.querySelector('label').textContent='Référence / N° attestation';
+    dateField.querySelector('label').textContent="Date d’établissement";
+    titleField.querySelector('label').textContent='Nom et Prénoms du stagiaire *';
+    titleField.classList.remove('full');
+    statusField.classList.remove('personnel-status-hidden');
+    statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="ANNULÉE">ANNULÉE</option>';
+    statusInput.value=record?.status||'ÉMISE';
   }else{
     dateField.querySelector('label').textContent='Date';
     titleField.querySelector('label').textContent='Intitulé / nom principal *';
@@ -215,12 +263,14 @@ function openEditor(record=null){
     statusField.classList.remove('personnel-status-hidden');
   }
   const area=document.getElementById('dynamicFields');area.innerHTML='';
-  for(const [key,label,type,opts] of config.fields){
+  for(const [key,label,type,opts] of activeFields(record)){
     const wrap=document.createElement('div');wrap.className='field'+(type==='textarea'?' full':'')+(type==='image'?' photo-field':'');
     if(isConvocation){
       if(key==='objet_convocation')wrap.classList.add('convocation-object-field');
       if(key==='personne_a_voir')wrap.classList.add('convocation-person-field');
     }
+    if(isStage&&key==='theme')wrap.classList.add('stage-theme-field');
+    if(isStage&&key==='note_service_origine')wrap.classList.add('stage-wide-field');
     const lab=document.createElement('label');lab.textContent=label;wrap.appendChild(lab);
     if(type==='image'){
       const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key=key;hidden.value=record?.data?.[key]||'';
@@ -234,7 +284,10 @@ function openEditor(record=null){
     if(type==='textarea'){el=document.createElement('textarea');el.rows=2}
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
     else{el=document.createElement('input');el.type=type==='computed'?'number':(type||'text');if(type==='computed'){el.readOnly=true;el.classList.add('computed-field')}}
-    el.dataset.key=key;el.value=record?.data?.[key]??'';wrap.appendChild(el);area.appendChild(wrap);
+    el.dataset.key=key;el.value=record?.data?.[key]??'';
+    if(isStage&&!record&&key==='qualite_stagiaire')el.value='élève Sous-officier';
+    if(isStage&&!record&&editorStageType==='MISE_STAGE'&&key==='note_service_origine')el.value='Direction des Ressources Humaines et de la Formation du Ministère des Eaux et Forêts';
+    wrap.appendChild(el);area.appendChild(wrap);
   }
   const ampliationsWrap=document.createElement('div');
   ampliationsWrap.className='field full ampliations-toggle-field';
@@ -256,8 +309,9 @@ async function saveRecord(e){
   return withButtonLock(submit,async()=>{
     const id=document.getElementById('recordId').value;const data={};
     document.querySelectorAll('#dynamicFields [data-key]').forEach(el=>data[el.dataset.key]=el.type==='checkbox'?(el.checked?'1':'0'):el.value);
+    if(moduleKey==='stages')data._stage_type=editorStageType;
     const payload={id:id?Number(id):undefined,reference:document.getElementById('recordReference').value,title:document.getElementById('recordTitle').value,eventDate:document.getElementById('recordDate').value,status:document.getElementById('recordStatus').value,data};
-    try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${config.singular} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
+    try{await api('/api/save',{method:'POST',body:{module:moduleKey,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
   },'Enregistrement…');
 }
 
@@ -476,6 +530,27 @@ body.record-print{
 @media print{
   .official-bottom-row{break-inside:avoid!important;page-break-inside:avoid!important}
 }
+
+/* V1.27 — Attestations de mise et fin de stage */
+.record-print.stage-print .stage-document-title{
+  width:88%;
+  margin:24px auto 38px;
+  border:1.2px solid #111;
+  padding:7px 10px;
+  text-align:center;
+  font-family:"Cooper Black",Cooper,serif!important;
+  font-size:20pt!important;
+  font-weight:900;
+  line-height:1.05;
+  letter-spacing:.01em;
+}
+.record-print.stage-print .stage-body,
+.record-print.stage-print .stage-body *{
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:13pt!important;
+}
+.record-print.stage-print .stage-body{width:94%;line-height:1.35;text-align:justify}
+.record-print.stage-print .stage-body p{line-height:1.35;margin:0 0 1.55em;text-align:justify}
 `}
 
 
@@ -554,11 +629,53 @@ async function launchPrint(html){
   });
 }
 
+function stageDate(v){
+  if(!v)return '—';
+  const d=new Date(`${String(v).slice(0,10)}T00:00:00Z`);if(Number.isNaN(d.getTime()))return fmtDate(v);
+  const weekdays=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const months=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  return `${weekdays[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2,'0')} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+function stageShortDate(v){
+  if(!v)return '—';
+  const d=new Date(`${String(v).slice(0,10)}T00:00:00Z`);if(Number.isNaN(d.getTime()))return fmtDate(v);
+  const months=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+function stageTime(v){
+  const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return String(v||'—');
+  return `${String(m[1]).padStart(2,'0')} h ${m[2]} mn`;
+}
+function stageResponsibleIntro(record){
+  const org=String(record.source_organization||session?.user?.organizationName||'Service des Eaux et Forêts').trim();
+  const type=record.source_type||session?.user?.organizationType;
+  if(type==='PEF'){
+    const m=org.match(/poste\s+(?:des\s+)?eaux\s+et\s+for[eê]ts\s+de\s+(.+)/i);
+    return `Le Chef de poste des Eaux et Forêts de ${m?m[1]:org}`;
+  }
+  if(type==='CANTONNEMENT')return `Le Chef de Cantonnement de ${org.replace(/^Cantonnement\s+(?:de\s+)?/i,'')}`;
+  if(type==='DIRECTION_REGIONALE')return `Le Directeur Régional de ${org.replace(/^Direction\s+Régionale\s+(?:du|de la|de l’|de l')?\s*/i,'')}`;
+  if(type==='DIRECTION_DEPARTEMENTALE')return `Le Directeur Départemental de ${org.replace(/^Direction\s+Départementale\s+(?:de\s+)?/i,'')}`;
+  return `Le Responsable de ${org}`;
+}
+
 async function printRecord(record){
   try{
     const s=await ensurePrintSettings();
     let body='';let title='';
-    if(moduleKey==='absences'){
+    if(moduleKey==='stages'){
+      const d=record.data||{};const stageType=stageTypeOf(record);const org=record.source_organization||session?.user?.organizationName||'Service des Eaux et Forêts';
+      const intro=stageResponsibleIntro(record);const qual=String(d.qualite_stagiaire||'élève Sous-officier').trim();
+      const ident=`${esc(qual)} <strong>${esc(record.title)}</strong>${d.matricule_stagiaire?` <strong>(${esc(d.matricule_stagiaire)})</strong>`:''}`;
+      if(stageType==='MISE_STAGE'){
+        const months=Number(d.duree_mois||0);const duration=months?`${esc(frenchNumber(months))} (${String(months).padStart(2,'0')}) mois`:'—';
+        title='ATTESTATION DE MISE EN STAGE';
+        body=`<div class="stage-document-title">ATTESTATION DE MISE EN STAGE</div><div class="official-body stage-body"><p>${esc(intro)}, soussigné(e), atteste que ${ident}, mis(e) en stage par la note de service <strong>N° ${esc(displayValue(d.note_service_numero))}</strong> du <strong>${esc(stageShortDate(d.note_service_date))}</strong>${d.note_service_origine?` émanant de <strong>${esc(d.note_service_origine)}</strong>`:''}, a effectivement commencé son stage au <strong>${esc(org)}</strong> le <strong>${esc(stageDate(d.date_debut))}</strong> à <strong>${esc(stageTime(d.heure_debut))}</strong>.</p><p>En outre, cette période d’apprentissage s’étendra sur une durée de <strong>${duration}</strong> allant du <strong>${esc(stageDate(d.date_debut))}</strong> au <strong>${esc(stageDate(d.date_fin))}</strong> inclus.</p><p>Ce stage aura pour thème : <strong>« ${esc(displayValue(d.theme))} »</strong>.</p><p>En foi de quoi, la présente attestation de mise en stage lui est délivrée, pour servir et valoir ce que de droit partout où besoin sera.</p></div>`;
+      }else{
+        title='ATTESTATION DE FIN DE STAGE';
+        body=`<div class="stage-document-title">ATTESTATION DE FIN DE STAGE</div><div class="official-body stage-body"><p>${esc(intro)}, soussigné(e), atteste que ${ident}${d.niveau_recrutement?`, recrue de niveau <strong>${esc(d.niveau_recrutement)}</strong>`:''}, mis(e) à la disposition du <strong>${esc(org)}</strong> sur la période allant du <strong>${esc(stageDate(d.date_debut))}</strong> au <strong>${esc(stageDate(d.date_fin))}</strong> suivant la lettre de mise en stage <strong>N° ${esc(displayValue(d.lettre_mise_stage_numero))}</strong> du <strong>${esc(stageShortDate(d.lettre_mise_stage_date))}</strong> a effectivement suivi avec assiduité et intérêt le stage sur ladite période.</p><p>En foi de quoi, il est établi la présente attestation de fin de stage pour servir et valoir ce que de droit.</p></div>`;
+      }
+    }else if(moduleKey==='absences'){
       const d=record.data||{};
       const days=Number(d.nombre_jours||inclusiveDays(d.date_debut,d.date_fin)||0);
       const dayText=days?`${frenchNumber(days)} (${String(days).padStart(2,'0')})`:'—';
@@ -587,7 +704,7 @@ async function printRecord(record){
       body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass:moduleKey==='convocations'?'convocation-print':moduleKey==='absences'?'absence-print':''});
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:s,signature:true,showAmpliations,documentClass:moduleKey==='convocations'?'convocation-print':moduleKey==='absences'?'absence-print':moduleKey==='stages'?'stage-print':''});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
@@ -597,7 +714,7 @@ async function printCurrentList(){
   try{
     const s=await ensurePrintSettings();
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
-    const title=config.title.toUpperCase();
+    const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):config.title.toUpperCase();
     const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);

@@ -309,3 +309,12 @@ La colonne « Nombres / exemplaires » a été rapprochée des destinataires tou
 - Titre AMPLIATIONS : 14 pt.
 - Liste : 12 pt.
 - Colonne des nombres fixe et parfaitement alignée verticalement.
+
+
+## V1.27 — Stages : mise en stage et fin de stage
+- La page **Stages** contient désormais deux vues dans la même page : **Mise en stage** et **Fin de stage**.
+- Chaque vue possède son propre bouton d'ajout et son registre filtré.
+- Le popup **Ajouter mise en stage** reprend les champs du modèle fourni : stagiaire, qualité, matricule, note de service, date et origine de la note, début/heure, durée, fin et thème.
+- Le popup **Ajouter fin de stage** reprend les champs du modèle fourni : stagiaire, qualité, matricule, niveau, période de stage, lettre de mise en stage et date de la lettre.
+- Les PDF **ATTESTATION DE MISE EN STAGE** et **ATTESTATION DE FIN DE STAGE** sont rédigés automatiquement selon les formules fournies, avec titre encadré, en-tête officiel SIGAT, date/signature flexibles et option AMPLIATIONS.
+- Les anciens enregistrements de stages sans type explicite sont conservés et apparaissent dans **Fin de stage** pour compatibilité.

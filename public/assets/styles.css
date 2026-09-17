@@ -151,3 +151,39 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 .ampliations-settings-grid textarea{min-height:132px;resize:vertical}
 .ampliations-settings-grid .field:nth-child(2){min-width:0}
 @media(max-width:700px){.ampliations-settings-grid{grid-template-columns:1fr;row-gap:12px}.ampliations-settings-grid .full{grid-column:1}}
+
+/* V1.27 — Gestion des stages : vues Mise en stage / Fin de stage */
+.stage-page-head{margin-bottom:10px}
+.stage-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.stage-tab{appearance:none;border:1px solid #b9c8c1;background:#fff;color:#173f33;border-radius:12px;padding:11px 18px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.stage-tab:hover{border-color:#0b5a43;background:#f4f8f6}
+.stage-tab.is-active{background:#0b4d3b;color:#fff;border-color:#0b4d3b;box-shadow:0 5px 16px rgba(11,77,59,.18)}
+.stage-workspace{padding-top:14px}
+.stage-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:0 0 14px;border-bottom:1px solid #e1e8e4;margin-bottom:12px}
+.stage-section-head h2{margin:2px 0 4px;color:#173f33}
+.stage-section-kicker{text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:900;color:#8b7a3b}
+.stage-section-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#editorDialog.stage-editor{width:min(1180px,calc(100vw - 24px));max-height:none;overflow:visible}
+#editorDialog.stage-editor .dialog-body{overflow:visible;max-height:none;padding:13px 18px}
+#editorDialog.stage-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.stage-editor #dynamicFields{display:contents}
+#editorDialog.stage-editor .field{margin-bottom:8px}
+#editorDialog.stage-editor .field input,#editorDialog.stage-editor .field select,#editorDialog.stage-editor .field textarea{min-height:36px;padding:7px 10px}
+#editorDialog.stage-editor textarea{min-height:70px;resize:none}
+#editorDialog.stage-editor .stage-theme-field{grid-column:1/-1}
+@media(max-width:900px){
+  .stage-section-head{align-items:flex-start;flex-direction:column}
+  .stage-section-actions{width:100%;justify-content:flex-start}
+  #editorDialog.stage-editor{width:min(820px,calc(100vw - 18px));max-height:94vh;overflow:hidden}
+  #editorDialog.stage-editor .dialog-body{overflow:auto;max-height:72vh}
+  #editorDialog.stage-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .stage-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stage-tab{padding:10px 8px;font-size:13px}
+  .stage-section-actions{display:grid;grid-template-columns:1fr;width:100%}
+  .stage-section-actions .btn{width:100%}
+  #editorDialog.stage-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+}
+#editorDialog.stage-editor .stage-wide-field{grid-column:span 2}
+@media(max-width:620px){#editorDialog.stage-editor .stage-wide-field{grid-column:1}}

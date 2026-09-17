@@ -935,6 +935,16 @@ async function apiLoad(env, request) {
     const q = `%${search}%`;
     params.push(q, q, q);
   }
+  if (module === 'stages') {
+    const stageType = String(url.searchParams.get('stageType') || '').toUpperCase();
+    if (stageType === 'MISE_STAGE') {
+      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._stage_type') = ?`;
+      params.push('MISE_STAGE');
+    } else if (stageType === 'FIN_STAGE') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._stage_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._stage_type') IS NULL)`;
+      params.push('FIN_STAGE');
+    }
+  }
   const count = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} r WHERE ${where}`).bind(...params).first();
   const rows = await env.SIGAT_DB.prepare(`
     SELECT r.id,r.organization_id,r.reference,r.title,r.event_date,r.status,r.data_json,r.created_at,r.updated_at,
