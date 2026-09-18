@@ -344,3 +344,18 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog.document-explanation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
   #editorDialog.document-explanation-editor .document-explanation-wide-field{grid-column:1}
 }
+
+/* V1.40 — Personnel : colonnes métier, formulaire adapté et impression générale paysage */
+.personnel-base-hidden{display:none!important}
+.personnel-table{min-width:2050px}
+.personnel-table th,.personnel-table td{white-space:normal;vertical-align:middle}
+.personnel-table th:first-child,.personnel-table td.personnel-order{width:78px;text-align:center;white-space:nowrap}
+.personnel-table th:last-child,.personnel-table td:last-child{min-width:235px}
+.personnel-table-wrap{overscroll-behavior-x:contain}
+
+@media(max-width:700px){
+  .personnel-table{min-width:1900px}
+  #editorDialog.personnel-editor{width:calc(100vw - 12px);max-height:96vh;max-height:96dvh;overflow:hidden}
+  #editorDialog.personnel-editor .dialog-body{overflow:auto;max-height:74vh;max-height:74dvh;padding:12px}
+  #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+}

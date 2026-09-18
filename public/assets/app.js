@@ -408,10 +408,16 @@ async function loadRecords(){
 
 function renderRows(items){
   const tb=document.getElementById('recordsBody');
-  if(!items.length){tb.innerHTML='<tr><td colspan="7" class="muted">Aucune donnée enregistrée.</td></tr>';return}
+  const isPersonnelRegister=moduleKey==='personnel';
+  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?14:7}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
   const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
   const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
-  tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div></td></tr>`).join('');
+  const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
+  if(isPersonnelRegister){
+    tb.innerHTML=items.map((r,i)=>{const d=r.data||{};const order=(currentPage-1)*25+i+1;return `<tr><td class="personnel-order">${order}</td><td><strong>${esc(r.title)}</strong></td><td>${esc(displayValue(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(fmtDate(d.date_prise_service_minef))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${esc(displayValue(d.grade))}</td><td>${esc(displayValue(d.classe))}</td><td>${esc(displayValue(d.echelon))}</td><td>${esc(displayValue(d.handicap))}</td><td>${esc(displayValue(d.telephone))}</td><td>${actionsHtml(r)}</td></tr>`}).join('');
+  }else{
+    tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td>${actionsHtml(r)}</td></tr>`).join('');
+  }
   items.forEach(r=>{
     tb.querySelector(`[data-view="${r.id}"]`)?.addEventListener('click',()=>openDetails(r));
     tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
@@ -426,6 +432,14 @@ function fieldLabel(key,record=null){const f=activeFields(record).find(x=>x[0]==
 function displayValue(value){if(value===null||value===undefined||value==='')return '—';return String(value);}
 
 function openDetails(record){
+  if(moduleKey==='personnel'){
+    const d=record.data||{};
+    const rows=[
+      ['Nom et prénoms',record.title],['Sexe',d.sexe],['Matricule',d.matricule],['Emploi',d.emploi],['Date de naissance',fmtDate(d.date_naissance)],['Date de prise de service au MINEF',fmtDate(d.date_prise_service_minef)],['Date de prise de service dans la Région de Gbêkê',fmtDate(d.date_prise_service_gbeke)],['Grade',d.grade],['Classe',d.classe],['Échelon',d.echelon],['Handicap',d.handicap],['Numéro de téléphone',d.telephone]
+    ];
+    const html=`<div class="detail-layout"><div class="detail-grid">${rows.map(([l,v])=>`<div class="detail-item"><span>${esc(l)}</span><strong>${esc(displayValue(v))}</strong></div>`).join('')}</div></div>`;
+    professionalDialog({title:'Agent — Informations',html,confirmText:'Fermer'});return;
+  }
   const photo=moduleKey==='personnel'&&record.data?.photo?`<div class="agent-photo-view"><img src="${esc(record.data.photo)}" alt="Photo agent"></div>`:'';
   const rows=[
     ['Référence',record.reference],['Nom / Intitulé',record.title],['Date',fmtDate(record.event_date)],['Statut',record.status],['Service source',record.source_organization],
@@ -519,9 +533,10 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   dateInput.value=(record?.event_date||'').slice(0,10);
   statusInput.value=record?.status||'ACTIVE';
   const refField=refInput.closest('.field'),dateField=dateInput.closest('.field'),titleField=titleInput.closest('.field'),statusField=statusInput.closest('.field');
+  refField.classList.remove('personnel-base-hidden');dateField.classList.remove('personnel-base-hidden');
   if(isPersonnel){
-    refField.querySelector('label').textContent='Référence';
-    dateField.querySelector('label').textContent='Date de prise de service';
+    refField.classList.add('personnel-base-hidden');
+    dateField.classList.add('personnel-base-hidden');
     titleField.querySelector('label').textContent='Nom et Prénoms *';
     titleField.classList.remove('full');
     statusField.classList.add('personnel-status-hidden');
@@ -627,26 +642,28 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(isExplanationDocument&&!record&&key==='delai_reponse_heures')el.value='48';
     wrap.appendChild(el);area.appendChild(wrap);
   }
-  const ampliationsWrap=document.createElement('div');
-  ampliationsWrap.className='field full ampliations-toggle-field document-ampliations-field';
-  const ampliationsChecked=['1','true','yes','oui'].includes(String(record?.data?._show_ampliations||'').toLowerCase());
-  const hasOwn=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
-  const hasDocumentAmpliations=hasOwn(record?.data,'_ampliations');
-  const hasDocumentAmpliationNumbers=hasOwn(record?.data,'_ampliation_numbers');
-  const initialAmpliations=hasDocumentAmpliations?String(record?.data?._ampliations||''):String(printSettingsCache?.ampliations||'');
-  const initialAmpliationNumbers=hasDocumentAmpliationNumbers?String(record?.data?._ampliation_numbers||''):String(printSettingsCache?.ampliationNumbers||'');
-  ampliationsWrap.innerHTML=`<div class="document-ampliations-head"><div><strong>AMPLIATIONS du document</strong><small>Les destinataires sont préremplis depuis Paramètres → En-tête des imprimés. Vous pouvez les modifier ici : ces changements resteront propres à ce document et ne modifieront ni les paramètres généraux ni les autres documents.</small></div><label class="ampliations-toggle"><input type="checkbox" data-key="_show_ampliations" ${ampliationsChecked?'checked':''}><span><strong>Afficher sur le PDF</strong><small>Active ou masque les ampliations uniquement pour ce document.</small></span></label></div><div class="document-ampliations-grid"><div class="field"><label>Destinataires / ampliations</label><textarea rows="5" data-key="_ampliations" placeholder="Un destinataire par ligne">${esc(initialAmpliations)}</textarea></div><div class="field"><label>Nombres / exemplaires</label><textarea rows="5" data-key="_ampliation_numbers" placeholder="Un nombre par ligne">${esc(initialAmpliationNumbers)}</textarea></div></div>`;
-  area.appendChild(ampliationsWrap);
-  if(!hasDocumentAmpliations||!hasDocumentAmpliationNumbers){
-    const docId=String(record?.id||'');
-    ensurePrintSettings().then(settings=>{
-      const currentId=String(document.getElementById('recordId')?.value||'');
-      if(currentId!==docId)return;
-      const dest=ampliationsWrap.querySelector('[data-key="_ampliations"]');
-      const nums=ampliationsWrap.querySelector('[data-key="_ampliation_numbers"]');
-      if(!hasDocumentAmpliations&&dest&&!dest.value.trim())dest.value=String(settings?.ampliations||'');
-      if(!hasDocumentAmpliationNumbers&&nums&&!nums.value.trim())nums.value=String(settings?.ampliationNumbers||'');
-    }).catch(()=>{});
+  if(!isPersonnel){
+    const ampliationsWrap=document.createElement('div');
+    ampliationsWrap.className='field full ampliations-toggle-field document-ampliations-field';
+    const ampliationsChecked=['1','true','yes','oui'].includes(String(record?.data?._show_ampliations||'').toLowerCase());
+    const hasOwn=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
+    const hasDocumentAmpliations=hasOwn(record?.data,'_ampliations');
+    const hasDocumentAmpliationNumbers=hasOwn(record?.data,'_ampliation_numbers');
+    const initialAmpliations=hasDocumentAmpliations?String(record?.data?._ampliations||''):String(printSettingsCache?.ampliations||'');
+    const initialAmpliationNumbers=hasDocumentAmpliationNumbers?String(record?.data?._ampliation_numbers||''):String(printSettingsCache?.ampliationNumbers||'');
+    ampliationsWrap.innerHTML=`<div class="document-ampliations-head"><div><strong>AMPLIATIONS du document</strong><small>Les destinataires sont préremplis depuis Paramètres → En-tête des imprimés. Vous pouvez les modifier ici : ces changements resteront propres à ce document et ne modifieront ni les paramètres généraux ni les autres documents.</small></div><label class="ampliations-toggle"><input type="checkbox" data-key="_show_ampliations" ${ampliationsChecked?'checked':''}><span><strong>Afficher sur le PDF</strong><small>Active ou masque les ampliations uniquement pour ce document.</small></span></label></div><div class="document-ampliations-grid"><div class="field"><label>Destinataires / ampliations</label><textarea rows="5" data-key="_ampliations" placeholder="Un destinataire par ligne">${esc(initialAmpliations)}</textarea></div><div class="field"><label>Nombres / exemplaires</label><textarea rows="5" data-key="_ampliation_numbers" placeholder="Un nombre par ligne">${esc(initialAmpliationNumbers)}</textarea></div></div>`;
+    area.appendChild(ampliationsWrap);
+    if(!hasDocumentAmpliations||!hasDocumentAmpliationNumbers){
+      const docId=String(record?.id||'');
+      ensurePrintSettings().then(settings=>{
+        const currentId=String(document.getElementById('recordId')?.value||'');
+        if(currentId!==docId)return;
+        const dest=ampliationsWrap.querySelector('[data-key="_ampliations"]');
+        const nums=ampliationsWrap.querySelector('[data-key="_ampliation_numbers"]');
+        if(!hasDocumentAmpliations&&dest&&!dest.value.trim())dest.value=String(settings?.ampliations||'');
+        if(!hasDocumentAmpliationNumbers&&nums&&!nums.value.trim())nums.value=String(settings?.ampliationNumbers||'');
+      }).catch(()=>{});
+    }
   }
   if(isAbsence){
     const start=document.querySelector('#dynamicFields [data-key="date_debut"]');
@@ -668,6 +685,10 @@ async function saveRecord(e){
     if(moduleKey==='stages')data._stage_type=editorStageType;
     if(moduleKey==='documents'&&editorDocumentType!=='ABSENCE')data._document_type=editorDocumentType;
     const payload={id:id?Number(id):undefined,reference:document.getElementById('recordReference').value,title:document.getElementById('recordTitle').value,eventDate:document.getElementById('recordDate').value,status:document.getElementById('recordStatus').value,data};
+    if(moduleKey==='personnel'){
+      payload.eventDate=data.date_prise_service_gbeke||data.date_prise_service_minef||'';
+      payload.status='ACTIVE';
+    }
     const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':moduleKey);
     try{await api('/api/save',{method:'POST',body:{module:saveModule,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
   },'Enregistrement…');
@@ -938,6 +959,29 @@ body.record-print{
 .record-print.explanation-print .explanation-text,.record-print.explanation-print .explanation-response{white-space:normal;overflow-wrap:anywhere}
 .record-print.explanation-print .explanation-deadline{margin:8mm 0 0!important;line-height:1.35!important;text-align:justify!important}
 
+/* V1.40 — Liste générale du personnel en A4 paysage */
+.list-print.personnel-list-print .personnel-list-title{font-family:"Cooper Black",Cooper,serif!important;font-size:20pt!important;margin:16px 0 18px!important;line-height:1.05!important}
+.list-print.personnel-list-print .official-header{margin-bottom:5mm;min-height:0}
+.list-print.personnel-list-print .official-body{width:100%!important;margin:0!important}
+.list-print.personnel-list-print .personnel-print-table{width:100%;table-layout:fixed;border-collapse:collapse;font-family:"Arial Narrow",Arial,sans-serif!important;font-size:7.2pt!important;line-height:1.05!important}
+.list-print.personnel-list-print .personnel-print-table th,
+.list-print.personnel-list-print .personnel-print-table td{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:7.2pt!important;line-height:1.05!important;border:1px solid #555;padding:1.5mm .8mm;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}
+.list-print.personnel-list-print .personnel-print-table th{font-weight:800;text-align:center;background:#f2f4f3;color:#111}
+.list-print.personnel-list-print .personnel-print-table td:first-child{text-align:center;width:5%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(1){width:4%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(2){width:14%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(3){width:5%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(4){width:7%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(5){width:9%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(6){width:7%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(7){width:9%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(8){width:10%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(9){width:7%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(10){width:6%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(11){width:5%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(12){width:7%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(13){width:10%}
+
 /* V1.37 — En-tête général : 10 pt, interligne 1, seul le chiffre de référence en rouge/gras */
 .official-left,
 .official-right,
@@ -1042,7 +1086,8 @@ function officialFooterHtml(){return ''}
 function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass='',showAmpliations=false}){
   const bodyClass=(signature?'record-print':'list-print')+(documentClass?` ${documentClass}`:'');
   const bottom=signature?`<div class="official-bottom-row">${showAmpliations&&settingsLine(settings.ampliations)?officialAmpliationsHtml(settings):'<div class="official-ampliations-placeholder"></div>'}${officialSignatureHtml(settings,date)}</div>`:'';
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
+  const orientationStyle=documentClass.includes('personnel-list-print')?'@page{size:A4 landscape;margin:1.5cm 1.2cm 1.2cm 1.2cm}':'';
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}${orientationStyle}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
 }
 
 async function launchPrint(html){
@@ -1186,10 +1231,10 @@ async function printRecord(record){
       title='PROCÈS-VERBAL DE RENCONTRE';
       body=`<div class="document-title">PROCÈS-VERBAL DE RENCONTRE</div><div class="official-body pv-body"><p>Le <strong>${esc(meetingDate)}</strong> à <strong>${esc(start)}</strong>${end?`, jusqu’à <strong>${esc(end)}</strong>`:''}, s’est tenue à <strong>${esc(place||'—')}</strong> une rencontre faisant suite à la convocation${sourceRef?` <strong>N° ${esc(sourceRef)}</strong>`:''} adressée à <strong>${esc(d.personne_convoquee||record.title)}</strong>${d.profession?`, ${esc(d.profession)}`:''}${d.domicile?`, domicilié(e) à ${esc(d.domicile)}`:''}.</p><p><strong>Objet de la rencontre :</strong><br>${esc(displayValue(d.objet_rencontre))}</p>${d.personne_a_voir?`<p><strong>Responsable / personne ayant reçu le convoqué :</strong><br>${esc(d.personne_a_voir)}</p>`:''}${d.personnes_presentes?`<p><strong>Personnes présentes :</strong><br>${esc(d.personnes_presentes).split('\n').join('<br>')}</p>`:''}<p><strong>Déroulement / résumé des échanges :</strong><br>${esc(displayValue(d.resume_echanges)).split('\n').join('<br>')}</p><p><strong>Conclusions / décisions arrêtées :</strong><br>${esc(displayValue(d.conclusions_decisions)).split('\n').join('<br>')}</p>${d.observations?`<p><strong>Observations :</strong><br>${esc(d.observations).split('\n').join('<br>')}</p>`:''}<p>En foi de quoi, le présent procès-verbal est établi pour servir et valoir ce que de droit.</p></div>`;
     }else if(moduleKey==='personnel'){
-      const v=key=>esc(displayValue(record.data?.[key]));
-      const photo=record.data?.photo?`<img class="agent-sheet-photo" src="${esc(record.data.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
+      const d=record.data||{};
+      const v=key=>esc(displayValue(d[key]));
       title='FICHE DE RENSEIGNEMENT DE L’AGENT';
-      body=`<div class="document-title">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet"><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell"><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value" style="font-size:15px;color:#174c3b">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Téléphone</span><span class="value">${v('telephone')}</span></div></div><div>${photo}</div></div><div class="agent-sheet-section"><h2>Situation professionnelle et administrative</h2><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div><div class="agent-sheet-cell"><span class="label">Qualité</span><span class="value">${v('qualite')}</span></div></div></div></div>`;
+      body=`<div class="document-title">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet"><div class="agent-sheet-section"><div class="agent-sheet-grid"><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Sexe</span><span class="value">${v('sexe')}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell"><span class="label">Date de naissance</span><span class="value">${esc(fmtDate(d.date_naissance))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service au MINEF</span><span class="value">${esc(fmtDate(d.date_prise_service_minef))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service dans la Région de Gbêkê</span><span class="value">${esc(fmtDate(d.date_prise_service_gbeke))}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Handicap</span><span class="value">${v('handicap')}</span></div><div class="agent-sheet-cell"><span class="label">Numéro de téléphone</span><span class="value">${v('telephone')}</span></div></div></div></div>`;
     }else{
       title=(config?.singular||'Document').toUpperCase();
       const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
@@ -1206,10 +1251,37 @@ async function printRecord(record){
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
 
+async function loadAllPersonnelForPrint(){
+  const scope=new URLSearchParams(location.search).get('scopeOrg');
+  const items=[];let page=1,totalPages=1;
+  do{
+    const q=new URLSearchParams({module:'personnel',page:String(page),limit:'100',search:''});
+    if(scope)q.set('scopeOrg',scope);
+    const d=await api(`/api/load?${q.toString()}`);
+    items.push(...(d.items||[]));
+    totalPages=Number(d.totalPages||1);page++;
+  }while(page<=totalPages&&page<=200);
+  return items;
+}
+function personnelListTitle(settings){
+  const raw=settingsLine(settings?.post)||String(session?.user?.organizationName||'POSTE DES EAUX ET FORETS DE DIABO');
+  const structure=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  return `LISTE DU PERSONNEL DU ${structure}`;
+}
+
 async function printCurrentList(){
   if(!lastItems.length){await professionalAlert('Impression','Aucune donnée à imprimer sur cette page.');return}
   try{
     const s=await ensurePrintSettings();
+    if(moduleKey==='personnel'){
+      const personnel=await loadAllPersonnelForPrint();
+      if(!personnel.length){await professionalAlert('Impression','Aucun agent à imprimer.');return}
+      const rows=personnel.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(r.title)}</td><td>${esc(displayValue(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(fmtDate(d.date_prise_service_minef))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${esc(displayValue(d.grade))}</td><td>${esc(displayValue(d.classe))}</td><td>${esc(displayValue(d.echelon))}</td><td>${esc(displayValue(d.handicap))}</td><td>${esc(displayValue(d.telephone))}</td></tr>`}).join('');
+      const title=personnelListTitle(s);
+      const body=`<div class="document-title personnel-list-title">${esc(title)}</div><div class="official-body wide"><table class="personnel-print-table"><thead><tr><th>N° d’ordre</th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Emploi</th><th>Date de naissance</th><th>Prise de service au MINEF</th><th>Prise de service Région de Gbêkê</th><th>Grade</th><th>Classe</th><th>Échelon</th><th>Handicap</th><th>N° téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true,documentClass:'personnel-list-print'});
+      await launchPrint(html);return;
+    }
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
     const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE / MUTATION':currentDocumentType==='CESSATION_CONGE'?'REGISTRE DES CESSATIONS DE SERVICE / CONGÉ':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE / CONGÉ':currentDocumentType==='PRISE_SERVICE_MUTATION'?'REGISTRE DES PRISES DE SERVICE / MUTATION':currentDocumentType==='DEMANDE_EXPLICATION'?'REGISTRE DES DEMANDES D’EXPLICATION':'REGISTRE DES AUTORISATIONS D’ABSENCE'):moduleKey==='convocations'?(currentConvocationView==='PV'?'REGISTRE DES PROCÈS-VERBAUX DE RENCONTRE':'REGISTRE DES CONVOCATIONS'):config.title.toUpperCase();
     const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;

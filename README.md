@@ -393,3 +393,9 @@ La section **Documents administratifs** intègre désormais un espace **Demande 
 - le **Code unique du service** est généré automatiquement, aléatoirement et côté serveur, avec contrôle d’unicité D1 ;
 - préfixes automatiques : `PEF-`, `CEF-`, `DDEF-`, `DREF-` ;
 - suppression du texte de hiérarchie devenu obsolète sur la page de connexion.
+
+## V1.40 — Personnel
+- Tableau Personnel réorganisé selon les 13 colonnes métier demandées, avec numéro d’ordre automatique.
+- Formulaire Agent adapté aux mêmes informations.
+- Impression de la liste générale du personnel en A4 paysage, avec titre dynamique de la structure.
+- Le PDF récupère l’ensemble du personnel accessible, au-delà de la seule page de 25 lignes affichée.
