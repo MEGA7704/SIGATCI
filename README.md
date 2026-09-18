@@ -378,3 +378,7 @@ La section **Documents administratifs** intègre désormais un espace **Demande 
 - Seuls les chiffres du numéro de référence sont affichés en rouge et en gras.
 - Le `/` et le suffixe administratif restent noirs.
 - L’aperçu des paramètres d’impression est aligné sur ces nouvelles règles.
+
+## V1.38 — Page de connexion
+- Nouvelle image d'arrière-plan plein écran sur la page de connexion, responsive PC/téléphone.
+- Suppression de la note relative à la vérification serveur des mots de passe et au mot de passe du Super Admin.
