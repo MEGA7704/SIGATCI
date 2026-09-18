@@ -410,3 +410,9 @@ Ajout de la Fonction à la liste et au formulaire Personnel, avec boutons/textes
 
 ### V1.43 — Personnel : colonnes visibles ciblées
 La liste générale du personnel affiche uniquement N° d’ordre, Nom et prénoms, Sexe (M/F), Matricule, Emploi, Fonction, Date de naissance, Numéro de téléphone, Date de prise de service dans la Région de Gbêkê et Actions. Les autres champs restent disponibles dans les fiches et formulaires.
+
+## V1.44 — Correction fiche de renseignement de l’agent
+- Suppression des informations répétées dans la fiche PDF individuelle du personnel.
+- Le bloc supérieur conserve une seule fois : Nom et Prénoms, Matricule, Emploi, Fonction et Photo.
+- Le bloc inférieur affiche uniquement les informations complémentaires : Sexe, Date de naissance, dates de prise de service, Grade, Classe, Échelon, Handicap et Téléphone.
+- Aucune donnée n’est supprimée de la fiche ; seule la présentation est corrigée.
