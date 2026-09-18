@@ -1034,6 +1034,58 @@ body.record-print{
   line-height:1.15!important;
   font-weight:400!important;
 }
+
+/* V1.45 — Fiche de renseignement de l’agent, A4 portrait professionnelle */
+@page{size:A4 portrait;margin:1.5cm 1.2cm 1.2cm 1.2cm}
+body.list-print.personnel-sheet-print{font-family:"Arial Narrow",Arial,sans-serif!important;padding-bottom:0!important}
+.personnel-sheet-print .official-header{margin-bottom:3mm;min-height:0}
+.personnel-sheet-print .official-reference{margin:1.5mm 0 5mm!important}
+.personnel-sheet-print .agent-profile-title{
+  width:78%;margin:0 auto 5mm;padding:3.2mm 5mm 2.8mm;
+  background:linear-gradient(135deg,#074c42,#0a6c5b);color:#fff;
+  border-radius:3mm;box-shadow:0 1.2mm 2.5mm rgba(0,0,0,.12);
+  text-align:center;border-bottom:1mm solid #c89b2c;
+}
+.personnel-sheet-print .agent-profile-title-main{
+  font-family:"Cooper Black",Cooper,serif!important;font-size:18pt!important;
+  line-height:1.05!important;font-weight:900!important;letter-spacing:.02em;
+}
+.personnel-sheet-print .agent-profile-subtitle{
+  font-family:"Arial Narrow",Arial,sans-serif!important;font-size:8.5pt!important;
+  line-height:1.15!important;letter-spacing:.11em;margin-top:1.5mm;font-weight:500!important;
+}
+.personnel-sheet-print .agent-profile{width:100%;font-family:"Arial Narrow",Arial,sans-serif!important;font-size:9.6pt!important;line-height:1.1!important}
+.personnel-sheet-print .agent-profile *{font-family:"Arial Narrow",Arial,sans-serif!important}
+.personnel-sheet-print .agent-profile-section{
+  border:1px solid #a9c9c2;border-radius:2mm;overflow:hidden;margin:0 0 3.2mm;background:#fff;break-inside:avoid;page-break-inside:avoid;
+}
+.personnel-sheet-print .agent-section-title{
+  background:linear-gradient(90deg,#064b43,#0b6d5f);color:#fff;font-size:10.5pt!important;
+  font-weight:900!important;line-height:1!important;padding:2.3mm 4mm;letter-spacing:.01em;
+}
+.personnel-sheet-print .agent-section-number{color:#e2b342;font-size:11pt!important;margin-right:1.2mm}
+.personnel-sheet-print .agent-identity-layout{display:grid;grid-template-columns:minmax(0,1fr) 34mm;gap:4mm;padding:3mm 4mm 3.5mm;align-items:stretch}
+.personnel-sheet-print .agent-identity-fields{display:grid;grid-template-columns:1fr;gap:1.7mm}
+.personnel-sheet-print .agent-photo-frame{display:flex;align-items:center;justify-content:center;border-left:1px solid #d4e4e0;padding-left:3mm}
+.personnel-sheet-print .agent-sheet-photo{width:31mm!important;height:38mm!important;object-fit:cover;border:1px solid #075548!important;border-radius:2mm!important;background:#f2f6f5}
+.personnel-sheet-print .agent-sheet-photo-empty{display:grid!important;place-items:center;color:#83918d;font-size:8pt!important;font-weight:800!important}
+.personnel-sheet-print .agent-info-row{display:grid;grid-template-columns:43% 57%;min-height:8.4mm;border:1px solid #dbe7e4;border-radius:1.2mm;overflow:hidden;background:#fff}
+.personnel-sheet-print .agent-info-label{display:flex;align-items:center;padding:1.4mm 3mm;background:#eef5f3;color:#183f38;font-size:9pt!important;line-height:1.05!important;font-weight:800!important}
+.personnel-sheet-print .agent-info-value{display:flex;align-items:center;padding:1.4mm 3mm;color:#111;font-size:9.6pt!important;line-height:1.05!important;font-weight:700!important;min-width:0;overflow-wrap:anywhere}
+.personnel-sheet-print .agent-professional-grid{display:grid;grid-template-columns:1fr 1fr;gap:4mm;padding:3mm 4mm 3.5mm}
+.personnel-sheet-print .agent-professional-grid>div{display:grid;gap:1.7mm;align-content:start}
+.personnel-sheet-print .agent-split-sections{display:grid;grid-template-columns:1.12fr .88fr;gap:3mm;align-items:stretch}
+.personnel-sheet-print .agent-split-sections .agent-profile-section{margin-bottom:3.2mm;height:100%}
+.personnel-sheet-print .agent-section-content{padding:3mm 4mm;display:grid;gap:1.7mm}
+.personnel-sheet-print .agent-contact-section{margin-bottom:0}
+.personnel-sheet-print .agent-contact-layout{display:grid;grid-template-columns:minmax(0,1fr) 58mm;gap:5mm;align-items:center;padding:3mm 4mm 3.5mm}
+.personnel-sheet-print .agent-contact-field{min-width:0}
+.personnel-sheet-print .agent-signature-box-wrap{display:grid;grid-template-columns:auto 32mm;gap:2.5mm;align-items:center;justify-content:end;font-size:9pt!important;white-space:nowrap}
+.personnel-sheet-print .agent-signature-box{height:14mm;border:1px solid #075548;border-radius:1.5mm;background:#fff}
+@media print{
+  .personnel-sheet-print .agent-profile,.personnel-sheet-print .agent-profile-section{break-inside:avoid!important;page-break-inside:avoid!important}
+}
+
 `}
 
 
@@ -1245,7 +1297,8 @@ async function printRecord(record){
       const v=key=>esc(displayValue(d[key]));
       title='FICHE DE RENSEIGNEMENT DE L’AGENT';
       const photoHtml=d.photo?`<img class="agent-sheet-photo" src="${esc(d.photo)}" alt="Photo de l’agent">`:`<div class="agent-sheet-photo agent-sheet-photo-empty">PHOTO</div>`;
-      body=`<div class="document-title">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-sheet"><div class="agent-sheet-top"><div class="agent-sheet-id"><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Nom et Prénoms</span><span class="value">${esc(record.title)}</span></div><div class="agent-sheet-cell"><span class="label">Matricule</span><span class="value">${v('matricule')}</span></div><div class="agent-sheet-cell"><span class="label">Emploi</span><span class="value">${v('emploi')}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Fonction</span><span class="value">${v('fonction')}</span></div></div>${photoHtml}</div><div class="agent-sheet-section"><div class="agent-sheet-grid"><div class="agent-sheet-cell"><span class="label">Sexe</span><span class="value">${v('sexe')}</span></div><div class="agent-sheet-cell"><span class="label">Date de naissance</span><span class="value">${esc(fmtDate(d.date_naissance))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service au MINEF</span><span class="value">${esc(fmtDate(d.date_prise_service_minef))}</span></div><div class="agent-sheet-cell"><span class="label">Date de prise de service dans la Région de Gbêkê</span><span class="value">${esc(fmtDate(d.date_prise_service_gbeke))}</span></div><div class="agent-sheet-cell"><span class="label">Grade</span><span class="value">${v('grade')}</span></div><div class="agent-sheet-cell"><span class="label">Classe</span><span class="value">${v('classe')}</span></div><div class="agent-sheet-cell"><span class="label">Échelon</span><span class="value">${v('echelon')}</span></div><div class="agent-sheet-cell"><span class="label">Handicap</span><span class="value">${v('handicap')}</span></div><div class="agent-sheet-cell" style="grid-column:1/-1"><span class="label">Numéro de téléphone</span><span class="value">${v('telephone')}</span></div></div></div></div>`;
+      const field=(label,value)=>`<div class="agent-info-row"><span class="agent-info-label">${esc(label)}</span><span class="agent-info-value">${value}</span></div>`;
+      body=`<div class="agent-profile-title"><div class="agent-profile-title-main">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-profile-subtitle">INFORMATIONS PERSONNELLES ET PROFESSIONNELLES</div></div><div class="agent-profile"><section class="agent-profile-section agent-identity-section"><div class="agent-section-title"><span class="agent-section-number">1.</span> IDENTITÉ DE L’AGENT</div><div class="agent-identity-layout"><div class="agent-identity-fields">${field('Nom et prénoms',esc(record.title))}${field('Matricule',v('matricule'))}${field('Sexe',v('sexe'))}${field('Date de naissance',esc(fmtDate(d.date_naissance)))}</div><div class="agent-photo-frame">${photoHtml}</div></div></section><section class="agent-profile-section"><div class="agent-section-title"><span class="agent-section-number">2.</span> SITUATION PROFESSIONNELLE</div><div class="agent-professional-grid"><div>${field('Emploi',v('emploi'))}${field('Fonction',v('fonction'))}</div><div>${field('Grade',v('grade'))}${field('Classe',v('classe'))}${field('Échelon',v('echelon'))}</div></div></section><div class="agent-split-sections"><section class="agent-profile-section"><div class="agent-section-title"><span class="agent-section-number">3.</span> INFORMATIONS ADMINISTRATIVES</div><div class="agent-section-content">${field('Date de prise de service au MINEF',esc(fmtDate(d.date_prise_service_minef)))}${field('Date de prise de service dans la Région de Gbêkê',esc(fmtDate(d.date_prise_service_gbeke)))}</div></section><section class="agent-profile-section"><div class="agent-section-title"><span class="agent-section-number">4.</span> SITUATION PARTICULIÈRE</div><div class="agent-section-content">${field('Handicap',v('handicap'))}</div></section></div><section class="agent-profile-section agent-contact-section"><div class="agent-section-title"><span class="agent-section-number">5.</span> COORDONNÉES</div><div class="agent-contact-layout"><div class="agent-contact-field">${field('Numéro de téléphone',v('telephone'))}</div><div class="agent-signature-box-wrap"><span>Signature de l’agent</span><div class="agent-signature-box"></div></div></div></section></div>`;
     }else{
       title=(config?.singular||'Document').toUpperCase();
       const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
@@ -1256,8 +1309,8 @@ async function printRecord(record){
     const documentSettings={...s};
     if(hasOwn(record.data,'_ampliations'))documentSettings.ampliations=String(record.data?._ampliations||'');
     if(hasOwn(record.data,'_ampliation_numbers'))documentSettings.ampliationNumbers=String(record.data?._ampliation_numbers||'');
-    const documentClass=moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'';
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:documentSettings,signature:true,showAmpliations,documentClass});
+    const documentClass=moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':moduleKey==='personnel'?'personnel-sheet-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'';
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }

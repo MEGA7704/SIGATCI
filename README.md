@@ -416,3 +416,12 @@ La liste générale du personnel affiche uniquement N° d’ordre, Nom et préno
 - Le bloc supérieur conserve une seule fois : Nom et Prénoms, Matricule, Emploi, Fonction et Photo.
 - Le bloc inférieur affiche uniquement les informations complémentaires : Sexe, Date de naissance, dates de prise de service, Grade, Classe, Échelon, Handicap et Téléphone.
 - Aucune donnée n’est supprimée de la fiche ; seule la présentation est corrigée.
+
+## V1.45 — Fiche de renseignement de l’agent
+- Refonte de la fiche individuelle du personnel en A4 portrait.
+- Présentation structurée en 5 blocs : Identité, Situation professionnelle, Informations administratives, Situation particulière, Coordonnées.
+- Photo de l’agent mise en valeur dans le bloc Identité.
+- Suppression de toute répétition des informations.
+- Ajout d’une zone « Signature de l’agent » sur la fiche.
+- Conservation de l’en-tête administratif SIGAT et de la référence du document.
+- Mise en page compacte afin de tenir sur une page A4 portrait.
