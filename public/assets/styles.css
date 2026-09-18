@@ -345,17 +345,91 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog.document-explanation-editor .document-explanation-wide-field{grid-column:1}
 }
 
-/* V1.40 — Personnel : colonnes métier, formulaire adapté et impression générale paysage */
+/* V1.41 — Personnel : liste compacte sans défilement horizontal + photo rétablie */
 .personnel-base-hidden{display:none!important}
-.personnel-table{min-width:2050px}
-.personnel-table th,.personnel-table td{white-space:normal;vertical-align:middle}
-.personnel-table th:first-child,.personnel-table td.personnel-order{width:78px;text-align:center;white-space:nowrap}
-.personnel-table th:last-child,.personnel-table td:last-child{min-width:235px}
-.personnel-table-wrap{overscroll-behavior-x:contain}
+.personnel-table-wrap{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden!important;
+  overflow-y:visible;
+  overscroll-behavior-x:none;
+}
+.personnel-table{
+  width:100%!important;
+  min-width:0!important;
+  table-layout:fixed;
+}
+.personnel-table th,.personnel-table td{
+  white-space:nowrap!important;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  vertical-align:middle;
+  padding:8px 6px;
+  line-height:1.15;
+}
+.personnel-table th{font-size:10px;letter-spacing:.02em}
+.personnel-table td{font-size:12px}
+.personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:5%;text-align:center}
+.personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:22%}
+.personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:7%;text-align:center}
+.personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:11%}
+.personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:15%}
+.personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:12%}
+.personnel-table th:nth-child(13),.personnel-table td:nth-child(13){width:13%}
+.personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:15%;text-align:right}
+/* Les informations détaillées restent disponibles via Voir et sur le PDF général. */
+.personnel-table th:nth-child(6),.personnel-table td:nth-child(6),
+.personnel-table th:nth-child(7),.personnel-table td:nth-child(7),
+.personnel-table th:nth-child(8),.personnel-table td:nth-child(8),
+.personnel-table th:nth-child(10),.personnel-table td:nth-child(10),
+.personnel-table th:nth-child(11),.personnel-table td:nth-child(11),
+.personnel-table th:nth-child(12),.personnel-table td:nth-child(12){display:none}
+.personnel-table .personnel-actions{
+  display:flex;
+  flex-wrap:nowrap!important;
+  justify-content:flex-end;
+  align-items:center;
+  gap:3px;
+  white-space:nowrap;
+}
+.personnel-table .personnel-actions .btn-sm{
+  min-width:25px;
+  padding:5px 6px;
+  font-size:10px;
+  line-height:1;
+  border-radius:7px;
+}
+#editorDialog.personnel-editor .photo-field{display:block!important}
 
+@media(max-width:1050px){
+  .personnel-table th:nth-child(3),.personnel-table td:nth-child(3),
+  .personnel-table th:nth-child(5),.personnel-table td:nth-child(5){display:none}
+  .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:6%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:29%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:16%}
+  .personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:17%}
+  .personnel-table th:nth-child(13),.personnel-table td:nth-child(13){width:15%}
+  .personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:17%}
+}
 @media(max-width:700px){
-  .personnel-table{min-width:1900px}
+  .personnel-table th:nth-child(9),.personnel-table td:nth-child(9),
+  .personnel-table th:nth-child(13),.personnel-table td:nth-child(13){display:none}
+  .personnel-table th,.personnel-table td{padding:7px 4px;font-size:11px}
+  .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:8%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:43%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:22%}
+  .personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:27%}
+  .personnel-table .personnel-actions{gap:2px}
+  .personnel-table .personnel-actions .btn-sm{min-width:22px;padding:4px;font-size:9px}
   #editorDialog.personnel-editor{width:calc(100vw - 12px);max-height:96vh;max-height:96dvh;overflow:hidden}
   #editorDialog.personnel-editor .dialog-body{overflow:auto;max-height:74vh;max-height:74dvh;padding:12px}
   #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
 }
+@media(max-width:460px){
+  .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:8%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:45%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:20%}
+  .personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:27%}
+  .personnel-table .personnel-actions .btn-sm{min-width:20px;padding:3px;font-size:8px}
+}
+

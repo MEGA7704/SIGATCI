@@ -399,3 +399,7 @@ La section **Documents administratifs** intègre désormais un espace **Demande 
 - Formulaire Agent adapté aux mêmes informations.
 - Impression de la liste générale du personnel en A4 paysage, avec titre dynamique de la structure.
 - Le PDF récupère l’ensemble du personnel accessible, au-delà de la seule page de 25 lignes affichée.
+
+
+## V1.41 — Personnel : liste compacte sans défilement + photo
+La liste écran du personnel tient dans la largeur disponible sans défilement horizontal et sans retour à la ligne. Les colonnes secondaires sont masquées de façon responsive mais restent disponibles dans la fiche détaillée et le PDF général. L’importation de la photo de l’agent est rétablie dans le formulaire.
