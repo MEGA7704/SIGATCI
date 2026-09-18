@@ -13,7 +13,7 @@ async function load(){
     const save=document.getElementById('saveParent');
     const remove=document.getElementById('removeParent');
     if(!data.expectedParentType){
-      notice.innerHTML='<strong>Niveau supérieur :</strong> aucune structure supérieure n’est prévue pour une Direction Départementale dans la hiérarchie actuelle.';
+      notice.innerHTML='<strong>Niveau supérieur :</strong> aucune structure supérieure n’est prévue pour une Direction Régionale dans la hiérarchie actuelle.';
       sel.innerHTML='<option value="">Aucun rattachement supérieur</option>';sel.disabled=true;save.disabled=true;remove.disabled=!o.parentId;
       document.getElementById('parentHelp').textContent='Votre structure constitue le niveau supérieur de la hiérarchie SIGAT actuelle.';
       return;

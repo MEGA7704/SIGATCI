@@ -7,17 +7,17 @@ document.getElementById('registerForm').addEventListener('submit',async e=>{
   if(document.getElementById('password').value!==document.getElementById('password2').value){
     msg.textContent='Les mots de passe ne correspondent pas.';msg.classList.remove('hidden');return;
   }
-  const ids=['organizationType','code','name','region','department','locality','phone','organizationEmail','displayName','username','email','userPhone','password'];
+  const ids=['organizationType','name','region','department','locality','phone','organizationEmail','displayName','username','email','userPhone','password'];
   const body={};ids.forEach(id=>body[id]=document.getElementById(id)?.value||'');
   try{
     const r=await api('/api/register',{method:'POST',body});
-    msg.textContent=r.message;msg.classList.remove('hidden');msg.classList.remove('error');
+    msg.textContent=r.organizationCode?`${r.message} Code du service : ${r.organizationCode}.`:r.message;msg.classList.remove('hidden');msg.classList.remove('error');
     if(r.csrf) sessionStorage.setItem('sigat_csrf',r.csrf);
     sessionStorage.removeItem('sigat_last_free_popup');
     e.target.reset();
     // L'inscription ouvre désormais automatiquement la session de l'Administrateur.
     if(r.redirect){
-      setTimeout(()=>{ location.href=r.redirect; },350);
+      setTimeout(()=>{ location.href=r.redirect; },900);
     }
   }catch(err){msg.textContent=err.message;msg.classList.add('error');msg.classList.remove('hidden')}
 });

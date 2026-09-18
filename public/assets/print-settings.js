@@ -2,7 +2,7 @@ import {api,esc,loadSession,withButtonLock,professionalAlert,professionalDialog}
 
 let session=null;
 const keys=['ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations','ampliationNumbers'];
-const CHILD_LABEL={CANTONNEMENT:'Mes PEF',DIRECTION_REGIONALE:'Mes Cantonnements',DIRECTION_DEPARTEMENTALE:'Mes Directions Régionales'};
+const CHILD_LABEL={CANTONNEMENT:'Mes PEF',DIRECTION_DEPARTEMENTALE:'Mes Cantonnements',DIRECTION_REGIONALE:'Mes Directions Départementales'};
 
 function navHTML(user){
   const childLink=CHILD_LABEL[user.organizationType]?`<a href="/structures-rattachees/">${CHILD_LABEL[user.organizationType]}</a>`:'';

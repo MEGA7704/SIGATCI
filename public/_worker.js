@@ -3,16 +3,43 @@ const SESSION_TTL = 60 * 60 * 8; // 8 heures
 const LOGIN_WINDOW = 60 * 15;
 const LOGIN_MAX_ATTEMPTS = 5;
 const PBKDF2_ITERATIONS = 100000;
-const SERVICE_TYPES = Object.freeze(['PEF','CANTONNEMENT','DIRECTION_REGIONALE','DIRECTION_DEPARTEMENTALE']);
+const SERVICE_TYPES = Object.freeze(['PEF','CANTONNEMENT','DIRECTION_DEPARTEMENTALE','DIRECTION_REGIONALE']);
 const PARENT_TYPE = Object.freeze({
   PEF:'CANTONNEMENT',
-  CANTONNEMENT:'DIRECTION_REGIONALE',
-  DIRECTION_REGIONALE:'DIRECTION_DEPARTEMENTALE',
-  DIRECTION_DEPARTEMENTALE:null
+  CANTONNEMENT:'DIRECTION_DEPARTEMENTALE',
+  DIRECTION_DEPARTEMENTALE:'DIRECTION_REGIONALE',
+  DIRECTION_REGIONALE:null
 });
 // Compatibilité avec les anciennes bases dont organization_type est limité aux 3 anciens types.
 function legacyStoredType(type){return type==='DIRECTION_DEPARTEMENTALE'?'DIRECTION_REGIONALE':type;}
 function canonicalType(row){return row?.service_type||row?.organization_type||null;}
+
+const SERVICE_CODE_PREFIX = Object.freeze({
+  PEF:'PEF',
+  CANTONNEMENT:'CEF',
+  DIRECTION_DEPARTEMENTALE:'DDEF',
+  DIRECTION_REGIONALE:'DREF'
+});
+
+function randomServiceCodeCandidate(type){
+  const prefix=SERVICE_CODE_PREFIX[type]||'SIGAT';
+  const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes=new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const suffix=Array.from(bytes,b=>alphabet[b%alphabet.length]).join('');
+  return `${prefix}-${suffix}`;
+}
+
+async function generateUniqueServiceCode(env,type){
+  for(let i=0;i<20;i++){
+    const candidate=randomServiceCodeCandidate(type);
+    const existing=await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE code=? LIMIT 1').bind(candidate).first();
+    if(!existing)return candidate;
+  }
+  const e=new Error('Impossible de générer un code unique pour cette structure. Veuillez réessayer.');
+  e.code='SERVICE_CODE_GENERATION_FAILED';
+  throw e;
+}
 
 let schemaReady = false;
 
@@ -177,6 +204,28 @@ async function ensureRuntime(env) {
   await addColumnIfMissing(env, 'organizations', orgCols, 'created_at', 'TEXT');
   await addColumnIfMissing(env, 'organizations', orgCols, 'updated_at', 'TEXT');
   await env.SIGAT_DB.prepare("UPDATE organizations SET service_type=organization_type WHERE service_type IS NULL OR trim(service_type)='' ").run();
+
+  // V1.39 : sécurité hiérarchique. On détache les anciens rattachements devenus incompatibles
+  // avec l’ordre PEF → Cantonnement → Direction Départementale → Direction Régionale.
+  // Aucune donnée métier n’est supprimée ; seul le lien parent invalide est remis à NULL.
+  await env.SIGAT_DB.prepare(`
+    UPDATE organizations
+    SET parent_id=NULL, updated_at=CURRENT_TIMESTAMP
+    WHERE parent_id IS NOT NULL
+      AND (
+        COALESCE(service_type,organization_type)='DIRECTION_REGIONALE'
+        OR (
+          SELECT COALESCE(p.service_type,p.organization_type)
+          FROM organizations p
+          WHERE p.id=organizations.parent_id
+        ) <> CASE COALESCE(service_type,organization_type)
+          WHEN 'PEF' THEN 'CANTONNEMENT'
+          WHEN 'CANTONNEMENT' THEN 'DIRECTION_DEPARTEMENTALE'
+          WHEN 'DIRECTION_DEPARTEMENTALE' THEN 'DIRECTION_REGIONALE'
+          ELSE ''
+        END
+      )
+  `).run();
 
   const userCols = await columnsOf(env, 'users');
   await addColumnIfMissing(env, 'users', userCols, 'organization_id', 'INTEGER');
@@ -705,13 +754,12 @@ async function apiRegister(env, request) {
   if (!body) return bad('Requête invalide.');
   const type = String(body.organizationType || '').toUpperCase();
   if (!SERVICE_TYPES.includes(type)) return bad('Type de structure invalide.');
-  const code = String(body.code || '').trim().toUpperCase();
   const name = String(body.name || '').trim();
   const username = String(body.username || '').trim();
   const email = normalizeIdentifier(body.email);
   const displayName = String(body.displayName || '').trim();
   const password = String(body.password || '');
-  if (!code || !name || !username || !displayName || !password) return bad('Veuillez remplir les champs obligatoires.');
+  if (!name || !username || !displayName || !password) return bad('Veuillez remplir les champs obligatoires.');
   if (!validPassword(password)) return bad('Le mot de passe doit contenir au moins 10 caractères, une majuscule, une minuscule et un chiffre.');
 
   // Le rattachement hiérarchique n'est plus demandé pendant l'inscription.
@@ -719,8 +767,8 @@ async function apiRegister(env, request) {
   // depuis Paramètres > Rattachement hiérarchique.
   const parentId = null;
 
-  const dup = await env.SIGAT_DB.prepare('SELECT id FROM organizations WHERE code=?').bind(code).first();
-  if (dup) return bad('Ce code de structure existe déjà.');
+  // Le code du service est généré exclusivement côté serveur afin qu’il soit automatique, aléatoire et unique.
+  const code = await generateUniqueServiceCode(env, type);
   const userDup = await env.SIGAT_DB.prepare('SELECT id FROM users WHERE lower(username)=? OR lower(email)=?').bind(username.toLowerCase(), email).first();
   if (userDup) return bad('Cet identifiant ou cet e-mail est déjà utilisé.');
 
@@ -761,6 +809,7 @@ async function apiRegister(env, request) {
     role: 'ORGANIZATION_ADMIN',
     forcePasswordChange: false,
     subscription,
+    organizationCode: code,
     redirect: '/dashboard/'
   }, 200, { 'Set-Cookie': sessionCookie(sess.token) });
 }
@@ -890,7 +939,7 @@ async function apiHierarchyAssignmentSave(env, request) {
   const parentId = requested === null || requested === '' || requested === undefined ? null : Number(requested);
 
   if (!expected) {
-    if (parentId !== null) return bad('Une Direction Départementale ne peut pas être rattachée à un service supérieur dans la hiérarchie SIGAT actuelle.');
+    if (parentId !== null) return bad('Une Direction Régionale ne peut pas être rattachée à un service supérieur dans la hiérarchie SIGAT actuelle.');
   } else if (parentId !== null) {
     if (!Number.isInteger(parentId) || parentId <= 0 || parentId === Number(org.id)) return bad('Service supérieur invalide.');
     const parent = await env.SIGAT_DB.prepare(`
@@ -1246,7 +1295,7 @@ async function superOrganizationAction(env, request) {
   if (action === 'parent') {
     const parentId = b?.parentId ? Number(b.parentId) : null;
     const expected = PARENT_TYPE[org.canonical_type];
-    if (!expected && parentId) return bad('Une Direction Départementale ne doit pas avoir de structure supérieure dans cette hiérarchie.');
+    if (!expected && parentId) return bad('Une Direction Régionale ne doit pas avoir de structure supérieure dans cette hiérarchie.');
     if (expected && !parentId) return bad('Cette structure doit obligatoirement être rattachée à un service supérieur.');
     if (parentId) {
       if (parentId === id) return bad('Une structure ne peut pas être son propre supérieur.');

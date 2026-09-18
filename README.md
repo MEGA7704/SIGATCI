@@ -4,12 +4,12 @@ Cette version utilise un bootstrap D1 léger pour fiabiliser `/api/login`. Teste
 
 # SIGAT — Système Intégré de Gestion Administrative et Technique
 
-Projet Cloudflare Pages + GitHub pour une plateforme privée hiérarchique utilisée par les **Directions Régionales**, **Cantonnements** et **Postes des Eaux et Forêts (PEF)**.
+Projet Cloudflare Pages + GitHub pour une plateforme privée hiérarchique utilisée par les **Directions Régionales**, **Directions Départementales**, **Cantonnements** et **Postes des Eaux et Forêts (PEF)**.
 
 ## Principes inclus
 
 - séparation des données par `organization_id` ;
-- remontée hiérarchique Direction Régionale → Cantonnement → PEF ;
+- remontée hiérarchique Direction Régionale → Direction Départementale → Cantonnement → PEF ;
 - PEF isolés entre eux ;
 - Super Admin séparé des comptes métier ;
 - authentification réelle via `POST /api/login` ;
@@ -133,7 +133,8 @@ Le clic ou le paiement **ne modifie pas lui-même l’abonnement**. Seule la rou
 
 ## Hiérarchie
 
-- une Direction Régionale peut consulter ses Cantonnements et les PEF descendants ;
+- une Direction Régionale peut consulter ses Directions Départementales, leurs Cantonnements et les PEF descendants ;
+- une Direction Départementale peut consulter ses Cantonnements et les PEF descendants ;
 - un Cantonnement peut consulter les PEF directement rattachés ;
 - un PEF ne peut consulter que ses propres données ;
 - la structure supérieure est en consultation pour les données subordonnées : la modification est réservée au propriétaire de la donnée ;
@@ -198,7 +199,7 @@ Si `dbBinding` ou `kvBinding` vaut `false`, ajoutez les bindings `SIGAT_DB` et `
 
 ## Hiérarchie multi-services — V1.2
 
-La plateforme prend en charge quatre niveaux : **Direction Départementale → Direction Régionale → Cantonnement → PEF**. Chaque structure saisit ses propres données. Les vues supérieures sont calculées par rattachement hiérarchique, sans duplication des données. La confidentialité horizontale reste appliquée : une structure ne peut pas lire une structure indépendante hors de son sous-arbre.
+La plateforme prend en charge quatre niveaux, du plus haut au plus bas : **Direction Régionale → Direction Départementale → Cantonnement → PEF**. Chaque structure saisit ses propres données. Les vues supérieures sont calculées par rattachement hiérarchique, sans duplication des données. La confidentialité horizontale reste appliquée : une structure ne peut pas lire une structure indépendante hors de son sous-arbre.
 
 Pour une base D1 déjà créée avec une version antérieure, cette version ajoute automatiquement le champ de compatibilité `service_type` au premier appel API. Il n'est donc pas nécessaire de supprimer la base existante.
 
@@ -228,7 +229,7 @@ Cloudflare Workers limite actuellement PBKDF2 à 100 000 itérations. Cette vers
 
 
 ## V1.9 — Rattachement après inscription
-L'inscription ne demande plus le code du service supérieur. Après activation, l'Administrateur de chaque structure choisit son rattachement dans **Paramètres > Rattachement hiérarchique**. Le serveur ne propose que les services supérieurs actifs et compatibles avec le niveau de la structure.
+L'inscription ne demande plus le code du service supérieur. Le **code unique de la structure est généré automatiquement et aléatoirement côté serveur** (préfixes PEF, CEF, DDEF ou DREF). Après activation, l'Administrateur de chaque structure choisit son rattachement dans **Paramètres > Rattachement hiérarchique**. Le serveur ne propose que les services supérieurs actifs et compatibles avec le niveau de la structure : PEF → Cantonnement → Direction Départementale → Direction Régionale.
 
 
 ## V1.11 — Ergonomie, impressions PDF et photo agent
@@ -382,3 +383,13 @@ La section **Documents administratifs** intègre désormais un espace **Demande 
 ## V1.38 — Page de connexion
 - Nouvelle image d'arrière-plan plein écran sur la page de connexion, responsive PC/téléphone.
 - Suppression de la note relative à la vérification serveur des mots de passe et au mot de passe du Super Admin.
+
+
+## V1.39 — Hiérarchie et codes de service automatiques
+
+- ordre hiérarchique officiel SIGAT, du plus bas au plus haut : **PEF → Cantonnement → Direction Départementale → Direction Régionale** ;
+- rattachements compatibles : PEF vers Cantonnement, Cantonnement vers Direction Départementale, Direction Départementale vers Direction Régionale ; la Direction Régionale est le niveau supérieur ;
+- les anciens liens hiérarchiques incompatibles sont détachés automatiquement sans supprimer les données métier ;
+- le **Code unique du service** est généré automatiquement, aléatoirement et côté serveur, avec contrôle d’unicité D1 ;
+- préfixes automatiques : `PEF-`, `CEF-`, `DDEF-`, `DREF-` ;
+- suppression du texte de hiérarchie devenu obsolète sur la page de connexion.
