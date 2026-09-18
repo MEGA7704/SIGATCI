@@ -345,7 +345,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog.document-explanation-editor .document-explanation-wide-field{grid-column:1}
 }
 
-/* V1.41 — Personnel : liste compacte sans défilement horizontal + photo rétablie */
+/* V1.42 — Personnel : colonne Fonction + liste compacte lisible sans retour à la ligne */
 .personnel-base-hidden{display:none!important}
 .personnel-table-wrap{
   width:100%;
@@ -364,19 +364,85 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   overflow:hidden;
   text-overflow:ellipsis;
   vertical-align:middle;
-  padding:8px 6px;
+  padding:9px 6px;
   line-height:1.15;
 }
-.personnel-table th{font-size:10px;letter-spacing:.02em}
-.personnel-table td{font-size:12px}
-.personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:5%;text-align:center}
-.personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:22%}
-.personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:7%;text-align:center}
-.personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:11%}
-.personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:15%}
-.personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:12%}
-.personnel-table th:nth-child(13),.personnel-table td:nth-child(13){width:13%}
-.personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:15%;text-align:right}
+.personnel-table th{font-size:10.5px;letter-spacing:.015em}
+.personnel-table td{font-size:12.5px}
+/* Colonnes visibles sur PC : N°, Nom, Sexe, Matricule, Emploi, Fonction, Grade, Téléphone, Actions. */
+.personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:4%;text-align:center}
+.personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:20%}
+.personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:6%;text-align:center}
+.personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:10%}
+.personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:12%}
+.personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:13%}
+.personnel-table th:nth-child(10),.personnel-table td:nth-child(10){width:10%}
+.personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:10%}
+.personnel-table th:nth-child(15),.personnel-table td:nth-child(15){width:15%;text-align:right}
+/* Les informations détaillées restent disponibles via Voir et sur le PDF général. */
+.personnel-table th:nth-child(7),.personnel-table td:nth-child(7),
+.personnel-table th:nth-child(8),.personnel-table td:nth-child(8),
+.personnel-table th:nth-child(9),.personnel-table td:nth-child(9),
+.personnel-table th:nth-child(11),.personnel-table td:nth-child(11),
+.personnel-table th:nth-child(12),.personnel-table td:nth-child(12),
+.personnel-table th:nth-child(13),.personnel-table td:nth-child(13){display:none}
+.personnel-table .personnel-actions{
+  display:flex;
+  flex-wrap:nowrap!important;
+  justify-content:flex-end;
+  align-items:center;
+  gap:4px;
+  white-space:nowrap;
+}
+.personnel-table .personnel-actions .btn-sm{
+  min-width:28px;
+  min-height:28px;
+  padding:6px 7px;
+  font-size:10.5px;
+  line-height:1;
+  border-radius:7px;
+  white-space:nowrap;
+}
+#editorDialog.personnel-editor .photo-field{display:block!important}
+
+@media(max-width:1050px){
+  /* À largeur intermédiaire, conserver Fonction tout en masquant Sexe et Emploi. */
+  .personnel-table th:nth-child(3),.personnel-table td:nth-child(3),
+  .personnel-table th:nth-child(5),.personnel-table td:nth-child(5){display:none}
+  .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:5%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:28%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:14%}
+  .personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:16%}
+  .personnel-table th:nth-child(10),.personnel-table td:nth-child(10){width:10%}
+  .personnel-table th:nth-child(14),.personnel-table td:nth-child(14){width:9%}
+  .personnel-table th:nth-child(15),.personnel-table td:nth-child(15){width:18%}
+}
+@media(max-width:700px){
+  /* Téléphone : garder les données essentielles sur une seule ligne sans défilement horizontal. */
+  .personnel-table th:nth-child(10),.personnel-table td:nth-child(10),
+  .personnel-table th:nth-child(14),.personnel-table td:nth-child(14){display:none}
+  .personnel-table th,.personnel-table td{padding:7px 4px;font-size:11px}
+  .personnel-table th{font-size:9.5px}
+  .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:7%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:32%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:17%}
+  .personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:18%}
+  .personnel-table th:nth-child(15),.personnel-table td:nth-child(15){width:26%}
+  .personnel-table .personnel-actions{gap:2px}
+  .personnel-table .personnel-actions .btn-sm{min-width:23px;min-height:25px;padding:4px 5px;font-size:9px}
+  #editorDialog.personnel-editor{width:calc(100vw - 12px);max-height:96vh;max-height:96dvh;overflow:hidden}
+  #editorDialog.personnel-editor .dialog-body{overflow:auto;max-height:74vh;max-height:74dvh;padding:12px}
+  #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+}
+@media(max-width:460px){
+  .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:7%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:34%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:16%}
+  .personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:17%}
+  .personnel-table th:nth-child(15),.personnel-table td:nth-child(15){width:26%}
+  .personnel-table .personnel-actions .btn-sm{min-width:21px;min-height:23px;padding:3px 4px;font-size:8.5px}
+}
+
 /* Les informations détaillées restent disponibles via Voir et sur le PDF général. */
 .personnel-table th:nth-child(6),.personnel-table td:nth-child(6),
 .personnel-table th:nth-child(7),.personnel-table td:nth-child(7),

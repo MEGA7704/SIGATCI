@@ -409,13 +409,13 @@ async function loadRecords(){
 function renderRows(items){
   const tb=document.getElementById('recordsBody');
   const isPersonnelRegister=moduleKey==='personnel';
-  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?14:7}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
+  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?15:7}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
   const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
   const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
   const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
   const personnelActionsHtml=r=>`<div class="actions personnel-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir la fiche complète" aria-label="Voir la fiche complète">👁</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="Imprimer PDF" aria-label="Imprimer PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier" aria-label="Modifier">✎</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}" title="Archiver" aria-label="Archiver">A</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer" aria-label="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
   if(isPersonnelRegister){
-    tb.innerHTML=items.map((r,i)=>{const d=r.data||{};const order=(currentPage-1)*25+i+1;return `<tr><td class="personnel-order">${order}</td><td><strong>${esc(r.title)}</strong></td><td>${esc(displayValue(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(fmtDate(d.date_prise_service_minef))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${esc(displayValue(d.grade))}</td><td>${esc(displayValue(d.classe))}</td><td>${esc(displayValue(d.echelon))}</td><td>${esc(displayValue(d.handicap))}</td><td>${esc(displayValue(d.telephone))}</td><td>${personnelActionsHtml(r)}</td></tr>`}).join('');
+    tb.innerHTML=items.map((r,i)=>{const d=r.data||{};const order=(currentPage-1)*25+i+1;return `<tr><td class="personnel-order">${order}</td><td><strong>${esc(r.title)}</strong></td><td>${esc(displayValue(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(displayValue(d.fonction))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(fmtDate(d.date_prise_service_minef))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${esc(displayValue(d.grade))}</td><td>${esc(displayValue(d.classe))}</td><td>${esc(displayValue(d.echelon))}</td><td>${esc(displayValue(d.handicap))}</td><td>${esc(displayValue(d.telephone))}</td><td>${personnelActionsHtml(r)}</td></tr>`}).join('');
   }else{
     tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td>${actionsHtml(r)}</td></tr>`).join('');
   }
@@ -436,7 +436,7 @@ function openDetails(record){
   if(moduleKey==='personnel'){
     const d=record.data||{};
     const rows=[
-      ['Nom et prénoms',record.title],['Sexe',d.sexe],['Matricule',d.matricule],['Emploi',d.emploi],['Date de naissance',fmtDate(d.date_naissance)],['Date de prise de service au MINEF',fmtDate(d.date_prise_service_minef)],['Date de prise de service dans la Région de Gbêkê',fmtDate(d.date_prise_service_gbeke)],['Grade',d.grade],['Classe',d.classe],['Échelon',d.echelon],['Handicap',d.handicap],['Numéro de téléphone',d.telephone]
+      ['Nom et prénoms',record.title],['Sexe',d.sexe],['Matricule',d.matricule],['Emploi',d.emploi],['Fonction',d.fonction],['Date de naissance',fmtDate(d.date_naissance)],['Date de prise de service au MINEF',fmtDate(d.date_prise_service_minef)],['Date de prise de service dans la Région de Gbêkê',fmtDate(d.date_prise_service_gbeke)],['Grade',d.grade],['Classe',d.classe],['Échelon',d.echelon],['Handicap',d.handicap],['Numéro de téléphone',d.telephone]
     ];
     const photo=d.photo?`<div class="agent-photo-view"><img src="${esc(d.photo)}" alt="Photo de l’agent"></div>`:'';
     const html=`<div class="detail-layout">${photo}<div class="detail-grid">${rows.map(([l,v])=>`<div class="detail-item"><span>${esc(l)}</span><strong>${esc(displayValue(v))}</strong></div>`).join('')}</div></div>`;
@@ -971,18 +971,19 @@ body.record-print{
 .list-print.personnel-list-print .personnel-print-table th{font-weight:800;text-align:center;background:#f2f4f3;color:#111}
 .list-print.personnel-list-print .personnel-print-table td:first-child{text-align:center;width:5%}
 .list-print.personnel-list-print .personnel-print-table th:nth-child(1){width:4%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(2){width:14%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(3){width:5%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(4){width:7%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(5){width:9%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(6){width:7%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(7){width:9%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(8){width:10%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(9){width:7%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(2){width:13%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(3){width:4%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(4){width:6%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(5){width:8%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(6){width:8%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(7){width:6%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(8){width:8%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(9){width:9%}
 .list-print.personnel-list-print .personnel-print-table th:nth-child(10){width:6%}
 .list-print.personnel-list-print .personnel-print-table th:nth-child(11){width:5%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(12){width:7%}
-.list-print.personnel-list-print .personnel-print-table th:nth-child(13){width:10%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(12){width:5%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(13){width:7%}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(14){width:11%}
 
 /* V1.37 — En-tête général : 10 pt, interligne 1, seul le chiffre de référence en rouge/gras */
 .official-left,
@@ -1279,9 +1280,9 @@ async function printCurrentList(){
     if(moduleKey==='personnel'){
       const personnel=await loadAllPersonnelForPrint();
       if(!personnel.length){await professionalAlert('Impression','Aucun agent à imprimer.');return}
-      const rows=personnel.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(r.title)}</td><td>${esc(displayValue(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(fmtDate(d.date_prise_service_minef))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${esc(displayValue(d.grade))}</td><td>${esc(displayValue(d.classe))}</td><td>${esc(displayValue(d.echelon))}</td><td>${esc(displayValue(d.handicap))}</td><td>${esc(displayValue(d.telephone))}</td></tr>`}).join('');
+      const rows=personnel.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(r.title)}</td><td>${esc(displayValue(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(displayValue(d.fonction))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(fmtDate(d.date_prise_service_minef))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${esc(displayValue(d.grade))}</td><td>${esc(displayValue(d.classe))}</td><td>${esc(displayValue(d.echelon))}</td><td>${esc(displayValue(d.handicap))}</td><td>${esc(displayValue(d.telephone))}</td></tr>`}).join('');
       const title=personnelListTitle(s);
-      const body=`<div class="document-title personnel-list-title">${esc(title)}</div><div class="official-body wide"><table class="personnel-print-table"><thead><tr><th>N° d’ordre</th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Emploi</th><th>Date de naissance</th><th>Prise de service au MINEF</th><th>Prise de service Région de Gbêkê</th><th>Grade</th><th>Classe</th><th>Échelon</th><th>Handicap</th><th>N° téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      const body=`<div class="document-title personnel-list-title">${esc(title)}</div><div class="official-body wide"><table class="personnel-print-table"><thead><tr><th>N° d’ordre</th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Emploi</th><th>Fonction</th><th>Date de naissance</th><th>Prise de service au MINEF</th><th>Prise de service Région de Gbêkê</th><th>Grade</th><th>Classe</th><th>Échelon</th><th>Handicap</th><th>N° téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true,documentClass:'personnel-list-print'});
       await launchPrint(html);return;
     }

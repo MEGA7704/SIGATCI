@@ -403,3 +403,7 @@ La section **Documents administratifs** intègre désormais un espace **Demande 
 
 ## V1.41 — Personnel : liste compacte sans défilement + photo
 La liste écran du personnel tient dans la largeur disponible sans défilement horizontal et sans retour à la ligne. Les colonnes secondaires sont masquées de façon responsive mais restent disponibles dans la fiche détaillée et le PDF général. L’importation de la photo de l’agent est rétablie dans le formulaire.
+
+
+## V1.42 — Personnel : Fonction et lisibilité
+Ajout de la Fonction à la liste et au formulaire Personnel, avec boutons/textes légèrement agrandis tout en conservant une ligne horizontale sans défilement.
