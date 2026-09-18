@@ -407,3 +407,6 @@ La liste écran du personnel tient dans la largeur disponible sans défilement h
 
 ## V1.42 — Personnel : Fonction et lisibilité
 Ajout de la Fonction à la liste et au formulaire Personnel, avec boutons/textes légèrement agrandis tout en conservant une ligne horizontale sans défilement.
+
+### V1.43 — Personnel : colonnes visibles ciblées
+La liste générale du personnel affiche uniquement N° d’ordre, Nom et prénoms, Sexe (M/F), Matricule, Emploi, Fonction, Date de naissance, Numéro de téléphone, Date de prise de service dans la Région de Gbêkê et Actions. Les autres champs restent disponibles dans les fiches et formulaires.
