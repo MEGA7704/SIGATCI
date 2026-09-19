@@ -424,3 +424,41 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   #editorDialog.personnel-editor .dialog-body{overflow:auto;max-height:74vh;max-height:74dvh;padding:12px}
   #editorDialog.personnel-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
 }
+
+
+/* === SIGAT V1.46 — Logo institutionnel + Sensibilisations === */
+.sigat-logo-nav{width:48px;height:48px;object-fit:contain;border-radius:10px;background:#fff;flex:0 0 auto}
+.login-sigat-logo{width:min(280px,78%);height:auto;object-fit:contain;background:rgba(255,255,255,.96);border-radius:24px;padding:10px;box-shadow:0 16px 42px rgba(0,0,0,.18);margin-bottom:20px}
+#editorDialog.awareness-editor{width:min(1080px,calc(100vw - 24px));max-height:94vh;overflow:hidden}
+#editorDialog.awareness-editor .dialog-body{overflow:auto;max-height:72vh;padding:15px 18px}
+#editorDialog.awareness-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.awareness-editor #dynamicFields{display:contents}
+#editorDialog.awareness-editor .field{margin-bottom:10px}
+#editorDialog.awareness-editor .field textarea{min-height:76px;resize:vertical}
+#editorDialog.awareness-editor .document-ampliations-field{grid-column:1/-1}
+.sensibilisations-filters{display:grid;grid-template-columns:minmax(180px,1fr) 110px 165px minmax(260px,1.3fr) auto;gap:8px;align-items:center}
+.sensibilisations-filters input,.sensibilisations-filters select{min-width:0!important;width:100%}
+.sensibilisations-table-wrap{overflow:hidden}
+.sensibilisations-table{min-width:0!important;width:100%;table-layout:fixed}
+.sensibilisations-table th,.sensibilisations-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:10px 8px;vertical-align:middle}
+.sensibilisations-table th:nth-child(1){width:11%}.sensibilisations-table th:nth-child(2){width:27%}.sensibilisations-table th:nth-child(3){width:13%}.sensibilisations-table th:nth-child(4){width:14%}.sensibilisations-table th:nth-child(5){width:19%}.sensibilisations-table th:nth-child(6){width:16%}
+.sensibilisations-table .awareness-count{font-size:13px}
+.awareness-actions{display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-start;white-space:nowrap}
+.awareness-actions .btn{padding:6px 8px;font-size:12px;min-width:0}
+@media(max-width:1100px){.sigat-logo-nav{width:42px;height:42px}.sensibilisations-filters{grid-template-columns:1fr 100px 155px 1.2fr auto}.sensibilisations-table th,.sensibilisations-table td{font-size:12px;padding:9px 5px}.awareness-actions .btn{padding:5px 6px;font-size:11px}}
+@media(max-width:760px){
+  .login-sigat-logo{width:min(210px,70%);margin-bottom:10px}
+  .sigat-logo-nav{width:38px;height:38px}
+  #editorDialog.awareness-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+  .sensibilisations-filters{grid-template-columns:1fr 1fr}.sensibilisations-filters #searchInput,.sensibilisations-filters #awarenessTypeFilter{grid-column:1/-1}.sensibilisations-filters #awarenessResetFilters{grid-column:1/-1;width:100%}
+  .sensibilisations-table th:nth-child(4),.sensibilisations-table td:nth-child(4){display:none}
+  .sensibilisations-table th:nth-child(1){width:16%}.sensibilisations-table th:nth-child(2){width:31%}.sensibilisations-table th:nth-child(3){width:16%}.sensibilisations-table th:nth-child(5){width:22%}.sensibilisations-table th:nth-child(6){width:15%}
+  .sensibilisations-table th,.sensibilisations-table td{font-size:10.5px;padding:8px 4px}
+  .awareness-actions .btn{padding:4px 5px;font-size:10px}
+}
+@media(max-width:520px){
+  .login-brand h1{display:none}.login-brand p{display:none}.login-brand{align-items:center;padding:18px 16px 8px;background:linear-gradient(180deg,rgba(2,38,30,.78),rgba(2,38,30,.32))}
+  .sensibilisations-table th:nth-child(3),.sensibilisations-table td:nth-child(3){display:none}
+  .sensibilisations-table th:nth-child(1){width:18%}.sensibilisations-table th:nth-child(2){width:38%}.sensibilisations-table th:nth-child(5){width:27%}.sensibilisations-table th:nth-child(6){width:17%}
+  .awareness-actions [data-view],.awareness-actions [data-print]{display:none}
+}

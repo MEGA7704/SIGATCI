@@ -425,3 +425,7 @@ La liste générale du personnel affiche uniquement N° d’ordre, Nom et préno
 - Ajout d’une zone « Signature de l’agent » sur la fiche.
 - Conservation de l’en-tête administratif SIGAT et de la référence du document.
 - Mise en page compacte afin de tenir sur une page A4 portrait.
+
+
+## V1.46 — Sensibilisations et logo SIGAT
+Voir `CORRECTION_V1_46_SENSIBILISATIONS_LOGO.txt`.

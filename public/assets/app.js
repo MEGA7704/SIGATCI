@@ -57,6 +57,7 @@ const SMART_AUTOFILL={
   controles:{sourceModule:'personnel',label:"Agent / chef d’équipe",help:"Choisissez un agent pour initialiser l’équipe. Vous pouvez ensuite compléter ou modifier librement.",map:{equipe:'$title'}},
   formations:{sourceModule:'personnel',label:'Participant à ajouter',help:"Choisissez un agent pour initialiser la liste des participants. Le contenu reste modifiable.",map:{participants:'$title'}},
   materiel:{sourceModule:'personnel',label:'Responsable du matériel',help:"Choisissez un agent pour renseigner le responsable. Le champ reste modifiable.",map:{responsable:'$title'}},
+  sensibilisations:{sourceModule:'personnel',label:'Agent en charge',help:"Choisissez un agent pour renseigner automatiquement l’agent en charge de la sensibilisation. Le champ reste modifiable.",map:{agent_charge:'$title'}},
   saisies:{sourceModule:'infractions',label:'Dossier d’infraction lié',help:"Sélectionnez une infraction existante pour reprendre sa référence dans le dossier de saisie.",map:{dossier:'$reference'}},
   stages:{
     FIN_STAGE:{sourceModule:'stages',sourceStageType:'MISE_STAGE',ongoingOnly:true,label:'Stage en cours à clôturer',help:"SIGAT présente les stages en cours de votre structure. La sélection préremplit l’attestation de fin de stage ; tous les champs restent modifiables.",copyTitle:true,map:{qualite_stagiaire:'data.qualite_stagiaire',matricule_stagiaire:'data.matricule_stagiaire',date_debut:'data.date_debut',date_fin:'data.date_fin',lettre_mise_stage_numero:'data.note_service_numero',lettre_mise_stage_date:'data.note_service_date'},sourceIdKey:'_source_stage_id'}
@@ -225,7 +226,7 @@ function navHTML(user){
   const childLink=CHILD_LABEL[user.organizationType]?`<a href="${withScope('/structures-rattachees/')}">${CHILD_LABEL[user.organizationType]}</a>`:'';
   const userAdminLink=user.role==='ORGANIZATION_ADMIN'?'<a href="/utilisateurs/">Utilisateurs</a>':'';
   const A=p=>withScope(p);
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><span class="logo-badge">SI</span><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button type="button">Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents administratifs</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button type="button">Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button type="button">Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button type="button">Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}<div class="nav-group"><button type="button">Administration ▾</button><div class="dropdown"><a href="${A('/personnel/')}">Personnel</a><a href="${A('/documents/')}">Documents administratifs</a><a href="${A('/stages/')}">Stages</a><a href="${A('/convocations/')}">Convocations</a>${userAdminLink}</div></div><div class="nav-group"><button type="button">Activités techniques ▾</button><div class="dropdown"><a href="${A('/missions/')}">Missions</a><a href="${A('/controles/')}">Contrôles</a><a href="${A('/infractions/')}">Infractions</a><a href="${A('/saisies/')}">Saisies</a><a href="${A('/exploitation-forestiere/')}">Exploitation forestière</a><a href="${A('/produits-secondaires/')}">Produits secondaires</a><a href="${A('/transformation-bois/')}">Transformation du bois</a><a href="${A('/sensibilisations/')}">Sensibilisations</a></div></div><div class="nav-group"><button type="button">Environnement ▾</button><div class="dropdown"><a href="${A('/reboisement/')}">Reboisement</a><a href="${A('/ressources-naturelles/')}">Ressources naturelles</a><a href="${A('/feux-brousse/')}">Feux de brousse</a><a href="${A('/faune/')}">Faune</a></div></div><div class="nav-group"><button type="button">Gestion ▾</button><div class="dropdown"><a href="${A('/formations/')}">Formations</a><a href="${A('/materiel/')}">Matériel</a><a href="${A('/finances/')}">Finances</a><a href="${A('/rapports/')}">Rapports</a><a href="${A('/archives/')}">Archives</a></div></div><a href="/parametres/">Paramètres</a></nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
 }
 
 function bindResponsiveNav(){
@@ -389,7 +390,18 @@ function setupModule(){
   printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
   addBtn.parentElement.insertBefore(printBtn,addBtn);
   bindCommonModuleControls();
+  if(moduleKey==='sensibilisations') bindAwarenessFilters();
   loadRecords();
+}
+
+function bindAwarenessFilters(){
+  const ids=['awarenessYearFilter','awarenessDateFilter','awarenessTypeFilter'];
+  ids.forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{currentPage=1;loadRecords()}));
+  const year=document.getElementById('awarenessYearFilter');
+  year?.addEventListener('input',()=>{clearTimeout(window.__awarenessYearTimer);window.__awarenessYearTimer=setTimeout(()=>{currentPage=1;loadRecords()},250)});
+  document.getElementById('awarenessResetFilters')?.addEventListener('click',()=>{
+    ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});currentSearch='';const q=document.getElementById('searchInput');if(q)q.value='';currentPage=1;loadRecords();
+  });
 }
 
 async function loadRecords(){
@@ -398,7 +410,8 @@ async function loadRecords(){
     const dataModule=effectiveModule();
     const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
     const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
-    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
+    const awarenessFilter=moduleKey==='sensibilisations'?`&year=${encodeURIComponent(document.getElementById('awarenessYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('awarenessDateFilter')?.value||'')}&awarenessType=${encodeURIComponent(document.getElementById('awarenessTypeFilter')?.value||'')}`:'';
+    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${awarenessFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
     if(currentPage>d.totalPages){currentPage=d.totalPages;return loadRecords()}
     lastItems=d.items||[];renderRows(lastItems);
     document.getElementById('pageInfo').textContent=`Page ${d.page} / ${d.totalPages} — ${d.total} enregistrement(s)`;
@@ -409,13 +422,17 @@ async function loadRecords(){
 function renderRows(items){
   const tb=document.getElementById('recordsBody');
   const isPersonnelRegister=moduleKey==='personnel';
-  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?10:7}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
+  const isAwarenessRegister=moduleKey==='sensibilisations';
+  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?10:(isAwarenessRegister?6:7)}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
   const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
   const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
   const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
   const personnelActionsHtml=r=>`<div class="actions personnel-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir la fiche complète" aria-label="Voir la fiche complète">👁</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="Imprimer PDF" aria-label="Imprimer PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier" aria-label="Modifier">✎</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}" title="Archiver" aria-label="Archiver">A</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer" aria-label="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
   if(isPersonnelRegister){
     tb.innerHTML=items.map((r,i)=>{const d=r.data||{};const order=(currentPage-1)*25+i+1;return `<tr><td class="personnel-order">${order}</td><td><strong>${esc(r.title)}</strong></td><td>${esc(personnelSexeShort(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(displayValue(d.fonction))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(displayValue(d.telephone))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${personnelActionsHtml(r)}</td></tr>`}).join('');
+  }else if(isAwarenessRegister){
+    const awarenessActionsHtml=r=>`<div class="actions awareness-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
+    tb.innerHTML=items.map(r=>{const d=r.data||{};const hommes=Number(d.hommes||0),femmes=Number(d.femmes||0),total=hommes+femmes;const type=d.type_sensibilisation||d.theme||r.title||'—';return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td title="${esc(type)}"><strong>${esc(type)}</strong></td><td title="${esc(displayValue(d.lieu))}">${esc(displayValue(d.lieu))}</td><td title="${esc(displayValue(d.cible))}">${esc(displayValue(d.cible))}</td><td class="awareness-count">H : ${hommes} · F : ${femmes} · Total : <strong>${total}</strong></td><td>${awarenessActionsHtml(r)}</td></tr>`}).join('');
   }else{
     tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td>${actionsHtml(r)}</td></tr>`).join('');
   }
@@ -514,6 +531,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   const isDocument=moduleKey==='documents';
   const isConvocationModule=moduleKey==='convocations';
   const isStage=moduleKey==='stages';
+  const isAwareness=moduleKey==='sensibilisations';
   if(isStage)editorStageType=stageTypeOverride||(record?stageTypeOf(record):currentStageType);
   if(isDocument)editorDocumentType=documentTypeOverride||(record?documentTypeOf(record):currentDocumentType);
   if(isConvocationModule)editorConvocationView=currentConvocationView;
@@ -530,6 +548,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   d.classList.toggle('stage-editor',isStage);
   d.classList.toggle('document-service-editor',isServiceDocument);
   d.classList.toggle('document-explanation-editor',isExplanationDocument);
+  d.classList.toggle('awareness-editor',isAwareness);
   const singular=activeSingular(record);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${singular}`:`Ajouter — ${singular}`;
   document.getElementById('recordId').value=record?.id||'';
@@ -542,13 +561,22 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   dateInput.value=(record?.event_date||'').slice(0,10);
   statusInput.value=record?.status||'ACTIVE';
   const refField=refInput.closest('.field'),dateField=dateInput.closest('.field'),titleField=titleInput.closest('.field'),statusField=statusInput.closest('.field');
-  refField.classList.remove('personnel-base-hidden');dateField.classList.remove('personnel-base-hidden');
+  titleInput.required=true;
+  refField.classList.remove('personnel-base-hidden');dateField.classList.remove('personnel-base-hidden');titleField.classList.remove('personnel-base-hidden');statusField.classList.remove('personnel-status-hidden');
   if(isPersonnel){
     refField.classList.add('personnel-base-hidden');
     dateField.classList.add('personnel-base-hidden');
     titleField.querySelector('label').textContent='Nom et Prénoms *';
     titleField.classList.remove('full');
     statusField.classList.add('personnel-status-hidden');
+  }else if(isAwareness){
+    refField.classList.add('personnel-base-hidden');
+    dateField.classList.add('personnel-base-hidden');
+    titleField.classList.add('personnel-base-hidden');
+    statusField.classList.add('personnel-status-hidden');
+    titleInput.required=false;
+    titleInput.value=record?.title||record?.data?.type_sensibilisation||record?.data?.theme||'Sensibilisation';
+    statusInput.value=record?.status||'ACTIVE';
   }else if(isAbsence){
     refField.querySelector('label').textContent='Référence / N°';
     dateField.querySelector('label').textContent='Date d’établissement';
@@ -633,7 +661,11 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(type==='textarea'){el=document.createElement('textarea');el.rows=2}
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
     else{el=document.createElement('input');el.type=type==='computed'?'number':(type||'text');if(type==='computed'){el.readOnly=true;el.classList.add('computed-field')}}
-    el.dataset.key=key;el.value=record?.data?.[key]??'';
+    el.dataset.key=key;
+    let initialValue=record?.data?.[key]??'';
+    if(isAwareness&&key==='type_sensibilisation'&&!initialValue)initialValue=record?.data?.theme||record?.title||'';
+    if(isAwareness&&key==='date_activite'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
+    el.value=initialValue;
     if(isConvocationPv&&!record&&key==='lieu_rencontre')el.value=session?.user?.organizationName||'';
     if(isStage&&!record&&key==='qualite_stagiaire')el.value='élève Sous-officier';
     if(isStage&&!record&&editorStageType==='MISE_STAGE'&&key==='note_service_origine')el.value='Direction des Ressources Humaines et de la Formation du Ministère des Eaux et Forêts';
@@ -697,6 +729,12 @@ async function saveRecord(e){
     if(moduleKey==='personnel'){
       payload.eventDate=data.date_prise_service_gbeke||data.date_prise_service_minef||'';
       payload.status='ACTIVE';
+    }
+    if(moduleKey==='sensibilisations'){
+      payload.title=data.type_sensibilisation||'Sensibilisation';
+      payload.eventDate=data.date_activite||'';
+      payload.status='ACTIVE';
+      payload.reference=payload.reference||'';
     }
     const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':moduleKey);
     try{await api('/api/save',{method:'POST',body:{module:saveModule,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
@@ -1344,6 +1382,13 @@ async function printCurrentList(){
       const title=personnelListTitle(s);
       const body=`<div class="document-title personnel-list-title">${esc(title)}</div><div class="official-body wide"><table class="personnel-print-table"><thead><tr><th>N° d’ordre</th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Emploi</th><th>Fonction</th><th>Date de naissance</th><th>Prise de service au MINEF</th><th>Prise de service Région de Gbêkê</th><th>Grade</th><th>Classe</th><th>Échelon</th><th>Handicap</th><th>N° téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true,documentClass:'personnel-list-print'});
+      await launchPrint(html);return;
+    }
+    if(moduleKey==='sensibilisations'){
+      const rows=lastItems.map((r,i)=>{const d=r.data||{};const h=Number(d.hommes||0),f=Number(d.femmes||0);return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(d.type_sensibilisation||d.theme||r.title||'—')}</td><td>${esc(displayValue(d.lieu))}</td><td>${esc(displayValue(d.cible))}</td><td>${h}</td><td>${f}</td><td>${h+f}</td><td>${esc(displayValue(d.agent_charge))}</td></tr>`}).join('');
+      const title='REGISTRE DES SENSIBILISATIONS';
+      const body=`<div class="document-title">${title}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Date</th><th>Type</th><th>Lieu</th><th>Cible</th><th>Hommes</th><th>Femmes</th><th>Total</th><th>Agent en charge</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
       await launchPrint(html);return;
     }
     const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');

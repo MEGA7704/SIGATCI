@@ -982,9 +982,31 @@ async function apiLoad(env, request) {
   let where = `r.organization_id IN (${sql}) AND r.archived_at IS NULL`;
   const params = [...binds];
   if (search) {
-    where += ' AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ?)';
     const q = `%${search}%`;
-    params.push(q, q, q);
+    if (module === 'sensibilisations') {
+      where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.theme') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.lieu') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.cible') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.agent_charge') LIKE ?)`;
+      params.push(q,q,q,q,q,q,q,q);
+    } else {
+      where += ' AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ?)';
+      params.push(q, q, q);
+    }
+  }
+  if (module === 'sensibilisations') {
+    const year = String(url.searchParams.get('year') || '').trim();
+    const activityDate = String(url.searchParams.get('activityDate') || '').trim();
+    const awarenessType = String(url.searchParams.get('awarenessType') || '').trim();
+    if (/^\d{4}$/.test(year)) {
+      where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
+      params.push(year);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
+      where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, '') = ?`;
+      params.push(activityDate);
+    }
+    if (awarenessType) {
+      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation'), json_extract(COALESCE(r.data_json,'{}'), '$.theme'), r.title, '')) = LOWER(?)`;
+      params.push(awarenessType);
+    }
   }
   if (module === 'stages') {
     const stageType = String(url.searchParams.get('stageType') || '').toUpperCase();
