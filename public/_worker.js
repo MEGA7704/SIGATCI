@@ -974,6 +974,7 @@ async function apiLoad(env, request) {
   const page = Math.max(1, Number(url.searchParams.get('page') || 1));
   const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
   const search = String(url.searchParams.get('search') || '').trim();
+  const forestType = module === 'exploitation-forestiere' ? String(url.searchParams.get('forestType') || '').trim().toUpperCase() : '';
   const ownedOnly = url.searchParams.get('ownedOnly') === '1';
   const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
   const ids = ownedOnly ? [Number(auth.user.organization_id)] : await accessibleOrganizationIds(env, auth.user, scopeOrg);
@@ -986,6 +987,9 @@ async function apiLoad(env, request) {
     if (module === 'sensibilisations') {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.theme') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.lieu') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.cible') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.agent_charge') LIKE ?)`;
       params.push(q,q,q,q,q,q,q,q);
+    } else if (module === 'exploitation-forestiere') {
+      where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR COALESCE(r.data_json,'{}') LIKE ?)`;
+      params.push(q,q,q,q);
     } else {
       where += ' AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ?)';
       params.push(q, q, q);
@@ -1006,6 +1010,37 @@ async function apiLoad(env, request) {
     if (awarenessType) {
       where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation'), json_extract(COALESCE(r.data_json,'{}'), '$.theme'), r.title, '')) = LOWER(?)`;
       params.push(awarenessType);
+    }
+  }
+
+  if (module === 'exploitation-forestiere') {
+    if (forestType === 'RECHERCHE_PARCELLAIRE') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IS NULL)`;
+      params.push('RECHERCHE_PARCELLAIRE');
+    } else if (['PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
+      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ?`;
+      params.push(forestType);
+    }
+    const year = String(url.searchParams.get('year') || '').trim();
+    const activityDate = String(url.searchParams.get('activityDate') || '').trim();
+    const sousPrefecture = String(url.searchParams.get('sousPrefecture') || '').trim();
+    const localite = String(url.searchParams.get('localite') || '').trim();
+    const essence = String(url.searchParams.get('essence') || '').trim();
+    const reboisementType = String(url.searchParams.get('reboisementType') || '').trim();
+    if (/^\d{4}$/.test(year)) {
+      where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
+      params.push(year);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
+      where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, '') = ?`;
+      params.push(activityDate);
+    }
+    for (const [key,value] of [['sous_prefecture',sousPrefecture],['localite',localite],['essence',essence]]) {
+      if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
+    }
+    if (reboisementType) {
+      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`;
+      params.push(reboisementType);
     }
   }
   if (module === 'stages') {
@@ -1050,7 +1085,19 @@ async function apiLoad(env, request) {
     WHERE ${where}
     ORDER BY COALESCE(r.event_date,r.created_at) DESC,r.id DESC LIMIT ? OFFSET ?
   `).bind(...params, limit, (page - 1) * limit).all();
-  const items = rows.results.map(r => { const path=[r.great_grandparent_name,r.grandparent_name,r.parent_name,r.source_organization].filter(Boolean).join(' › '); return { ...r, source_path:path, data: safeJson(r.data_json), owned: Number(r.organization_id) === Number(auth.user.organization_id), data_json: undefined }; });
+  let items = rows.results.map(r => { const path=[r.great_grandparent_name,r.grandparent_name,r.parent_name,r.source_organization].filter(Boolean).join(' › '); return { ...r, source_path:path, data: safeJson(r.data_json), owned: Number(r.organization_id) === Number(auth.user.organization_id), data_json: undefined }; });
+  if (module === 'exploitation-forestiere' && forestType === 'PEPINIERE' && items.length) {
+    const distRows = await env.SIGAT_DB.prepare(`
+      SELECT organization_id, LOWER(TRIM(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.essence'),''))) AS essence_key,
+             SUM(CAST(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.nombre_total_plants'),0) AS REAL)) AS distributed
+      FROM forest_perimeters
+      WHERE organization_id IN (${sql}) AND archived_at IS NULL
+        AND json_extract(COALESCE(data_json,'{}'),'$._forest_type')='REBOISEMENT'
+      GROUP BY organization_id, essence_key
+    `).bind(...binds).all();
+    const distMap = new Map((distRows.results||[]).map(x=>[`${Number(x.organization_id)}|${String(x.essence_key||'')}`, Number(x.distributed||0)]));
+    items = items.map(item=>{const d={...(item.data||{})};const key=`${Number(item.organization_id)}|${String(d.essence||'').trim().toLowerCase()}`;const distributed=Math.max(0,Math.round(distMap.get(key)||0));const produced=Math.max(0,Number(d.nbr_plants_produits||0)||0);d.nbr_plants_distribues=distributed;d.nbr_plants_disponibles=Math.max(0,Math.round(produced-distributed));return {...item,data:d};});
+  }
   return ok({ module, items, page, limit, total: Number(count?.c || 0), totalPages: Math.max(1, Math.ceil(Number(count?.c || 0) / limit)) });
 }
 
@@ -1180,7 +1227,38 @@ async function apiSave(env, request) {
     }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
       .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();
-    if (module === 'stages') {
+  
+  if (module === 'exploitation-forestiere') {
+    if (forestType === 'RECHERCHE_PARCELLAIRE') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IS NULL)`;
+      params.push('RECHERCHE_PARCELLAIRE');
+    } else if (['PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
+      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ?`;
+      params.push(forestType);
+    }
+    const year = String(url.searchParams.get('year') || '').trim();
+    const activityDate = String(url.searchParams.get('activityDate') || '').trim();
+    const sousPrefecture = String(url.searchParams.get('sousPrefecture') || '').trim();
+    const localite = String(url.searchParams.get('localite') || '').trim();
+    const essence = String(url.searchParams.get('essence') || '').trim();
+    const reboisementType = String(url.searchParams.get('reboisementType') || '').trim();
+    if (/^\d{4}$/.test(year)) {
+      where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
+      params.push(year);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
+      where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, '') = ?`;
+      params.push(activityDate);
+    }
+    for (const [key,value] of [['sous_prefecture',sousPrefecture],['localite',localite],['essence',essence]]) {
+      if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
+    }
+    if (reboisementType) {
+      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`;
+      params.push(reboisementType);
+    }
+  }
+  if (module === 'stages') {
       if (previousSourceStageId && previousSourceStageId !== incomingSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
       if (incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);
     }

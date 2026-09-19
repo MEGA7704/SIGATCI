@@ -1,6 +1,6 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
 import {MODULE_CONFIG} from './module-config.js';
-let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',pendingSmartSourceRecord=null;
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const config=MODULE_CONFIG[moduleKey];
 function stageTypeOf(record){
@@ -17,6 +17,8 @@ function documentTypeOf(record){
   return currentDocumentType;
 }
 function documentConfig(type=currentDocumentType){return config?.documentTypes?.[type]||null}
+function forestTypeOf(record){const t=String(record?.data?._forest_type||'').toUpperCase();return ['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(t)?t:'RECHERCHE_PARCELLAIRE'}
+function forestConfig(type=currentForestType){return config?.exploitationTypes?.[type]||null}
 function effectiveModule(type=currentDocumentType){
   if(moduleKey==='documents')return documentConfig(type)?.backendModule||'documents';
   if(moduleKey==='convocations'&&currentConvocationView==='PV')return 'convocation_pv';
@@ -26,12 +28,14 @@ function activeFields(record=null){
   if(moduleKey==='stages')return stageConfig(record?stageTypeOf(record):editorStageType)?.fields||[];
   if(moduleKey==='documents')return documentConfig(record?documentTypeOf(record):editorDocumentType)?.fields||[];
   if(moduleKey==='convocations'&&editorConvocationView==='PV')return config?.pvFields||[];
+  if(moduleKey==='exploitation-forestiere')return forestConfig(record?forestTypeOf(record):editorForestType)?.fields||[];
   return config?.fields||[];
 }
 function activeSingular(record=null){
   if(moduleKey==='stages')return stageConfig(record?stageTypeOf(record):editorStageType)?.singular||'Stage';
   if(moduleKey==='documents')return documentConfig(record?documentTypeOf(record):editorDocumentType)?.singular||'Document administratif';
   if(moduleKey==='convocations'&&editorConvocationView==='PV')return config?.pvSingular||'Procès-verbal de rencontre';
+  if(moduleKey==='exploitation-forestiere')return forestConfig(record?forestTypeOf(record):editorForestType)?.singular||'Enregistrement forestier';
   return config?.singular||'Document';
 }
 
@@ -332,6 +336,56 @@ function setDocumentView(type){
   loadRecords();
 }
 
+
+function setupForestModule(){
+  document.getElementById('pageTitle').textContent=config.title;
+  document.getElementById('pageSubtitle').textContent=config.subtitle;
+  bindCommonModuleControls();
+  const printBtn=document.getElementById('printListBtn');
+  if(printBtn)printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
+  document.querySelectorAll('[data-forest-tab]').forEach(btn=>btn.addEventListener('click',()=>setForestView(btn.dataset.forestTab)));
+  bindForestFilters();
+  const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();
+  setForestView(['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(requested)?requested:'RECHERCHE_PARCELLAIRE');
+}
+
+function setForestView(type){
+  if(!['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(type))type='RECHERCHE_PARCELLAIRE';
+  currentForestType=type;editorForestType=type;currentPage=1;
+  document.querySelectorAll('[data-forest-tab]').forEach(btn=>{const on=btn.dataset.forestTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
+  const cfg=forestConfig(type)||{};
+  const title=document.getElementById('forestViewTitle');if(title)title.textContent=cfg.label||'Exploitation forestière';
+  const sub=document.getElementById('forestViewSubtitle');if(sub)sub.textContent=type==='RECHERCHE_PARCELLAIRE'?'Localisation et suivi des parcelles forestières.':type==='PEPINIERE'?'Production, distribution et disponibilité des plants en pépinière.':type==='PLANTATION_CREEE'?'Enregistrement des plantations forestières créées.':'Suivi des reboisements particuliers, agroforestiers, antérieurs et compensatoires.';
+  const addBtn=document.getElementById('addBtn');if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,null,null,type)}
+  updateForestTableHead(type);updateForestFilterVisibility(type);
+  const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);
+  loadRecords();
+}
+
+function updateForestTableHead(type){
+  const head=document.getElementById('forestTableHead');if(!head)return;
+  const map={
+    RECHERCHE_PARCELLAIRE:['Date','Sous-préfecture','Localité','Essence','Superficie (ha)','Coordonnées X / Y','Contact propriétaire','Actions'],
+    PEPINIERE:['Date','Localisation','Sous-préfecture','Essence','Plants produits','Plants distribués','Plants disponibles','Contact responsable','Actions'],
+    PLANTATION_CREEE:['Date','Localité','Bénéficiaire','Superficie (ha)','Essence','Densité','Total plants','Coordonnées X / Y','Actions'],
+    REBOISEMENT:['Date','Type','Localité','Bénéficiaire','Superficie (ha)','Essence','Total plants','Entreprise responsable','Actions']
+  };
+  head.innerHTML='<tr>'+map[type].map(v=>`<th>${esc(v)}</th>`).join('')+'</tr>';
+}
+
+function bindForestFilters(){
+  const ids=['forestYearFilter','forestDateFilter','forestSousPrefFilter','forestLocaliteFilter','forestEssenceFilter','forestReboisementTypeFilter'];
+  ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;const ev=el.tagName==='INPUT'&&el.type==='text'?'input':'change';el.addEventListener(ev,()=>{clearTimeout(window.__forestFilterTimer);window.__forestFilterTimer=setTimeout(()=>{currentPage=1;loadRecords()},220)})});
+  document.getElementById('forestResetFilters')?.addEventListener('click',()=>{ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});currentSearch='';const q=document.getElementById('searchInput');if(q)q.value='';currentPage=1;loadRecords()});
+}
+function updateForestFilterVisibility(type){
+  const set=(id,on)=>{const el=document.getElementById(id);if(el){el.hidden=!on;if(!on)el.value=''}};
+  set('forestSousPrefFilter',type==='RECHERCHE_PARCELLAIRE'||type==='PEPINIERE');
+  set('forestLocaliteFilter',type!=='PEPINIERE');
+  set('forestEssenceFilter',true);
+  set('forestReboisementTypeFilter',type==='REBOISEMENT');
+}
+
 function setupConvocationsModule(){
   document.getElementById('pageTitle').textContent=config.title;
   document.getElementById('pageSubtitle').textContent=config.subtitle;
@@ -380,6 +434,7 @@ function setupModule(){
   if(moduleKey==='stages'){setupStageModule();return}
   if(moduleKey==='documents'){setupDocumentsModule();return}
   if(moduleKey==='convocations'){setupConvocationsModule();return}
+  if(moduleKey==='exploitation-forestiere'){setupForestModule();return}
   document.getElementById('pageTitle').textContent=config.title;
   document.getElementById('pageSubtitle').textContent=config.subtitle;
   const addBtn=document.getElementById('addBtn');
@@ -411,7 +466,8 @@ async function loadRecords(){
     const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
     const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
     const awarenessFilter=moduleKey==='sensibilisations'?`&year=${encodeURIComponent(document.getElementById('awarenessYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('awarenessDateFilter')?.value||'')}&awarenessType=${encodeURIComponent(document.getElementById('awarenessTypeFilter')?.value||'')}`:'';
-    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${awarenessFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
+    const forestFilter=moduleKey==='exploitation-forestiere'?`&forestType=${encodeURIComponent(currentForestType)}&year=${encodeURIComponent(document.getElementById('forestYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('forestDateFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('forestSousPrefFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('forestLocaliteFilter')?.value||'')}&essence=${encodeURIComponent(document.getElementById('forestEssenceFilter')?.value||'')}&reboisementType=${encodeURIComponent(document.getElementById('forestReboisementTypeFilter')?.value||'')}`:'';
+    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${awarenessFilter}${forestFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
     if(currentPage>d.totalPages){currentPage=d.totalPages;return loadRecords()}
     lastItems=d.items||[];renderRows(lastItems);
     document.getElementById('pageInfo').textContent=`Page ${d.page} / ${d.totalPages} — ${d.total} enregistrement(s)`;
@@ -423,7 +479,8 @@ function renderRows(items){
   const tb=document.getElementById('recordsBody');
   const isPersonnelRegister=moduleKey==='personnel';
   const isAwarenessRegister=moduleKey==='sensibilisations';
-  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?10:(isAwarenessRegister?6:7)}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
+  const isForestRegister=moduleKey==='exploitation-forestiere';
+  if(!items.length){tb.innerHTML=`<tr><td colspan="${isPersonnelRegister?10:(isAwarenessRegister?6:(isForestRegister?(currentForestType==='RECHERCHE_PARCELLAIRE'?8:9):7))}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
   const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
   const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
   const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
@@ -433,6 +490,9 @@ function renderRows(items){
   }else if(isAwarenessRegister){
     const awarenessActionsHtml=r=>`<div class="actions awareness-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
     tb.innerHTML=items.map(r=>{const d=r.data||{};const hommes=Number(d.hommes||0),femmes=Number(d.femmes||0),total=hommes+femmes;const type=d.type_sensibilisation||d.theme||r.title||'—';return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td title="${esc(type)}"><strong>${esc(type)}</strong></td><td title="${esc(displayValue(d.lieu))}">${esc(displayValue(d.lieu))}</td><td title="${esc(displayValue(d.cible))}">${esc(displayValue(d.cible))}</td><td class="awareness-count">H : ${hommes} · F : ${femmes} · Total : <strong>${total}</strong></td><td>${awarenessActionsHtml(r)}</td></tr>`}).join('');
+  }else if(isForestRegister){
+    const forestActionsHtml=r=>`<div class="actions forest-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
+    tb.innerHTML=items.map(r=>{const d=r.data||{};const coord=[d.coord_x,d.coord_y].filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').join(' / ')||'—';const a=forestActionsHtml(r);if(currentForestType==='PEPINIERE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localisation))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${esc(displayValue(d.nbr_plants_distribues))}</td><td><strong>${esc(displayValue(d.nbr_plants_disponibles))}</strong></td><td>${esc(displayValue(d.contact_responsable))}</td><td>${a}</td></tr>`;if(currentForestType==='PLANTATION_CREEE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.densite))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(coord)}</td><td>${a}</td></tr>`;if(currentForestType==='REBOISEMENT')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.type_reboisement))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(displayValue(d.entreprise_responsable))}</td><td>${a}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie_parcelle))}</td><td>${esc(coord)}</td><td>${esc(displayValue(d.contact_proprietaire))}</td><td>${a}</td></tr>`}).join('');
   }else{
     tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td>${actionsHtml(r)}</td></tr>`).join('');
   }
@@ -441,7 +501,7 @@ function renderRows(items){
     tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
     if(isConvocationRegister)tb.querySelector(`[data-pv="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>manageConvocationPv(r),'Ouverture…'));
     if(!r.owned)return;
-    tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r,null,moduleKey==='documents'?currentDocumentType:null));
+    tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r,null,moduleKey==='documents'?currentDocumentType:null,null,moduleKey==='exploitation-forestiere'?forestTypeOf(r):null));
     tb.querySelector(`[data-archive="${r.id}"]`)?.addEventListener('click',e=>archiveRecord(r,e.currentTarget));
     tb.querySelector(`[data-delete="${r.id}"]`)?.addEventListener('click',e=>deleteRecord(r,e.currentTarget));
   });
@@ -525,16 +585,56 @@ function updateAbsenceDays(){
   if(n)n.value=inclusiveDays(a?.value,b?.value);
 }
 
-function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null,smartSourceRecord=null){
+
+function normalizeForestText(v){return String(v||'').trim().toLocaleLowerCase('fr-FR').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ')}
+async function loadAllOwnForestReboisements(){
+  const items=[];let page=1,totalPages=1;
+  do{
+    const q=new URLSearchParams({module:'exploitation-forestiere',page:String(page),limit:'100',search:'',ownedOnly:'1',forestType:'REBOISEMENT'});
+    const d=await api(`/api/load?${q.toString()}`);items.push(...(d.items||[]));totalPages=Number(d.totalPages||1);page++;
+  }while(page<=totalPages&&page<=100);
+  return items;
+}
+function mountForestEditorLogic(record=null){
+  const area=document.getElementById('dynamicFields');if(!area)return;
+  const q=k=>area.querySelector(`[data-key="${k}"]`);
+  if(editorForestType==='REBOISEMENT'){
+    const type=q('type_reboisement'),enterprise=q('entreprise_responsable');
+    const wrap=enterprise?.closest('.field');
+    const update=()=>{const show=normalizeForestText(type?.value)==='compensatoires suivis';if(wrap)wrap.hidden=!show;if(enterprise&&!show)enterprise.value=''};
+    type?.addEventListener('change',update);update();
+  }
+  if(editorForestType==='PLANTATION_CREEE'||editorForestType==='REBOISEMENT'){
+    const superficie=q('superficie'),densite=q('densite'),total=q('nombre_total_plants');
+    const calculate=()=>{if(!total||String(total.value||'').trim())return;const s=Number(superficie?.value||0),d=Number(densite?.value||0);if(s>0&&d>0)total.value=String(Math.round(s*d))};
+    superficie?.addEventListener('input',calculate);densite?.addEventListener('input',calculate);calculate();
+  }
+  if(editorForestType==='PEPINIERE'){
+    const essence=q('essence'),produced=q('nbr_plants_produits'),distributed=q('nbr_plants_distribues'),available=q('nbr_plants_disponibles');
+    let reboisements=[];
+    const update=()=>{
+      const e=normalizeForestText(essence?.value);let dist=0;
+      if(e)for(const r of reboisements){const d=r.data||{};if(normalizeForestText(d.essence)===e)dist+=Number(d.nombre_total_plants||0)||0}
+      if(distributed)distributed.value=String(Math.max(0,Math.round(dist)));
+      const prod=Number(produced?.value||0)||0;if(available)available.value=String(Math.max(0,Math.round(prod-dist)));
+    };
+    essence?.addEventListener('input',update);produced?.addEventListener('input',update);
+    loadAllOwnForestReboisements().then(items=>{reboisements=items;update()}).catch(()=>update());
+  }
+}
+
+function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null,smartSourceRecord=null,forestTypeOverride=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
   const isPersonnel=moduleKey==='personnel';
   const isDocument=moduleKey==='documents';
   const isConvocationModule=moduleKey==='convocations';
   const isStage=moduleKey==='stages';
   const isAwareness=moduleKey==='sensibilisations';
+  const isForest=moduleKey==='exploitation-forestiere';
   if(isStage)editorStageType=stageTypeOverride||(record?stageTypeOf(record):currentStageType);
   if(isDocument)editorDocumentType=documentTypeOverride||(record?documentTypeOf(record):currentDocumentType);
   if(isConvocationModule)editorConvocationView=currentConvocationView;
+  if(isForest)editorForestType=forestTypeOverride||(record?forestTypeOf(record):currentForestType);
   if(smartSourceRecord)pendingSmartSourceRecord=smartSourceRecord;
   const isConvocation=isConvocationModule&&editorConvocationView==='CONVOCATIONS';
   const isConvocationPv=isConvocationModule&&editorConvocationView==='PV';
@@ -549,6 +649,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   d.classList.toggle('document-service-editor',isServiceDocument);
   d.classList.toggle('document-explanation-editor',isExplanationDocument);
   d.classList.toggle('awareness-editor',isAwareness);
+  d.classList.toggle('forest-editor',isForest);
   const singular=activeSingular(record);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${singular}`:`Ajouter — ${singular}`;
   document.getElementById('recordId').value=record?.id||'';
@@ -576,6 +677,14 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     statusField.classList.add('personnel-status-hidden');
     titleInput.required=false;
     titleInput.value=record?.title||record?.data?.type_sensibilisation||record?.data?.theme||'Sensibilisation';
+    statusInput.value=record?.status||'ACTIVE';
+  }else if(isForest){
+    refField.classList.add('personnel-base-hidden');
+    dateField.classList.add('personnel-base-hidden');
+    titleField.classList.add('personnel-base-hidden');
+    statusField.classList.add('personnel-status-hidden');
+    titleInput.required=false;
+    titleInput.value=record?.title||forestConfig(editorForestType)?.label||'Exploitation forestière';
     statusInput.value=record?.status||'ACTIVE';
   }else if(isAbsence){
     refField.querySelector('label').textContent='Référence / N°';
@@ -665,6 +774,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     let initialValue=record?.data?.[key]??'';
     if(isAwareness&&key==='type_sensibilisation'&&!initialValue)initialValue=record?.data?.theme||record?.title||'';
     if(isAwareness&&key==='date_activite'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
+    if(isForest&&key==='date_activite'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
     el.value=initialValue;
     if(isConvocationPv&&!record&&key==='lieu_rencontre')el.value=session?.user?.organizationName||'';
     if(isStage&&!record&&key==='qualite_stagiaire')el.value='élève Sous-officier';
@@ -711,6 +821,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     const end=document.querySelector('#dynamicFields [data-key="date_fin"]');
     start?.addEventListener('change',updateAbsenceDays);end?.addEventListener('change',updateAbsenceDays);updateAbsenceDays();
   }
+  if(isForest)mountForestEditorLogic(record);
   d.showModal();
   mountSmartAutofill(record);
   mountHistorySuggestions(record);
@@ -735,6 +846,14 @@ async function saveRecord(e){
       payload.eventDate=data.date_activite||'';
       payload.status='ACTIVE';
       payload.reference=payload.reference||'';
+    }
+    if(moduleKey==='exploitation-forestiere'){
+      data._forest_type=editorForestType;
+      payload.eventDate=data.date_activite||'';
+      payload.status='ACTIVE';
+      payload.reference=payload.reference||'';
+      payload.title=editorForestType==='RECHERCHE_PARCELLAIRE'?`${data.localite||'Parcelle'}${data.essence?` — ${data.essence}`:''}`:editorForestType==='PEPINIERE'?`${data.localisation||'Pépinière'}${data.essence?` — ${data.essence}`:''}`:editorForestType==='PLANTATION_CREEE'?`${data.beneficiaire||data.localite||'Plantation forestière'}`:`${data.beneficiaire||data.localite||'Reboisement'}${data.type_reboisement?` — ${data.type_reboisement}`:''}`;
+      if(editorForestType==='REBOISEMENT'&&normalizeForestText(data.type_reboisement)!=='compensatoires suivis')data.entreprise_responsable='';
     }
     const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':moduleKey);
     try{await api('/api/save',{method:'POST',body:{module:saveModule,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
@@ -1330,6 +1449,11 @@ async function printRecord(record){
       const place=String(d.lieu_rencontre||record.source_organization||session?.user?.organizationName||'').trim();
       title='PROCÈS-VERBAL DE RENCONTRE';
       body=`<div class="document-title">PROCÈS-VERBAL DE RENCONTRE</div><div class="official-body pv-body"><p>Le <strong>${esc(meetingDate)}</strong> à <strong>${esc(start)}</strong>${end?`, jusqu’à <strong>${esc(end)}</strong>`:''}, s’est tenue à <strong>${esc(place||'—')}</strong> une rencontre faisant suite à la convocation${sourceRef?` <strong>N° ${esc(sourceRef)}</strong>`:''} adressée à <strong>${esc(d.personne_convoquee||record.title)}</strong>${d.profession?`, ${esc(d.profession)}`:''}${d.domicile?`, domicilié(e) à ${esc(d.domicile)}`:''}.</p><p><strong>Objet de la rencontre :</strong><br>${esc(displayValue(d.objet_rencontre))}</p>${d.personne_a_voir?`<p><strong>Responsable / personne ayant reçu le convoqué :</strong><br>${esc(d.personne_a_voir)}</p>`:''}${d.personnes_presentes?`<p><strong>Personnes présentes :</strong><br>${esc(d.personnes_presentes).split('\n').join('<br>')}</p>`:''}<p><strong>Déroulement / résumé des échanges :</strong><br>${esc(displayValue(d.resume_echanges)).split('\n').join('<br>')}</p><p><strong>Conclusions / décisions arrêtées :</strong><br>${esc(displayValue(d.conclusions_decisions)).split('\n').join('<br>')}</p>${d.observations?`<p><strong>Observations :</strong><br>${esc(d.observations).split('\n').join('<br>')}</p>`:''}<p>En foi de quoi, le présent procès-verbal est établi pour servir et valoir ce que de droit.</p></div>`;
+    }else if(moduleKey==='exploitation-forestiere'){
+      const d=record.data||{};const type=forestTypeOf(record);const cfg=forestConfig(type)||{};
+      title=String(cfg.label||'Exploitation forestière').toUpperCase();
+      const dataRows=(cfg.fields||[]).filter(([k])=>!['_forest_type'].includes(k)).map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(d[k]))}</span></div>`).join('');
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Date</span><span class="value">${esc(fmtDate(d.date_activite||record.event_date))}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
     }else if(moduleKey==='personnel'){
       const d=record.data||{};
       const v=key=>esc(displayValue(d[key]));
@@ -1383,6 +1507,25 @@ async function printCurrentList(){
       const body=`<div class="document-title personnel-list-title">${esc(title)}</div><div class="official-body wide"><table class="personnel-print-table"><thead><tr><th>N° d’ordre</th><th>Nom et prénoms</th><th>Sexe</th><th>Matricule</th><th>Emploi</th><th>Fonction</th><th>Date de naissance</th><th>Prise de service au MINEF</th><th>Prise de service Région de Gbêkê</th><th>Grade</th><th>Classe</th><th>Échelon</th><th>Handicap</th><th>N° téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true,documentClass:'personnel-list-print'});
       await launchPrint(html);return;
+    }
+    if(moduleKey==='exploitation-forestiere'){
+      const cfg=forestConfig(currentForestType)||{};const title=`REGISTRE — ${String(cfg.label||'EXPLOITATION FORESTIÈRE').toUpperCase()}`;
+      let headers=[],rows='';
+      if(currentForestType==='PEPINIERE'){
+        headers=['N°','Date','Localisation','Sous-préfecture','Essence','Produits','Distribués','Disponibles','Responsable'];
+        rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localisation))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${esc(displayValue(d.nbr_plants_distribues))}</td><td>${esc(displayValue(d.nbr_plants_disponibles))}</td><td>${esc(displayValue(d.contact_responsable))}</td></tr>`}).join('');
+      }else if(currentForestType==='PLANTATION_CREEE'){
+        headers=['N°','Date','Localité','Bénéficiaire','Contact','Superficie','Essence','Densité','Total plants','Coordonnées'];
+        rows=lastItems.map((r,i)=>{const d=r.data||{},coord=[d.coord_x,d.coord_y].filter(Boolean).join(' / ')||'—';return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.contact_beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.densite))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(coord)}</td></tr>`}).join('');
+      }else if(currentForestType==='REBOISEMENT'){
+        headers=['N°','Date','Type','Localité','Bénéficiaire','Contact','Superficie','Essence','Densité','Total plants','Entreprise'];
+        rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.type_reboisement))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.contact_beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.densite))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(displayValue(d.entreprise_responsable))}</td></tr>`}).join('');
+      }else{
+        headers=['N°','Date','Sous-préfecture','Localité','Essence','Superficie','Coordonnées','Contact propriétaire'];
+        rows=lastItems.map((r,i)=>{const d=r.data||{},coord=[d.coord_x,d.coord_y].filter(Boolean).join(' / ')||'—';return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie_parcelle))}</td><td>${esc(coord)}</td><td>${esc(displayValue(d.contact_proprietaire))}</td></tr>`}).join('');
+      }
+      const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});await launchPrint(html);return;
     }
     if(moduleKey==='sensibilisations'){
       const rows=lastItems.map((r,i)=>{const d=r.data||{};const h=Number(d.hommes||0),f=Number(d.femmes||0);return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(d.type_sensibilisation||d.theme||r.title||'—')}</td><td>${esc(displayValue(d.lieu))}</td><td>${esc(displayValue(d.cible))}</td><td>${h}</td><td>${f}</td><td>${h+f}</td><td>${esc(displayValue(d.agent_charge))}</td></tr>`}).join('');

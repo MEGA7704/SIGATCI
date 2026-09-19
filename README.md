@@ -429,3 +429,13 @@ La liste générale du personnel affiche uniquement N° d’ordre, Nom et préno
 
 ## V1.46 — Sensibilisations et logo SIGAT
 Voir `CORRECTION_V1_46_SENSIBILISATIONS_LOGO.txt`.
+
+## V1.47 — Exploitation forestière
+- Réorganisation de la page en quatre espaces : **Recherche parcellaire**, **Situation de la pépinière**, **Plantations forestières créées** et **Reboisement**.
+- Chaque espace reste dans la même page et dispose de son bouton d’ajout et de son registre.
+- Formulaires adaptés aux champs métier demandés, avec coordonnées X/Y séparées.
+- Le champ **Entreprise responsable du reboisement** apparaît uniquement pour le type **compensatoires suivis**.
+- Recherche générale dans toutes les données JSON du registre et filtres par année, date, sous-préfecture, localité, essence et type de reboisement selon le contexte.
+- Dans **Situation de la pépinière**, les plants distribués sont synchronisés à partir du nombre total de plants des reboisements de la même structure et de la même essence ; les plants disponibles sont calculés automatiquement.
+- Pour les plantations et reboisements, le nombre total de plants est proposé automatiquement à partir de `superficie × densité` lorsque ce champ est encore vide, tout en restant modifiable.
+- Les tableaux sont compacts, responsives et conçus pour rester dans la largeur de l’écran.

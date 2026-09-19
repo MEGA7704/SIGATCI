@@ -462,3 +462,46 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .sensibilisations-table th:nth-child(1){width:18%}.sensibilisations-table th:nth-child(2){width:38%}.sensibilisations-table th:nth-child(5){width:27%}.sensibilisations-table th:nth-child(6){width:17%}
   .awareness-actions [data-view],.awareness-actions [data-print]{display:none}
 }
+
+/* V1.47 — Exploitation forestière : espaces techniques intégrés */
+.forest-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.forest-tab{appearance:none;border:1px solid #b9c8c1;background:#fff;color:#173f33;border-radius:12px;padding:11px 12px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.04);line-height:1.2}
+.forest-tab:hover{border-color:#0b5a43;background:#f4f8f6}
+.forest-tab.is-active{background:#0b4d3b;color:#fff;border-color:#0b4d3b;box-shadow:0 5px 16px rgba(11,77,59,.18)}
+.forest-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.forest-section-head h2{margin:3px 0 3px}.forest-section-kicker{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6a7b73;font-weight:800}
+.forest-section-actions{display:flex;gap:8px;flex-wrap:nowrap}
+.forest-filters{display:grid;grid-template-columns:minmax(260px,1.7fr) 92px 150px minmax(130px,.85fr) minmax(130px,.85fr) minmax(120px,.8fr) minmax(190px,1.1fr) auto;gap:8px;align-items:center}
+.forest-filters input,.forest-filters select{min-width:0!important;width:100%}.forest-filters [hidden]{display:none!important}
+.forest-table-wrap{overflow:hidden}.forest-table{min-width:0!important;width:100%;table-layout:fixed}
+.forest-table th,.forest-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:9px 6px;vertical-align:middle;font-size:11.5px}
+.forest-table th{font-size:9.5px;letter-spacing:.01em}
+.forest-actions{display:flex;flex-wrap:nowrap;gap:3px;white-space:nowrap}.forest-actions .btn{padding:5px 6px;font-size:10px;min-width:0}
+/* Recherche parcellaire : 8 colonnes */
+.forest-table th:nth-child(1){width:10%}.forest-table th:nth-child(2){width:13%}.forest-table th:nth-child(3){width:13%}.forest-table th:nth-child(4){width:12%}.forest-table th:nth-child(5){width:10%}.forest-table th:nth-child(6){width:14%}.forest-table th:nth-child(7){width:14%}.forest-table th:last-child{width:14%}
+#editorDialog.forest-editor{width:min(1080px,calc(100vw - 24px));max-height:94vh;overflow:hidden}
+#editorDialog.forest-editor .dialog-body{overflow:auto;max-height:72vh;padding:15px 18px;overscroll-behavior:contain}
+#editorDialog.forest-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.forest-editor #dynamicFields{display:contents}
+#editorDialog.forest-editor .field{margin-bottom:10px}
+#editorDialog.forest-editor .document-ampliations-field{grid-column:1/-1}
+#editorDialog.forest-editor .computed-field{background:#eef4f1;font-weight:800;color:#164c3b}
+@media(max-width:1200px){
+  .forest-filters{grid-template-columns:minmax(220px,1.5fr) 85px 140px minmax(115px,.8fr) minmax(115px,.8fr) minmax(105px,.75fr) minmax(170px,1fr) auto}
+  .forest-table th,.forest-table td{font-size:10px;padding:8px 4px}.forest-table th{font-size:8px}.forest-actions .btn{padding:4px 5px;font-size:9px}
+}
+@media(max-width:900px){
+  .forest-tabs{grid-template-columns:1fr 1fr}
+  .forest-section-head{flex-direction:column}.forest-section-actions{width:100%;flex-wrap:wrap}.forest-section-actions .btn{flex:1 1 220px}
+  .forest-filters{grid-template-columns:1fr 1fr}.forest-filters #searchInput{grid-column:1/-1}.forest-filters #forestResetFilters{grid-column:1/-1;width:100%}
+  #editorDialog.forest-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+  .forest-table th,.forest-table td{font-size:8.8px;padding:7px 3px}.forest-table th{font-size:7px}
+  .forest-actions .btn{padding:3px 4px;font-size:8px}
+}
+@media(max-width:640px){
+  .forest-tabs{grid-template-columns:1fr}.forest-tab{padding:10px 8px;font-size:12px}
+  .forest-filters{grid-template-columns:1fr}.forest-filters #searchInput,.forest-filters #forestResetFilters{grid-column:auto}
+  /* Sur téléphone, priorité aux informations essentielles sans défilement horizontal. */
+  .forest-table th:nth-child(6),.forest-table td:nth-child(6),.forest-table th:nth-child(7),.forest-table td:nth-child(7){display:none}
+  .forest-table th,.forest-table td{font-size:8px;padding:6px 2px}.forest-table th{font-size:6.8px}.forest-actions [data-view],.forest-actions [data-print]{display:none}
+}
