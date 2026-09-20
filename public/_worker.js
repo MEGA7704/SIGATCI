@@ -975,6 +975,7 @@ async function apiLoad(env, request) {
   const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
   const search = String(url.searchParams.get('search') || '').trim();
   const forestType = module === 'exploitation-forestiere' ? String(url.searchParams.get('forestType') || '').trim().toUpperCase() : '';
+  const woodType = module === 'transformation-bois' ? String(url.searchParams.get('woodType') || '').trim().toUpperCase() : '';
   const ownedOnly = url.searchParams.get('ownedOnly') === '1';
   const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
   const ids = ownedOnly ? [Number(auth.user.organization_id)] : await accessibleOrganizationIds(env, auth.user, scopeOrg);
@@ -987,7 +988,7 @@ async function apiLoad(env, request) {
     if (module === 'sensibilisations') {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.theme') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.lieu') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.cible') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.agent_charge') LIKE ?)`;
       params.push(q,q,q,q,q,q,q,q);
-    } else if (module === 'exploitation-forestiere') {
+    } else if (module === 'exploitation-forestiere' || module === 'transformation-bois') {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR COALESCE(r.data_json,'{}') LIKE ?)`;
       params.push(q,q,q,q);
     } else {
@@ -1042,6 +1043,36 @@ async function apiLoad(env, request) {
       where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`;
       params.push(reboisementType);
     }
+  }
+  if (module === 'transformation-bois') {
+    if (woodType === 'EXPLOITANTS_SECONDAIRES' || woodType === 'PRODUITS_QTE') {
+      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._wood_type') = ?`;
+      params.push(woodType);
+    } else if (woodType === 'UNITES_BOIS') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._wood_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._wood_type') IS NULL)`;
+      params.push('UNITES_BOIS');
+    }
+    const year = String(url.searchParams.get('year') || '').trim();
+    const activityDate = String(url.searchParams.get('activityDate') || '').trim();
+    const localite = String(url.searchParams.get('localite') || '').trim();
+    const natureProduit = String(url.searchParams.get('natureProduit') || '').trim();
+    const operatorStatus = String(url.searchParams.get('operatorStatus') || '').trim();
+    const exercantType = String(url.searchParams.get('exercantType') || '').trim();
+    const region = String(url.searchParams.get('region') || '').trim();
+    const departement = String(url.searchParams.get('departement') || '').trim();
+    if (/^\d{4}$/.test(year)) {
+      where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_delivrance'), r.event_date, ''),1,4) = ?`;
+      params.push(year);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
+      where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_delivrance'), r.event_date, '') = ?`;
+      params.push(activityDate);
+    }
+    for (const [key,value] of [['localite',localite],['nature_produit',natureProduit],['region',region],['departement',departement]]) {
+      if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
+    }
+    if (operatorStatus) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.statut_operateur'),'')) = LOWER(?)`; params.push(operatorStatus); }
+    if (exercantType) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_exercant'),'')) = LOWER(?)`; params.push(exercantType); }
   }
   if (module === 'stages') {
     const stageType = String(url.searchParams.get('stageType') || '').toUpperCase();
@@ -1227,37 +1258,7 @@ async function apiSave(env, request) {
     }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
       .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();
-  
-  if (module === 'exploitation-forestiere') {
-    if (forestType === 'RECHERCHE_PARCELLAIRE') {
-      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IS NULL)`;
-      params.push('RECHERCHE_PARCELLAIRE');
-    } else if (['PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
-      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ?`;
-      params.push(forestType);
-    }
-    const year = String(url.searchParams.get('year') || '').trim();
-    const activityDate = String(url.searchParams.get('activityDate') || '').trim();
-    const sousPrefecture = String(url.searchParams.get('sousPrefecture') || '').trim();
-    const localite = String(url.searchParams.get('localite') || '').trim();
-    const essence = String(url.searchParams.get('essence') || '').trim();
-    const reboisementType = String(url.searchParams.get('reboisementType') || '').trim();
-    if (/^\d{4}$/.test(year)) {
-      where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
-      params.push(year);
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
-      where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, '') = ?`;
-      params.push(activityDate);
-    }
-    for (const [key,value] of [['sous_prefecture',sousPrefecture],['localite',localite],['essence',essence]]) {
-      if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
-    }
-    if (reboisementType) {
-      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`;
-      params.push(reboisementType);
-    }
-  }
+
   if (module === 'stages') {
       if (previousSourceStageId && previousSourceStageId !== incomingSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
       if (incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);

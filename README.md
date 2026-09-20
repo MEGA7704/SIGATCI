@@ -439,3 +439,9 @@ Voir `CORRECTION_V1_46_SENSIBILISATIONS_LOGO.txt`.
 - Dans **Situation de la pépinière**, les plants distribués sont synchronisés à partir du nombre total de plants des reboisements de la même structure et de la même essence ; les plants disponibles sont calculés automatiquement.
 - Pour les plantations et reboisements, le nombre total de plants est proposé automatiquement à partir de `superficie × densité` lorsque ce champ est encore vide, tout en restant modifiable.
 - Les tableaux sont compacts, responsives et conçus pour rester dans la largeur de l’écran.
+
+## V1.48 — Transformation du bois
+La section Transformation du bois regroupe désormais, dans une même page, les exploitants de produits secondaires, les quantités de produits secondaires exploités et les unités de transformation/déligneuses/menuiseries/dépôts-ventes. Les formulaires, champs conditionnels, recherches, filtres, tableaux et impressions ont été adaptés aux nouveaux registres.
+
+## V1.49 — Réorganisation Produits secondaires / Transformation du bois
+Les registres « Exploitants de produits secondaires » et « Qté de produits secondaires exploités » ont été déplacés de Transformation du bois vers la page Produits secondaires, avec conservation des fonctions CRUD, recherche, filtres et impression. Transformation du bois ne présente plus que les unités de transformation, déligneuses, menuiseries et dépôts-ventes.

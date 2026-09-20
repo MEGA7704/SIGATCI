@@ -112,7 +112,26 @@ export const MODULE_CONFIG={
     ]}
   }},
   'produits-secondaires':{title:'Produits secondaires',singular:'Opérateur',subtitle:'Exploitants et productions des produits secondaires.',fields:[['operateur','Nom de l’opérateur','text'],['contact','Contact','text'],['produit','Produit exploité','text'],['permis','N° permis','text'],['localite','Localité','text']]},
-  'transformation-bois':{title:'Transformation du bois',singular:'Unité',subtitle:'Unités de transformation, déligneuses, menuiseries et dépôts.',fields:[['categorie','Catégorie','select','Unité de transformation|Déligneuse|Menuiserie|Dépôt-vente'],['responsable','Responsable','text'],['contact','Contact','text'],['localite','Localité','text'],['autorisation','Autorisation','text']]},
+  'transformation-bois':{title:'Transformation du bois',singular:'Enregistrement',subtitle:'Unités de transformation du bois, déligneuses, menuiseries et dépôts-ventes.',fields:[],woodTypes:{
+    EXPLOITANTS_SECONDAIRES:{label:'Exploitants de produits secondaires',singular:'Exploitant de produits secondaires',addLabel:'Ajouter exploitant',fields:[
+      ['nom_operateur','Nom et prénoms (opérateur)','text'],['contact','Contact','text'],['nature_produit','Nature du produit exploité','text'],
+      ['__section_autorisation','Références de l’autorisation','section'],['numero_permis','N° du permis','text'],['date_delivrance','Date de délivrance','date'],['localite','Localité','text'],['service_suivi','Service forestier en charge du suivi','text']
+    ]},
+    PRODUITS_QTE:{label:'Qté de produits secondaires exploités',singular:'Quantité de produits secondaires exploités',addLabel:'Ajouter quantité exploitée',fields:[
+      ['statut_operateur','Statut de l’opérateur','select','agréés|non agréés'],
+      ['__section_charbon','Charbon de bois','section'],['charbon_qte_sacs','Qté (sac)','number'],['charbon_nbr_carnet','Nbr carnet','number'],
+      ['__section_bois_feu','Bois de feu','section'],['bois_feu_qte_t','Qté (T)','number'],['bois_feu_nbr_carnet','Nbr carnet','number'],
+      ['__section_mortiers','Mortiers','section'],['mortiers_qte_t','Qté (T)','number'],['mortiers_nbr_carnet','Nbr carnet','number'],
+      ['__section_kinkeliba','Kinkeliba','section'],['kinkeliba_qte_t','Qté (T)','number'],['kinkeliba_nbr_carnet','Nbr carnet','number'],
+      ['__section_karite','Fruit de karité','section'],['karite_qte_t','Qté (T)','number'],['karite_nbr_carnet','Nbr carnet','number'],
+      ['__section_bambou','Bambou de chine','section'],['bambou_qte_t','Qté (T)','number'],['bambou_nbr_carnet','Nbr carnet','number']
+    ]},
+    UNITES_BOIS:{label:'Les unités de transformation du bois',singular:'Unité / exerçant du bois',addLabel:'Ajouter unité / exerçant',fields:[
+      ['type_exercant','Type d’exerçant','select','unités de transformation|déligneuses|menuiseries|dépôts-ventes'],
+      ['region','Région','text'],['departement','Département','text'],['localite','Localité','text'],['nom_usine','Nom de l’usine','text'],['activites_principales','Activités principales','textarea'],['nom_operateur','Nom et Prénoms de l’opérateur','text'],['contact_operateur','Contact de l’opérateur','text'],['coord_x','Coordonnée X','text'],['coord_y','Coordonnée Y','text'],['service_rattachement','Service forestier de rattachement','text'],
+      ['__section_autorisation','Références de l’autorisation','section'],['numero_permis','N° du permis','text'],['date_delivrance','Date de délivrance','date']
+    ]}
+  }},
   sensibilisations:{title:'Sensibilisations',singular:'Sensibilisation',subtitle:'Actions de sensibilisation et statistiques par sexe.',fields:[['type_sensibilisation','Type de sensibilisation','select','sensibilisations des opérateurs|sensibilisations en matière d’agroforesterie|sensibilisations contre les feux de brousse|sensibilisations sur la gestion de l’eau|sensibilisations sur la faune|sensibilisations sur les lois et textes réglementaires'],['date_activite','Date d’activité','date'],['lieu','Lieu','text'],['cible','Cible','text'],['hommes','Nombre d’hommes sensibilisés','number'],['femmes','Nombre de femmes sensibilisées','number'],['agent_charge','Agent en charge','text'],['observations','Observations','textarea']]},
   reboisement:{title:'Reboisement',singular:'Plantation',subtitle:'Plantations, bénéficiaires, superficies, essences et plants.',fields:[['localite','Localité','text'],['beneficiaire','Bénéficiaire','text'],['superficie','Superficie (ha)','number'],['essences','Essences','text'],['densite','Densité','number'],['plants','Nombre de plants','number'],['coordonnees','Coordonnées X/Y','text']]},
   'ressources-naturelles':{title:'Ressources naturelles',singular:'Ressource',subtitle:'Forêts, aires protégées et ressources en eau.',fields:[['type','Type','select','Relique de forêt|Forêt classée|Aire protégée|Plan d’eau|Autre'],['localite','Localité','text'],['superficie','Superficie (ha)','number'],['coordonnees','Coordonnées','text'],['observations','Observations','textarea']]},

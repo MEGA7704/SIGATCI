@@ -505,3 +505,44 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .forest-table th:nth-child(6),.forest-table td:nth-child(6),.forest-table th:nth-child(7),.forest-table td:nth-child(7){display:none}
   .forest-table th,.forest-table td{font-size:8px;padding:6px 2px}.forest-table th{font-size:6.8px}.forest-actions [data-view],.forest-actions [data-print]{display:none}
 }
+
+/* V1.48 — Transformation du bois : registres intégrés et formulaires conditionnels */
+.form-section-heading{grid-column:1/-1;margin:7px 0 3px;padding:8px 10px;border-left:4px solid var(--gold);background:#f5f8f6;color:#143f33;border-radius:7px;font-size:13px;text-transform:uppercase;letter-spacing:.03em}
+.wood-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.wood-tab{appearance:none;border:1px solid #b9c8c1;background:#fff;color:#173f33;border-radius:12px;padding:11px 12px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.04);line-height:1.2}
+.wood-tab:hover{border-color:#0b5a43;background:#f4f8f6}
+.wood-tab.is-active{background:#0b4d3b;color:#fff;border-color:#0b4d3b;box-shadow:0 5px 16px rgba(11,77,59,.18)}
+.wood-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.wood-section-head h2{margin:3px 0 3px}.wood-section-kicker{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6a7b73;font-weight:800}
+.wood-section-actions{display:flex;gap:8px;flex-wrap:nowrap}
+.wood-filters{display:grid;grid-template-columns:minmax(240px,1.7fr) 85px 145px minmax(120px,.85fr) minmax(120px,.85fr) minmax(145px,1fr) minmax(145px,1fr) minmax(120px,.9fr) minmax(120px,.9fr) auto;gap:8px;align-items:center}
+.wood-filters input,.wood-filters select{min-width:0!important;width:100%}.wood-filters [hidden]{display:none!important}
+.wood-table-wrap{overflow:hidden}.wood-table{min-width:0!important;width:100%;table-layout:fixed}
+.wood-table th,.wood-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:9px 5px;vertical-align:middle;font-size:10.8px}
+.wood-table th{font-size:8.9px;letter-spacing:.005em}
+.wood-actions{display:flex;flex-wrap:nowrap;gap:3px;white-space:nowrap}.wood-actions .btn{padding:5px 6px;font-size:9.5px;min-width:0}
+.wood-table th:last-child{width:14%}
+#editorDialog.wood-editor{width:min(1080px,calc(100vw - 24px));max-height:94vh;overflow:hidden}
+#editorDialog.wood-editor .dialog-body{overflow:auto;max-height:72vh;padding:15px 18px;overscroll-behavior:contain}
+#editorDialog.wood-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.wood-editor #dynamicFields{display:contents}
+#editorDialog.wood-editor .field{margin-bottom:10px}
+#editorDialog.wood-editor .document-ampliations-field{grid-column:1/-1}
+#editorDialog.wood-editor [hidden]{display:none!important}
+@media(max-width:1200px){
+  .wood-filters{grid-template-columns:minmax(220px,1.5fr) 80px 135px minmax(110px,.8fr) minmax(115px,.8fr) minmax(130px,1fr) minmax(130px,1fr) auto}
+  .wood-table th,.wood-table td{font-size:9.6px;padding:8px 3px}.wood-table th{font-size:7.6px}.wood-actions .btn{padding:4px 4px;font-size:8.3px}
+}
+@media(max-width:900px){
+  .wood-tabs{grid-template-columns:1fr 1fr}.wood-tab:last-child{grid-column:1/-1}
+  .wood-section-head{flex-direction:column}.wood-section-actions{width:100%;flex-wrap:wrap}.wood-section-actions .btn{flex:1 1 210px}
+  .wood-filters{grid-template-columns:1fr 1fr}.wood-filters #searchInput{grid-column:1/-1}.wood-filters #woodResetFilters{grid-column:1/-1;width:100%}
+  #editorDialog.wood-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}
+  .wood-table th,.wood-table td{font-size:8.4px;padding:7px 2px}.wood-table th{font-size:6.7px}.wood-actions .btn{padding:3px 3px;font-size:7.5px}
+}
+@media(max-width:620px){
+  .wood-tabs{grid-template-columns:1fr}.wood-tab:last-child{grid-column:auto}.wood-tab{padding:10px 8px;font-size:12px}
+  .wood-filters{grid-template-columns:1fr}.wood-filters #searchInput,.wood-filters #woodResetFilters{grid-column:auto}
+  .wood-table th,.wood-table td{font-size:7.7px;padding:6px 2px}.wood-table th{font-size:6.2px}
+  .wood-actions [data-view],.wood-actions [data-print]{display:none}
+}
