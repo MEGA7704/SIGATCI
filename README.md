@@ -507,3 +507,8 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 ## V1.61 — Correction ciblée Mission de contrôle réalisée
 - Suppression du champ dupliqué « Chef de mission » dans le popup Ajouter / Modifier — Mission de contrôle réalisée.
 - Conservation d’un seul champ Chef de mission, alimenté par la liste du Personnel.
+
+## Correction V1.62 — suppression des champs « Service source »
+- Suppression de tous les champs, colonnes et mentions visibles « Service source » / « Source » liés à la structure d’origine dans les tableaux, fiches de consultation, rapports et impressions.
+- Suppression de la statistique « Structures sources » dans Rapports et bilans.
+- Les informations techniques `source_organization` restent conservées côté application pour la sécurité, le périmètre hiérarchique et les préremplissages automatiques ; elles ne sont plus affichées comme champ à l’utilisateur.

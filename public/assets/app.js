@@ -669,7 +669,7 @@ const REPORT_SECTIONS=[
   {module:'convocations',label:'Convocations administratives',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_presentation||r.event_date)),reportCol('Personne convoquée',r=>r.title),reportCol('Profession',r=>reportData(r).profession),reportCol('Domicile',r=>reportData(r).domicile),reportCol('Objet',r=>reportData(r).objet_convocation)]},
   {module:'convocation_pv',label:'Procès-verbaux de rencontres',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_rencontre||r.event_date)),reportCol('Personne concernée',r=>r.title),reportCol('Lieu',r=>reportData(r).lieu_rencontre),reportCol('Objet',r=>reportData(r).objet_rencontre),reportCol('Décisions',r=>reportData(r).conclusions_decisions)]},
   {module:'activites-minef',label:'Activités du MINEF et activités externes',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Type',r=>reportData(r).type_activite),reportCol('Cadre MINEF',r=>reportData(r).categorie_minef),reportCol('Intitulé',r=>reportData(r).intitule_activite||r.title),reportCol('Organisateur',r=>reportData(r).organisateur),reportCol('Commentaire',r=>reportData(r).commentaire)]},
-  {module:'missions',label:'Dispositions des missions de contrôle',match:r=>reportMissionType(r)==='DISPOSITION',columns:[reportCol('Libellé',r=>reportData(r).libelle_mission||r.title),reportCol('Fréquence',r=>reportData(r).frequence),reportCol('Service source',r=>r.source_organization)]},
+  {module:'missions',label:'Dispositions des missions de contrôle',match:r=>reportMissionType(r)==='DISPOSITION',columns:[reportCol('Libellé',r=>reportData(r).libelle_mission||r.title),reportCol('Fréquence',r=>reportData(r).frequence)]},
   {module:'missions',label:'Missions de contrôle réalisées',match:r=>reportMissionType(r)==='REALISEE',columns:[reportCol('N° mission',r=>reportData(r).numero_mission||r.reference),reportCol('Libellé',r=>reportData(r).libelle_mission==='Autre'?reportData(r).libelle_mission_autre:reportData(r).libelle_mission),reportCol('Chef de mission',r=>reportData(r).chef_mission),reportCol('Objectif',r=>reportData(r).objectif_mission),reportCol('Résultat',r=>reportData(r).resultat)]},
   {module:'controles',label:'Contrôles',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Contrôle',r=>r.title),reportCol('Type',r=>reportData(r).type),reportCol('Lieu',r=>reportData(r).lieu),reportCol('Équipe',r=>reportData(r).equipe),reportCol('Résultat',r=>reportData(r).resultat)]},
   {module:'infractions',label:'Répression des infractions',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Objet',r=>reportData(r).objet_infraction||r.title),reportCol('Personne mise en cause',r=>reportData(r).personne_mise_cause||reportData(r).personne),reportCol('Contact',r=>reportData(r).contact_mis_cause),reportCol('Objets saisis',r=>reportData(r).objets_saisis),reportCol('Observations',r=>reportData(r).observations)]},
@@ -740,11 +740,10 @@ function reportSectionTable(section,{print=false}={}){
 function reportRenderPreview(){
   const {sections,range}=reportBuildSections();const box=document.getElementById('reportSections');const loading=document.getElementById('reportLoading');if(!box)return;
   const total=sections.reduce((n,s)=>n+s.rows.length,0),active=sections.filter(s=>s.rows.length).length;
-  const sources=new Set();sections.forEach(s=>s.rows.forEach(r=>{if(r.source_organization)sources.add(r.source_organization)}));
   document.getElementById('reportPeriodBadge').textContent=range.label;
   document.getElementById('reportPreviewTitle').textContent=`Bilan — ${range.label}`;
-  document.getElementById('reportPreviewSubtitle').textContent=`${reportSelectedCount()} tableau(x) sélectionné(s) · ${active} rubrique(s) avec données · ${total} enregistrement(s) consolidé(s) · ${sources.size||1} structure(s) source(s).`;
-  document.getElementById('reportMetrics').innerHTML=`<div class="card report-metric"><span>Période</span><strong>${esc(range.label)}</strong></div><div class="card report-metric"><span>Tableaux sélectionnés</span><strong>${reportSelectedCount()}</strong></div><div class="card report-metric"><span>Enregistrements</span><strong>${total}</strong></div><div class="card report-metric"><span>Structures sources</span><strong>${sources.size||1}</strong></div>`;
+  document.getElementById('reportPreviewSubtitle').textContent=`${reportSelectedCount()} tableau(x) sélectionné(s) · ${active} rubrique(s) avec données · ${total} enregistrement(s) consolidé(s).`;
+  document.getElementById('reportMetrics').innerHTML=`<div class="card report-metric"><span>Période</span><strong>${esc(range.label)}</strong></div><div class="card report-metric"><span>Tableaux sélectionnés</span><strong>${reportSelectedCount()}</strong></div><div class="card report-metric"><span>Enregistrements</span><strong>${total}</strong></div>`;
   box.innerHTML=sections.length?sections.map(s=>reportSectionTable(s)).join(''):'<div class="report-no-selection">Aucun tableau sélectionné. Cochez au moins une rubrique à intégrer au bilan.</div>';box.hidden=false;if(loading)loading.hidden=true;
 }
 async function reportLoadDataset(force=false){
@@ -966,7 +965,7 @@ function openDetails(record){
   }
   const photo=moduleKey==='personnel'&&record.data?.photo?`<div class="agent-photo-view"><img src="${esc(record.data.photo)}" alt="Photo agent"></div>`:'';
   const rows=[
-    ['Référence',record.reference],['Nom / Intitulé',record.title],['Date',fmtDate(record.event_date)],['Statut',record.status],['Service source',record.source_organization],
+    ['Référence',record.reference],['Nom / Intitulé',record.title],['Date',fmtDate(record.event_date)],['Statut',record.status],
     ...(moduleKey==='stages'?[['Type de document',stageConfig(stageTypeOf(record))?.label||'Stage']]:[]),
     ...(moduleKey==='transformation-bois'?woodVisibleFields(woodTypeOf(record),record.data||{}):activeFields(record).filter(([, ,t])=>t!=='section'&&t!=='image')).filter(([k])=>k!=='photo').map(([k,l])=>[l,record.data?.[k]])
   ];
@@ -2128,7 +2127,7 @@ async function printRecord(record){
       const d=record.data||{};const type=forestTypeOf(record);const cfg=forestConfig(type)||{};
       title=String(cfg.label||'Exploitation forestière').toUpperCase();
       const dataRows=(cfg.fields||[]).filter(([k])=>!['_forest_type'].includes(k)).map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(d[k]))}</span></div>`).join('');
-      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Date</span><span class="value">${esc(fmtDate(d.date_activite||record.event_date))}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Date</span><span class="value">${esc(fmtDate(d.date_activite||record.event_date))}</span></div></div><div class="data">${dataRows}</div></div>`;
     }else if(moduleKey==='transformation-bois'){
       const d=record.data||{};const type=woodTypeOf(record);const cfg=woodConfig(type)||{};
       title=String(cfg.label||'Transformation du bois').toUpperCase();
@@ -2144,7 +2143,7 @@ async function printRecord(record){
       }else{
         dataRows=woodVisibleFields(type,d).map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(d[k]))}</span></div>`).join('');
       }
-      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div>${record.event_date?`<div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div>`:''}</div><div class="data">${dataRows}</div></div>`;
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta">${record.event_date?`<div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div>`:''}</div><div class="data">${dataRows}</div></div>`;
     }else if(['feux-brousse','faune','missions','formations'].includes(moduleKey)){
       const d=record.data||{};
       let dynTitle=activeSingular(record).toUpperCase();
@@ -2160,7 +2159,7 @@ async function printRecord(record){
         if(k==='mission_liee_id'&&value){value=`Mission liée #${value}`}
         return `<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(value))}</span></div>`;
       }).join('');
-      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${rows}</div></div>`;
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div></div><div class="data">${rows}</div></div>`;
     }else if(moduleKey==='personnel'){
       const d=record.data||{};
       const v=key=>esc(displayValue(d[key]));
@@ -2171,7 +2170,7 @@ async function printRecord(record){
     }else{
       title=(config?.singular||'Document').toUpperCase();
       const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
-      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div><div><span class="label">Service source</span><span class="value">${esc(record.source_organization||session?.user?.organizationName||'')}</span></div></div><div class="data">${dataRows}</div></div>`;
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
     const hasOwn=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
@@ -2301,9 +2300,9 @@ async function printCurrentList(){
       const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
       await launchPrint(html);return;
     }
-    const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td><td>${esc(r.source_organization||'')}</td></tr>`).join('');
+    const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td></tr>`).join('');
     const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE / MUTATION':currentDocumentType==='CESSATION_CONGE'?'REGISTRE DES CESSATIONS DE SERVICE / CONGÉ':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE / CONGÉ':currentDocumentType==='PRISE_SERVICE_MUTATION'?'REGISTRE DES PRISES DE SERVICE / MUTATION':currentDocumentType==='DEMANDE_EXPLICATION'?'REGISTRE DES DEMANDES D’EXPLICATION':'REGISTRE DES AUTORISATIONS D’ABSENCE'):moduleKey==='convocations'?(currentConvocationView==='PV'?'REGISTRE DES PROCÈS-VERBAUX DE RENCONTRE':'REGISTRE DES CONVOCATIONS'):config.title.toUpperCase();
-    const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'La liste n’a pas pu être préparée.');}
