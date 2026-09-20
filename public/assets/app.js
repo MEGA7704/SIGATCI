@@ -112,9 +112,10 @@ function smartProfile(){
   if(moduleKey==='stages')return entry[editorStageType]||null;
   if(moduleKey==='documents')return entry[editorDocumentType]||null;
   if(moduleKey==='convocations')return entry[editorConvocationView]||null;
-  // La disposition d'une mission de contrôle ne désigne pas encore de chef de mission.
-  // Le chef est renseigné uniquement lors de l'enregistrement de la mission réalisée.
-  if(moduleKey==='missions'&&editorMissionType==='DISPOSITION')return null;
+  // Les formulaires Missions gèrent déjà leurs sélecteurs dédiés dans leurs champs métier.
+  // Ne pas ajouter un second bloc de préremplissage « Chef de mission » pour les missions réalisées.
+  // La disposition et le P-V d'infraction n'en ont pas besoin non plus.
+  if(moduleKey==='missions'&&['DISPOSITION','REALISEE','PV_INFRACTION'].includes(editorMissionType))return null;
   return entry;
 }
 function ownLoadUrl(module,{stageType='',documentType='',limit=100}={}){
@@ -627,7 +628,7 @@ async function manageOffensePv(offense){
     if(existing){editorMissionType='PV_INFRACTION';editorOffensePvRecord=existing;if(existing.owned)openEditor(existing,null,null,null,null,null,null,'PV_INFRACTION');else openDetails(existing);return}
     if(!offense.owned){await professionalAlert('Procès-verbal','Aucun P-V n’est encore enregistré pour cette affaire.');return}
     editorOffensePvRecord=null;openEditor(null,null,null,null,null,null,null,'PV_INFRACTION');
-    const d=offense.data||{};setEditorFieldValue('_source_offense_id',offense.id);setEditorFieldValue('personne_mise_cause',d.personne_mise_cause);setEditorFieldValue('objet_infraction',d.objet_infraction);setEditorFieldValue('objets_saisis',d.objets_saisis);setEditorFieldValue('agents_redacteurs',d.agents_arrestation);document.getElementById('recordTitle').value=`P-V — ${d.personne_mise_cause||offense.title||'Infraction'}`;
+    const d=offense.data||{};setEditorFieldValue('_source_offense_id',offense.id);setEditorFieldValue('objet_infraction',d.objet_infraction);setEditorFieldValue('objets_saisis',d.objets_saisis);setEditorFieldValue('agents_redacteurs',d.agents_arrestation);document.getElementById('recordTitle').value=d.personne_mise_cause||offense.title||'Infraction';
   }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le P-V lié à cette affaire.')}
 }
 
@@ -694,6 +695,15 @@ const REPORT_SECTIONS=[
   {module:'materiel',label:'Situation du matériel et du patrimoine',snapshot:true,columns:[reportCol('Équipement',r=>r.title),reportCol('Catégorie',r=>reportData(r).categorie),reportCol('Marque',r=>reportData(r).marque),reportCol('N° / marquage',r=>reportData(r).numero),reportCol('État',r=>reportData(r).etat),reportCol('Responsable',r=>reportData(r).responsable)]},
   {module:'finances',label:'Situation financière / budgétaire',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Ligne / intitulé',r=>r.title),reportCol('Prévu (FCFA)',r=>reportData(r).montant_prevu),reportCol('Exécuté (FCFA)',r=>reportData(r).montant_execute),reportCol('Observations',r=>reportData(r).observations)]}
 ];
+let reportSelectedTables=new Set(REPORT_SECTIONS.map((_,i)=>String(i)));
+function reportSectionKey(section,index){return String(index)}
+function reportSelectedCount(){return reportSelectedTables.size}
+function reportRenderTableSelector(){
+  const box=document.getElementById('reportTableSelector');if(!box)return;
+  box.innerHTML=REPORT_SECTIONS.map((section,index)=>{const key=reportSectionKey(section,index);return `<label class="report-table-choice"><input type="checkbox" value="${key}" ${reportSelectedTables.has(key)?'checked':''}><span>${esc(section.label)}</span></label>`}).join('');
+  box.querySelectorAll('input[type="checkbox"]').forEach(input=>input.addEventListener('change',()=>{if(input.checked)reportSelectedTables.add(input.value);else reportSelectedTables.delete(input.value);reportRenderPreview()}));
+}
+function reportSetAllTables(selected){reportSelectedTables=selected?new Set(REPORT_SECTIONS.map((_,i)=>String(i))):new Set();reportRenderTableSelector();reportRenderPreview()}
 function reportUniqueModules(){return [...new Set(REPORT_SECTIONS.map(s=>s.module))]}
 async function reportLoadAllModule(module){
   const scope=new URLSearchParams(location.search).get('scopeOrg');let page=1,totalPages=1;const items=[];
@@ -717,7 +727,7 @@ function reportUpdatePeriodFields(){
 function reportRecordInRange(record,section,range){if(section.snapshot)return true;const d=reportRecordDate(record);if(!range.from||!range.to)return true;if(!d)return false;return d>=range.from&&d<=range.to}
 function reportBuildSections(){
   const range=reportPeriodRange();const includeEmpty=document.getElementById('reportIncludeEmpty')?.checked!==false;
-  const sections=REPORT_SECTIONS.map(section=>{let rows=(reportCache.get(section.module)||[]).filter(r=>!section.match||section.match(r));rows=rows.filter(r=>reportRecordInRange(r,section,range));return {...section,rows}}).filter(s=>includeEmpty||s.rows.length);
+  const sections=REPORT_SECTIONS.map((section,index)=>{let rows=(reportCache.get(section.module)||[]).filter(r=>!section.match||section.match(r));rows=rows.filter(r=>reportRecordInRange(r,section,range));return {...section,_reportKey:reportSectionKey(section,index),rows}}).filter(s=>reportSelectedTables.has(s._reportKey)).filter(s=>includeEmpty||s.rows.length);
   reportCurrentSections=sections;return {sections,range};
 }
 function reportCell(v){return esc(reportText(v))}
@@ -733,9 +743,9 @@ function reportRenderPreview(){
   const sources=new Set();sections.forEach(s=>s.rows.forEach(r=>{if(r.source_organization)sources.add(r.source_organization)}));
   document.getElementById('reportPeriodBadge').textContent=range.label;
   document.getElementById('reportPreviewTitle').textContent=`Bilan — ${range.label}`;
-  document.getElementById('reportPreviewSubtitle').textContent=`${active} rubrique(s) avec données · ${total} enregistrement(s) consolidé(s) · ${sources.size||1} structure(s) source(s).`;
-  document.getElementById('reportMetrics').innerHTML=`<div class="card report-metric"><span>Période</span><strong>${esc(range.label)}</strong></div><div class="card report-metric"><span>Rubriques actives</span><strong>${active}</strong></div><div class="card report-metric"><span>Enregistrements</span><strong>${total}</strong></div><div class="card report-metric"><span>Structures sources</span><strong>${sources.size||1}</strong></div>`;
-  box.innerHTML=sections.map(s=>reportSectionTable(s)).join('');box.hidden=false;if(loading)loading.hidden=true;
+  document.getElementById('reportPreviewSubtitle').textContent=`${reportSelectedCount()} tableau(x) sélectionné(s) · ${active} rubrique(s) avec données · ${total} enregistrement(s) consolidé(s) · ${sources.size||1} structure(s) source(s).`;
+  document.getElementById('reportMetrics').innerHTML=`<div class="card report-metric"><span>Période</span><strong>${esc(range.label)}</strong></div><div class="card report-metric"><span>Tableaux sélectionnés</span><strong>${reportSelectedCount()}</strong></div><div class="card report-metric"><span>Enregistrements</span><strong>${total}</strong></div><div class="card report-metric"><span>Structures sources</span><strong>${sources.size||1}</strong></div>`;
+  box.innerHTML=sections.length?sections.map(s=>reportSectionTable(s)).join(''):'<div class="report-no-selection">Aucun tableau sélectionné. Cochez au moins une rubrique à intégrer au bilan.</div>';box.hidden=false;if(loading)loading.hidden=true;
 }
 async function reportLoadDataset(force=false){
   if(reportLoadingPromise&&!force)return reportLoadingPromise;
@@ -750,7 +760,7 @@ function reportBindReactiveFilters(){
   document.getElementById('reportYear')?.addEventListener('input',()=>{clearTimeout(window.__reportFilterTimer);window.__reportFilterTimer=setTimeout(reportRenderPreview,220)});
 }
 async function printConsolidatedReport(){
-  if(!reportCache.size)await reportLoadDataset();const {sections,range}=reportBuildSections();if(!range.from||!range.to){await professionalAlert('Période incomplète','Renseignez une date de début et une date de fin avant l’impression.');return}
+  if(!reportCache.size)await reportLoadDataset();const {sections,range}=reportBuildSections();if(!reportSelectedTables.size){await professionalAlert('Aucun tableau sélectionné','Sélectionnez au moins un tableau à intégrer au rapport avant l’impression.');return}if(!range.from||!range.to){await professionalAlert('Période incomplète','Renseignez une date de début et une date de fin avant l’impression.');return}
   if(range.from>range.to){await professionalAlert('Période invalide','La date de début doit être antérieure ou égale à la date de fin.');return}
   const settings=await ensurePrintSettings();const structure=String(session?.user?.organizationName||'Structure SIGAT');const total=sections.reduce((n,s)=>n+s.rows.length,0);
   const summary=`<div class="report-print-summary"><div><strong>Structure :</strong> ${esc(structure)}</div><div><strong>Période :</strong> ${esc(range.label)}</div><div><strong>Enregistrements consolidés :</strong> ${total}</div></div>`;
@@ -763,7 +773,7 @@ async function printConsolidatedReport(){
 async function setupReportsModule(){
   const now=new Date();document.getElementById('reportYear').value=String(now.getFullYear());document.getElementById('reportMonth').value=String(now.getMonth()+1);document.getElementById('reportQuarter').value=String(Math.floor(now.getMonth()/3)+1);document.getElementById('reportSemester').value=String(now.getMonth()<6?1:2);
   document.getElementById('reportStartDate').value=reportIso(now.getFullYear(),now.getMonth()+1,1);document.getElementById('reportEndDate').value=reportIso(now.getFullYear(),now.getMonth()+1,now.getDate());
-  reportUpdatePeriodFields();reportBindReactiveFilters();document.getElementById('reportReloadBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>reportLoadDataset(true),'Actualisation…'));document.getElementById('reportPrintBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,printConsolidatedReport,'Préparation…'));await reportLoadDataset();
+  reportUpdatePeriodFields();reportBindReactiveFilters();reportRenderTableSelector();document.getElementById('reportSelectAllBtn')?.addEventListener('click',()=>reportSetAllTables(true));document.getElementById('reportSelectNoneBtn')?.addEventListener('click',()=>reportSetAllTables(false));document.getElementById('reportReloadBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>reportLoadDataset(true),'Actualisation…'));document.getElementById('reportPrintBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,printConsolidatedReport,'Préparation…'));await reportLoadDataset();
 }
 
 function setupModule(){
@@ -1149,7 +1159,9 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(isFormation)titleInput.value=record?.title||record?.data?.theme||'Formation';
     statusInput.value=record?.status||'ACTIVE';
   }else if(isMission&&editorMissionType==='PV_INFRACTION'){
-    refField.querySelector('label').textContent='Référence / N° du P-V';dateField.querySelector('label').textContent='Date d’établissement du P-V';titleField.querySelector('label').textContent='Affaire / personne mise en cause *';titleField.classList.remove('full');statusField.classList.remove('personnel-status-hidden');statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉTABLI">ÉTABLI</option><option value="VALIDÉ">VALIDÉ</option><option value="ANNULÉ">ANNULÉ</option>';statusInput.value=record?.status||'ÉTABLI';
+    refField.classList.add('personnel-base-hidden');dateField.classList.add('personnel-base-hidden');
+    titleField.querySelector('label').textContent='Affaire / personne mise en cause *';titleField.classList.remove('full');titleInput.readOnly=true;titleInput.classList.add('computed-field');
+    statusField.classList.add('personnel-status-hidden');statusField.hidden=true;statusInput.value=record?.status||'ACTIVE';
   }else if(isAbsence){
     refField.querySelector('label').textContent='Référence / N°';
     dateField.querySelector('label').textContent='Date d’établissement';
@@ -1248,7 +1260,6 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(isFire&&key==='date_constat'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
     if(isFauna&&key==='date_observation'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
     if(isFormation&&key==='date_activite'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
-    if(isMission&&editorMissionType==='PV_INFRACTION'&&key==='date_pv'&&!initialValue)initialValue=(record?.event_date||'').slice(0,10);
     el.value=initialValue;
     if(isConvocationPv&&!record&&key==='lieu_rencontre')el.value=session?.user?.organizationName||'';
     if(isStage&&!record&&key==='qualite_stagiaire')el.value='élève Sous-officier';
@@ -1390,6 +1401,17 @@ async function mountMissionEditorLogic(record=null){
     const updateLink=()=>{const yes=String(linked?.value||'').toLowerCase()==='oui';setFieldVisibility('mission_liee_id',yes,{clear:!yes});setFieldVisibility('agents_arrestation',!yes,{clear:yes})};
     linked?.addEventListener('change',updateLink);updateLink();
   }
+  if(editorMissionType==='PV_INFRACTION'){
+    const sourceId=Number(q('_source_offense_id')?.value||record?.data?._source_offense_id||0);
+    const title=document.getElementById('recordTitle'),objet=q('objet_infraction'),objets=q('objets_saisis');
+    [title,objet,objets].forEach(el=>{if(el){el.readOnly=true;el.classList.add('computed-field')}});
+    if(sourceId){
+      try{
+        const offenses=await fetchOwnModuleItems('infractions');const source=offenses.find(r=>Number(r.id)===sourceId);
+        if(source){const d=source.data||{};if(title)title.value=d.personne_mise_cause||source.title||'Infraction';if(objet)objet.value=d.objet_infraction||'';if(objets)objets.value=d.objets_saisis||'';const agents=q('agents_redacteurs');if(agents&&!agents.value)agents.value=d.agents_arrestation||''}
+      }catch(e){console.warn('Affaire liée au P-V',e)}
+    }
+  }
 }
 function mountMinefActivityEditorLogic(record=null){
   const area=document.getElementById('dynamicFields');
@@ -1482,7 +1504,7 @@ async function saveRecord(e){
     if(moduleKey==='missions'){
       payload.status='ACTIVE';payload.reference=payload.reference||'';
       if(editorMissionType==='PV_INFRACTION'){
-        data._mission_type='PV_INFRACTION';payload.eventDate=data.date_pv||'';payload.title=payload.title||`P-V — ${data.personne_mise_cause||'Infraction'}`;
+        data._mission_type='PV_INFRACTION';payload.eventDate=payload.eventDate||'';payload.title=payload.title||'Infraction';
       }else if(editorMissionType==='DISPOSITION'){
         data._mission_type='DISPOSITION';payload.eventDate='';payload.title=data.libelle_mission||'Disposition de mission de contrôle';
       }else if(editorMissionType==='REALISEE'){

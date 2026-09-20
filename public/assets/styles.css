@@ -828,3 +828,18 @@ body table.table.adaptive-data-table td:not(.actions-col){width:auto!important}
   .report-filter-actions .btn{width:100%}
   .report-preview-section .report-table th,.report-preview-section .report-table td{font-size:.68rem;padding:6px 4px}
 }
+
+
+/* V1.60 — Sélection des tableaux du bilan + P-V d'infraction lié */
+.report-table-selector-card{margin:14px 0;overflow:hidden}
+.report-table-selector-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+.report-table-selector-head h2{margin:2px 0 4px;font-size:1.18rem}
+.report-table-selector-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.report-table-selector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px}
+.report-table-choice{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border:1px solid #dce7e3;border-radius:9px;background:#fbfdfc;font-size:.82rem;font-weight:700;color:#29483e;min-width:0}
+.report-table-choice input{width:17px;height:17px;flex:0 0 auto;margin-top:1px}
+.report-table-choice span{min-width:0;line-height:1.25}
+.report-no-selection{padding:30px 16px;text-align:center;color:#6f7d78;font-weight:700;border:1px dashed #cbd9d4;border-radius:10px;background:#fbfdfc}
+#editorDialog.mission-editor input.computed-field,#editorDialog.mission-editor textarea.computed-field{background:#f2f5f4;color:#3f4f4a;cursor:not-allowed}
+@media(max-width:1100px){.report-table-selector{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.report-table-selector-head{flex-direction:column}.report-table-selector-actions{width:100%;justify-content:stretch}.report-table-selector-actions .btn{flex:1}.report-table-selector{grid-template-columns:1fr}}

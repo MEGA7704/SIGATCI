@@ -1263,7 +1263,7 @@ async function convocationHasPv(env, orgId, convocationId) {
 
 async function validateOffensePvSource(env, orgId, sourceId, ignorePvId=0){
   sourceId=Number(sourceId||0);if(!sourceId)throw new Error('L’affaire d’origine est obligatoire pour établir le P-V.');
-  const source=await env.SIGAT_DB.prepare(`SELECT id,title,data_json FROM offenses WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(sourceId,orgId).first();
+  const source=await env.SIGAT_DB.prepare(`SELECT id,title,event_date,data_json FROM offenses WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(sourceId,orgId).first();
   if(!source)throw new Error('L’affaire sélectionnée est introuvable dans votre structure.');
   await ensureModuleTable(env,'offense_minutes');
   const dup=await env.SIGAT_DB.prepare(`SELECT id FROM offense_minutes WHERE organization_id=? AND archived_at IS NULL AND id<>? AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_offense_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(ignorePvId||0),sourceId).first();
@@ -1303,7 +1303,7 @@ async function apiSave(env, request) {
   if(module==='missions') await ensureMissionNumber(env,orgId,incomingData);
 
   if (action === 'create') {
-    const title = String(payload.title || '').trim();
+    let title = String(payload.title || '').trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
       try { await validateStageSource(env, orgId, incomingSourceStageId, 0); }
@@ -1314,8 +1314,14 @@ async function apiSave(env, request) {
       catch (e) { return bad(String(e?.message || e)); }
     }
     if (module === 'offense_pv') {
-      try { await validateOffensePvSource(env, orgId, incomingSourceOffenseId, 0); }
-      catch (e) { return bad(String(e?.message || e)); }
+      try {
+        const source=await validateOffensePvSource(env, orgId, incomingSourceOffenseId, 0);const sourceData=safeJson(source.data_json);
+        incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
+        incomingData.objet_infraction=String(sourceData.objet_infraction||'').trim();
+        incomingData.objets_saisis=String(sourceData.objets_saisis||'').trim();
+        if(!String(incomingData.agents_redacteurs||'').trim())incomingData.agents_redacteurs=String(sourceData.agents_arrestation||'').trim();
+        payload.title=incomingData.personne_mise_cause||source.title||'Infraction';title=String(payload.title||'Infraction').trim();
+      } catch (e) { return bad(String(e?.message || e)); }
     }
     const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
       .bind(orgId, payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), auth.user.id).run();
@@ -1333,7 +1339,7 @@ async function apiSave(env, request) {
   const previousSourceStageId = previousStageType === 'FIN_STAGE' ? Number(previousData._source_stage_id || 0) : 0;
 
   if (action === 'update') {
-    const title = String(payload.title || '').trim();
+    let title = String(payload.title || '').trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
       try { await validateStageSource(env, orgId, incomingSourceStageId, id); }
@@ -1344,8 +1350,13 @@ async function apiSave(env, request) {
       catch (e) { return bad(String(e?.message || e)); }
     }
     if (module === 'offense_pv') {
-      try { await validateOffensePvSource(env, orgId, incomingSourceOffenseId, id); }
-      catch (e) { return bad(String(e?.message || e)); }
+      try {
+        const source=await validateOffensePvSource(env, orgId, incomingSourceOffenseId, id);const sourceData=safeJson(source.data_json);
+        incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
+        incomingData.objet_infraction=String(sourceData.objet_infraction||'').trim();
+        incomingData.objets_saisis=String(sourceData.objets_saisis||'').trim();
+        payload.title=incomingData.personne_mise_cause||source.title||'Infraction';title=String(payload.title||'Infraction').trim();
+      } catch (e) { return bad(String(e?.message || e)); }
     }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
       .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();

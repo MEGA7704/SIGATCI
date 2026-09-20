@@ -498,3 +498,12 @@ Le formulaire Activités du MINEF masque désormais complètement le champ Statu
 
 ## V1.59 — Rapports et bilans consolidés
 La section Rapports et bilans consolide désormais les registres et travaux du service dans un document unique. Le filtre de période gère les vues mensuelle, trimestrielle, semestrielle, annuelle et personnalisée. L'impression produit un bilan complet en A4 paysage avec l'en-tête administratif et la signature configurés.
+
+## V1.60 — Sélection des tableaux du bilan et P-V d’infraction
+- Rapports et bilans : sélection individuelle des tableaux à inclure dans le document consolidé, avec Tout sélectionner / Tout désélectionner et aperçu réactif.
+- P-V d’infraction : suppression des champs N°, date, lieu, personne mise en cause et du sélecteur chef de mission ; affaire/personne, objet de l’infraction et objets saisis sont désormais alimentés automatiquement depuis l’affaire liée et protégés contre la modification manuelle.
+
+
+## V1.61 — Correction ciblée Mission de contrôle réalisée
+- Suppression du champ dupliqué « Chef de mission » dans le popup Ajouter / Modifier — Mission de contrôle réalisée.
+- Conservation d’un seul champ Chef de mission, alimenté par la liste du Personnel.

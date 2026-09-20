@@ -44,6 +44,21 @@
       </div>
     </section>
 
+    <section class="card report-table-selector-card" aria-labelledby="reportTableSelectorTitle">
+      <div class="report-table-selector-head">
+        <div>
+          <div class="report-kicker">Tableaux à imprimer</div>
+          <h2 id="reportTableSelectorTitle">Sélection des rubriques du bilan</h2>
+          <p class="muted">Cochez uniquement les tableaux que vous souhaitez intégrer au document final. La sélection met à jour l’aperçu immédiatement.</p>
+        </div>
+        <div class="report-table-selector-actions">
+          <button id="reportSelectAllBtn" class="btn btn-secondary btn-sm" type="button">Tout sélectionner</button>
+          <button id="reportSelectNoneBtn" class="btn btn-secondary btn-sm" type="button">Tout désélectionner</button>
+        </div>
+      </div>
+      <div id="reportTableSelector" class="report-table-selector" aria-live="polite"></div>
+    </section>
+
     <section class="report-metrics" id="reportMetrics" aria-live="polite"></section>
 
     <section class="card report-preview-card">
