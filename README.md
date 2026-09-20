@@ -519,3 +519,8 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 - Procès-verbal d’infraction : les informations de l’affaire liée (personne, objet, objets saisis, contrôle, identité, saisie) sont synchronisées automatiquement et protégées contre les divergences ; les zones narratives du P-V restent modifiables.
 - Impression « Répression des infractions » en 8 sections et « Procès-verbal d’infraction » en 9 sections, avec en-tête SIGAT, ampliations éventuelles et signature du chef de mission.
 - Compatibilité maintenue avec les anciennes affaires utilisant le champ historique « type et numéro de pièce ».
+
+
+## V1.64 — Menu Activités techniques
+- Suppression dans le menu principal « Activités techniques » des rubriques visibles : Contrôles, Infractions et Saisies.
+- Les modules, données et routes techniques correspondants ne sont pas supprimés afin de préserver l’historique et les fonctions qui peuvent les référencer.
