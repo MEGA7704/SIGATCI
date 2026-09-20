@@ -113,6 +113,9 @@ function smartProfile(){
   if(moduleKey==='stages')return entry[editorStageType]||null;
   if(moduleKey==='documents')return entry[editorDocumentType]||null;
   if(moduleKey==='convocations')return entry[editorConvocationView]||null;
+  // La disposition d'une mission de contrôle ne désigne pas encore de chef de mission.
+  // Le chef est renseigné uniquement lors de l'enregistrement de la mission réalisée.
+  if(moduleKey==='missions'&&editorMissionType==='DISPOSITION')return null;
   return entry;
 }
 function ownLoadUrl(module,{stageType='',documentType='',limit=100}={}){
@@ -1081,7 +1084,8 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(isExplanationDocument&&!record&&key==='delai_reponse_heures')el.value='48';
     wrap.appendChild(el);area.appendChild(wrap);
   }
-  if(!isPersonnel){
+  const hideDocumentAmpliations=isMission&&editorMissionType==='DISPOSITION';
+  if(!isPersonnel&&!hideDocumentAmpliations){
     const ampliationsWrap=document.createElement('div');
     ampliationsWrap.className='field full ampliations-toggle-field document-ampliations-field';
     const ampliationsChecked=['1','true','yes','oui'].includes(String(record?.data?._show_ampliations||'').toLowerCase());

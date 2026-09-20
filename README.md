@@ -478,3 +478,8 @@ Le formulaire Activités du MINEF masque désormais complètement le champ Statu
 - Le champ visuel « Statut » est supprimé de tous les formulaires métier ; la valeur technique reste gérée automatiquement en arrière-plan.
 - Le texte « Assistance intelligente SIGAT… » est supprimé, sans désactiver le préremplissage intelligent.
 - Les tableaux utilisent toute la largeur disponible sans barre de défilement horizontale, avec colonnes et actions adaptées à l'écran.
+
+
+## V1.56 — Popup Disposition de mission
+- Suppression du bloc « Chef de mission » dans « Ajouter — Disposition de mission de contrôle ».
+- Suppression du bloc « AMPLIATIONS du document » uniquement pour ce formulaire.
