@@ -454,3 +454,7 @@ Voir `CORRECTION_V1_50_FEUX_FAUNE_MISSIONS_FORMATIONS.txt`.
 - Missions : dispositions, missions réalisées et répression des infractions ; sélection intelligente des missions et du personnel, numérotation automatique des missions réalisées.
 - Répression : gestion des photos et P-V lié à chaque affaire avec impression.
 - Formations : thèmes normalisés, option « autres », statistiques hommes/femmes et observations.
+
+
+## V1.51 — Activités du MINEF
+Ajout d’une page dédiée dans Activités techniques pour enregistrer et suivre les activités du MINEF et les activités externes, avec formulaire conditionnel, filtres, tableau, impression et gestion complète des enregistrements.

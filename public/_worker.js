@@ -282,7 +282,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.50-feux-faune-missions-formations',
+    version: '1.51-activites-minef',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -370,6 +370,7 @@ const MODULES = Object.freeze({
   'produits-secondaires': 'secondary_operators',
   'transformation-bois': 'wood_processing_units',
   sensibilisations: 'awareness_actions',
+  'activites-minef': 'minef_activities',
   reboisement: 'plantations',
   'ressources-naturelles': 'natural_resources',
   'feux-brousse': 'fire_incidents',
@@ -986,10 +987,10 @@ async function apiLoad(env, request) {
   const params = [...binds];
   if (search) {
     const q = `%${search}%`;
-    if (module === 'sensibilisations') {
+      if (module === 'sensibilisations') {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.theme') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.lieu') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.cible') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.agent_charge') LIKE ?)`;
       params.push(q,q,q,q,q,q,q,q);
-    } else if (['exploitation-forestiere','transformation-bois','feux-brousse','faune','missions','infractions','formations','offense_pv'].includes(module)) {
+    } else if (['exploitation-forestiere','transformation-bois','feux-brousse','faune','missions','infractions','formations','offense_pv','activites-minef'].includes(module)) {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR COALESCE(r.data_json,'{}') LIKE ?)`;
       params.push(q,q,q,q);
     } else {
@@ -997,6 +998,34 @@ async function apiLoad(env, request) {
       params.push(q, q, q);
     }
   }
+  if (module === 'activites-minef') {
+    const year = String(url.searchParams.get('year') || '').trim();
+    const activityDate = String(url.searchParams.get('activityDate') || '').trim();
+    const activityType = String(url.searchParams.get('activityType') || '').trim();
+    const activityCategory = String(url.searchParams.get('activityCategory') || '').trim();
+    const organizer = String(url.searchParams.get('organizer') || '').trim();
+    if (/^\d{4}$/.test(year)) {
+      where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
+      params.push(year);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
+      where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, '') = ?`;
+      params.push(activityDate);
+    }
+    if (activityType) {
+      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_activite'),'')) = LOWER(?)`;
+      params.push(activityType);
+    }
+    if (activityCategory) {
+      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.categorie_minef'),'')) = LOWER(?)`;
+      params.push(activityCategory);
+    }
+    if (organizer) {
+      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.organisateur'),'')) LIKE LOWER(?)`;
+      params.push(`%${organizer}%`);
+    }
+  }
+
   if (module === 'sensibilisations') {
     const year = String(url.searchParams.get('year') || '').trim();
     const activityDate = String(url.searchParams.get('activityDate') || '').trim();
