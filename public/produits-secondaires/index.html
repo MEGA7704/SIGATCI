@@ -54,7 +54,7 @@
   <dialog id="editorDialog" class="dialog">
     <div class="dialog-head"><strong id="editorTitle">Ajouter</strong><button class="close-x" data-close-editor type="button">×</button></div>
     <form id="recordForm"><div class="dialog-body"><input type="hidden" id="recordId"><div class="form-grid">
-      <div class="field"><label>Référence</label><input id="recordReference"></div><div class="field"><label>Date</label><input id="recordDate" type="date"></div><div class="field full"><label>Intitulé / nom principal *</label><input id="recordTitle" required></div><div class="field"><label>Statut</label><select id="recordStatus"><option>ACTIVE</option><option>BROUILLON</option><option>SOUMIS</option><option>VALIDÉ</option><option>À CORRIGER</option></select></div><div class="full form-grid" id="dynamicFields"></div>
+      <div class="field"><label>Référence</label><input id="recordReference"></div><div class="field"><label>Date</label><input id="recordDate" type="date"></div><div class="field full"><label>Intitulé / nom principal *</label><input id="recordTitle" required></div><div class="field global-record-status-hidden"><label>Statut</label><select id="recordStatus"><option>ACTIVE</option><option>BROUILLON</option><option>SOUMIS</option><option>VALIDÉ</option><option>À CORRIGER</option></select></div><div class="full form-grid" id="dynamicFields"></div>
     </div></div><div class="dialog-foot"><button type="button" class="btn btn-secondary" data-close-editor>Annuler</button><button class="btn btn-primary" type="submit">Enregistrer</button></div></form>
   </dialog>
 

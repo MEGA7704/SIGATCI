@@ -207,10 +207,6 @@ async function mountSmartAutofill(record=null){
   const profile=smartProfile();
   const area=document.getElementById('dynamicFields');
   if(!area)return;
-  const info=document.createElement('div');
-  info.className='field full smart-system-note';
-  info.innerHTML='<div class="smart-note"><strong>Assistance intelligente SIGAT</strong><span>Les données déjà enregistrées sont réutilisées lorsqu’un rapprochement est possible. Les champs préremplis restent toujours modifiables.</span></div>';
-  area.prepend(info);
   if(!profile)return;
   const wrap=document.createElement('div');wrap.className='field full smart-autofill-field';
   const label=document.createElement('label');label.textContent=profile.label||'Préremplissage intelligent';
@@ -219,7 +215,7 @@ async function mountSmartAutofill(record=null){
   const help=document.createElement('small');help.className='smart-help';help.textContent=profile.help||'';
   const sourceId=document.createElement('input');sourceId.type='hidden';sourceId.dataset.key=profile.sourceIdKey||'_smart_source_id';sourceId.value=record?.data?.[profile.sourceIdKey||'_smart_source_id']||'';
   const sourceModule=document.createElement('input');sourceModule.type='hidden';sourceModule.dataset.key='_smart_source_module';sourceModule.value=profile.sourceModule||'';
-  wrap.append(label,select,help,sourceId,sourceModule);info.after(wrap);
+  wrap.append(label,select,help,sourceId,sourceModule);area.prepend(wrap);
   try{
     const candidates=await loadSmartCandidates(profile,record);
     select.innerHTML='<option value="">— Saisie manuelle / ne pas préremplir —</option>';
@@ -1209,12 +1205,23 @@ async function mountMissionEditorLogic(record=null){
   }
 }
 function mountMinefActivityEditorLogic(record=null){
-  const type=document.querySelector('#dynamicFields [data-key="type_activite"]');if(!type)return;
+  const area=document.getElementById('dynamicFields');
+  const type=area?.querySelector('[data-key="type_activite"]');
+  const cadreWrap=editorFieldWrap('categorie_minef');
+  if(!type||!cadreWrap)return;
   const update=()=>{
     const minef=normalizeWoodText(type.value)==='activites du minef';
-    setFieldVisibility('categorie_minef',minef,{clear:!minef});
+    // Le champ Cadre de l’activité MINEF n’existe visuellement que pour une activité du MINEF.
+    cadreWrap.hidden=!minef;
+    cadreWrap.classList.toggle('hidden',!minef);
+    const cadre=cadreWrap.querySelector('[data-key="categorie_minef"]');
+    if(cadre){
+      cadre.disabled=!minef;
+      if(!minef)cadre.value='';
+    }
   };
-  type.addEventListener('change',update);update();
+  type.addEventListener('change',update);
+  update();
 }
 
 function mountFormationEditorLogic(record=null){

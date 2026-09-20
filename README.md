@@ -465,3 +465,16 @@ Ordre des onglets corrigé et préremplissage intelligent des comités redynamis
 
 ## V1.53 — Correction Activités du MINEF
 Le formulaire Activités du MINEF masque désormais complètement le champ Statut. Le champ Cadre MINEF est affiché uniquement pour « activités du MINEF » et masqué/vidé pour « activités externes au MINEF ».
+
+
+## V1.54 — Cadre de l’activité MINEF conditionnel
+- Dans **Activités du MINEF**, le champ **Cadre de l’activité MINEF** apparaît uniquement lorsque **Type d’activité = activités du MINEF**.
+- Pour **activités externes au MINEF**, ce champ est masqué, désactivé et sa valeur est vidée afin qu’elle ne soit pas enregistrée par erreur.
+- Correction CSS renforcée pour garantir le masquage dans le popup sur ordinateur et téléphone.
+
+## V1.55 — Harmonisation générale des popups et tableaux
+- Tous les formulaires métier en popup sont présentés en 2 colonnes sur PC/tablette et 1 colonne sur téléphone.
+- Les popups respectent la taille de l'écran et utilisent un défilement vertical interne seulement lorsque nécessaire.
+- Le champ visuel « Statut » est supprimé de tous les formulaires métier ; la valeur technique reste gérée automatiquement en arrière-plan.
+- Le texte « Assistance intelligente SIGAT… » est supprimé, sans désactiver le préremplissage intelligent.
+- Les tableaux utilisent toute la largeur disponible sans barre de défilement horizontale, avec colonnes et actions adaptées à l'écran.
