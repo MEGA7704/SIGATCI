@@ -546,3 +546,26 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .wood-table th,.wood-table td{font-size:7.7px;padding:6px 2px}.wood-table th{font-size:6.2px}
   .wood-actions [data-view],.wood-actions [data-print]{display:none}
 }
+
+/* V1.50 — Feux de brousse, faune, missions et formations */
+.compact-actions{display:flex;gap:3px;flex-wrap:nowrap;white-space:nowrap}.compact-actions .btn{padding:5px 6px;font-size:9.5px;min-width:0}
+#editorDialog.fire-editor,#editorDialog.fauna-editor,#editorDialog.mission-editor,#editorDialog.formation-editor{width:min(1080px,calc(100vw - 24px));max-height:94dvh;overflow:hidden}
+#editorDialog.fire-editor .dialog-body,#editorDialog.fauna-editor .dialog-body,#editorDialog.mission-editor .dialog-body,#editorDialog.formation-editor .dialog-body{overflow:auto;max-height:calc(94dvh - 118px);padding:15px 18px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#editorDialog.fire-editor #recordForm>.dialog-body>.form-grid,#editorDialog.fauna-editor #recordForm>.dialog-body>.form-grid,#editorDialog.mission-editor #recordForm>.dialog-body>.form-grid,#editorDialog.formation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+#editorDialog.fire-editor #dynamicFields,#editorDialog.fauna-editor #dynamicFields,#editorDialog.mission-editor #dynamicFields,#editorDialog.formation-editor #dynamicFields{display:contents}
+#editorDialog.fire-editor .field,#editorDialog.fauna-editor .field,#editorDialog.mission-editor .field,#editorDialog.formation-editor .field{margin-bottom:10px;min-width:0}
+#editorDialog.fire-editor .document-ampliations-field,#editorDialog.fauna-editor .document-ampliations-field,#editorDialog.mission-editor .document-ampliations-field,#editorDialog.formation-editor .document-ampliations-field{grid-column:1/-1}
+#editorDialog.fire-editor [hidden],#editorDialog.fauna-editor [hidden],#editorDialog.mission-editor [hidden],#editorDialog.formation-editor [hidden]{display:none!important}
+.print-photo-row{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;padding:6px 8px;border-bottom:1px solid #d9dfdc}
+@media(max-width:900px){.compact-actions .btn{padding:4px 4px;font-size:8px}#editorDialog.fire-editor #recordForm>.dialog-body>.form-grid,#editorDialog.fauna-editor #recordForm>.dialog-body>.form-grid,#editorDialog.mission-editor #recordForm>.dialog-body>.form-grid,#editorDialog.formation-editor #recordForm>.dialog-body>.form-grid{grid-template-columns:1fr}}
+@media(max-width:640px){.compact-actions [data-view],.compact-actions [data-print]{display:none}.forest-table th,.forest-table td{white-space:nowrap}}
+@media(max-width:640px){
+  body[data-module="feux-brousse"] .forest-table th:last-child,body[data-module="feux-brousse"] .forest-table td:last-child,
+  body[data-module="faune"] .forest-table th:last-child,body[data-module="faune"] .forest-table td:last-child,
+  body[data-module="missions"] .forest-table th:last-child,body[data-module="missions"] .forest-table td:last-child{display:table-cell!important}
+  body[data-module="feux-brousse"] .forest-table .compact-actions .btn,body[data-module="faune"] .forest-table .compact-actions .btn,body[data-module="missions"] .forest-table .compact-actions .btn{font-size:7px;padding:3px}
+}
+body[data-module="faune"] .forest-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-module="missions"] .forest-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:900px){body[data-module="faune"] .forest-tabs,body[data-module="missions"] .forest-tabs{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){body[data-module="faune"] .forest-tabs,body[data-module="missions"] .forest-tabs{grid-template-columns:1fr}}

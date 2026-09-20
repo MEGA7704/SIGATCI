@@ -513,4 +513,20 @@ CREATE TABLE IF NOT EXISTS seizure_items (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_seizure_items_org ON seizure_items(organization_id);
+
+CREATE TABLE IF NOT EXISTS offense_minutes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  reference TEXT,
+  title TEXT NOT NULL,
+  event_date TEXT,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  data_json TEXT NOT NULL DEFAULT '{}',
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  archived_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_offense_minutes_org ON offense_minutes(organization_id);
+CREATE INDEX IF NOT EXISTS idx_offense_minutes_date ON offense_minutes(event_date);
 `;

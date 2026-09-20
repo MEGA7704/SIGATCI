@@ -445,3 +445,12 @@ La section Transformation du bois regroupe désormais, dans une même page, les 
 
 ## V1.49 — Réorganisation Produits secondaires / Transformation du bois
 Les registres « Exploitants de produits secondaires » et « Qté de produits secondaires exploités » ont été déplacés de Transformation du bois vers la page Produits secondaires, avec conservation des fonctions CRUD, recherche, filtres et impression. Transformation du bois ne présente plus que les unités de transformation, déligneuses, menuiseries et dépôts-ventes.
+
+## V1.50 — Feux de brousse, Faune, Missions et Formations
+Voir `CORRECTION_V1_50_FEUX_FAUNE_MISSIONS_FORMATIONS.txt`.
+
+- Feux de brousse : quatre registres intégrés avec formulaires et filtres contextuels.
+- Faune : observations des animaux et conflits homme-faune dans la même page.
+- Missions : dispositions, missions réalisées et répression des infractions ; sélection intelligente des missions et du personnel, numérotation automatique des missions réalisées.
+- Répression : gestion des photos et P-V lié à chaque affaire avec impression.
+- Formations : thèmes normalisés, option « autres », statistiques hommes/femmes et observations.

@@ -282,7 +282,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.32-convocations-pv',
+    version: '1.50-feux-faune-missions-formations',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -361,6 +361,7 @@ const MODULES = Object.freeze({
   stages: 'internships',
   convocations: 'convocations',
   convocation_pv: 'convocation_minutes',
+  offense_pv: 'offense_minutes',
   missions: 'missions',
   controles: 'controls',
   infractions: 'offenses',
@@ -988,7 +989,7 @@ async function apiLoad(env, request) {
     if (module === 'sensibilisations') {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.theme') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.lieu') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.cible') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.agent_charge') LIKE ?)`;
       params.push(q,q,q,q,q,q,q,q);
-    } else if (module === 'exploitation-forestiere' || module === 'transformation-bois') {
+    } else if (['exploitation-forestiere','transformation-bois','feux-brousse','faune','missions','infractions','formations','offense_pv'].includes(module)) {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR COALESCE(r.data_json,'{}') LIKE ?)`;
       params.push(q,q,q,q);
     } else {
@@ -1073,6 +1074,37 @@ async function apiLoad(env, request) {
     }
     if (operatorStatus) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.statut_operateur'),'')) = LOWER(?)`; params.push(operatorStatus); }
     if (exercantType) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_exercant'),'')) = LOWER(?)`; params.push(exercantType); }
+  }
+  if (module === 'feux-brousse') {
+    const fireType = String(url.searchParams.get('fireType') || '').trim().toUpperCase();
+    if (fireType === 'DEGATS') {
+      where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._fire_type')='DEGATS' OR json_extract(COALESCE(r.data_json,'{}'), '$._fire_type') IS NULL)`;
+    } else if (['REDYNAMISE','CREE','RENOUVELE'].includes(fireType)) {
+      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._fire_type')=?`; params.push(fireType);
+    }
+    const department=String(url.searchParams.get('department')||'').trim(), sous=String(url.searchParams.get('sousPrefecture')||'').trim(), village=String(url.searchParams.get('village')||'').trim(), activityDate=String(url.searchParams.get('activityDate')||'').trim(), nature=String(url.searchParams.get('natureDegats')||'').trim();
+    for(const [key,value] of [['departement',department],['sous_prefecture',sous],['village',village],['nature_degats',nature]]) if(value){where+=` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'),'$.${key}'),'')) LIKE LOWER(?)`;params.push(`%${value}%`)}
+    if(/^\d{4}-\d{2}-\d{2}$/.test(activityDate)){where+=` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'),'$.date_constat'),r.event_date,'')=?`;params.push(activityDate)}
+  }
+  if (module === 'faune') {
+    const faunaType=String(url.searchParams.get('faunaType')||'').trim().toUpperCase();
+    if(faunaType==='OBSERVATIONS'){where+=` AND (json_extract(COALESCE(r.data_json,'{}'),'$._fauna_type')='OBSERVATIONS' OR json_extract(COALESCE(r.data_json,'{}'),'$._fauna_type') IS NULL)`}
+    else if(faunaType==='CONFLITS'){where+=` AND json_extract(COALESCE(r.data_json,'{}'),'$._fauna_type')='CONFLITS'`}
+    const activityDate=String(url.searchParams.get('activityDate')||'').trim(), species=String(url.searchParams.get('species')||'').trim(), zone=String(url.searchParams.get('zone')||'').trim(), sous=String(url.searchParams.get('sousPrefecture')||'').trim(), village=String(url.searchParams.get('village')||'').trim(), conflict=String(url.searchParams.get('conflictType')||'').trim();
+    for(const [key,value] of [['especes_animales',species],['zone_observation',zone],['sous_prefecture',sous],['village',village],['type_conflit',conflict]]) if(value){where+=` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'),'$.${key}'),'')) LIKE LOWER(?)`;params.push(`%${value}%`)}
+    if(/^\d{4}-\d{2}-\d{2}$/.test(activityDate)){where+=` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'),'$.date_observation'),r.event_date,'')=?`;params.push(activityDate)}
+  }
+  if (module === 'missions') {
+    const missionType=String(url.searchParams.get('missionType')||'').trim().toUpperCase();
+    if(['DISPOSITION','REALISEE'].includes(missionType)){where+=` AND json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')=?`;params.push(missionType)}
+  }
+  if (module === 'infractions') {
+    const missionType=String(url.searchParams.get('missionType')||'').trim().toUpperCase();
+    if(missionType==='REPRESSION'){where+=` AND (json_extract(COALESCE(r.data_json,'{}'),'$._offense_type')='REPRESSION' OR json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')='REPRESSION')`}
+  }
+  if (module === 'offense_pv') {
+    const sourceOffenseId=Number(url.searchParams.get('sourceOffenseId')||0);
+    if(sourceOffenseId>0){where+=` AND CAST(json_extract(COALESCE(r.data_json,'{}'),'$._source_offense_id') AS INTEGER)=?`;params.push(sourceOffenseId)}
   }
   if (module === 'stages') {
     const stageType = String(url.searchParams.get('stageType') || '').toUpperCase();
@@ -1199,6 +1231,26 @@ async function convocationHasPv(env, orgId, convocationId) {
   return !!row;
 }
 
+
+async function validateOffensePvSource(env, orgId, sourceId, ignorePvId=0){
+  sourceId=Number(sourceId||0);if(!sourceId)throw new Error('L’affaire d’origine est obligatoire pour établir le P-V.');
+  const source=await env.SIGAT_DB.prepare(`SELECT id,title,data_json FROM offenses WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(sourceId,orgId).first();
+  if(!source)throw new Error('L’affaire sélectionnée est introuvable dans votre structure.');
+  await ensureModuleTable(env,'offense_minutes');
+  const dup=await env.SIGAT_DB.prepare(`SELECT id FROM offense_minutes WHERE organization_id=? AND archived_at IS NULL AND id<>? AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_offense_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(ignorePvId||0),sourceId).first();
+  if(dup)throw new Error('Un P-V est déjà enregistré pour cette affaire. Modifiez le P-V existant.');return source;
+}
+async function offenseHasPv(env,orgId,offenseId){
+  if(!(await tableExists(env,'offense_minutes')))return false;
+  const row=await env.SIGAT_DB.prepare(`SELECT id FROM offense_minutes WHERE organization_id=? AND archived_at IS NULL AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_offense_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(offenseId||0)).first();return !!row;
+}
+async function ensureMissionNumber(env,orgId,incomingData){
+  if(String(incomingData?._mission_type||'').toUpperCase()!=='REALISEE'||String(incomingData?.numero_mission||'').trim())return;
+  const year=new Date().getUTCFullYear();
+  const row=await env.SIGAT_DB.prepare(`SELECT MAX(CAST(substr(COALESCE(json_extract(data_json,'$.numero_mission'),''),9) AS INTEGER)) AS n FROM missions WHERE organization_id=? AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='REALISEE' AND json_extract(COALESCE(data_json,'{}'),'$.numero_mission') LIKE ?`).bind(orgId,`MC-${year}-%`).first();
+  incomingData.numero_mission=`MC-${year}-${String(Number(row?.n||0)+1).padStart(4,'0')}`;
+}
+
 async function apiSave(env, request) {
   const auth = await getSession(env, request, { allowExpired: false });
   if (!auth) return bad('Session invalide.', 401);
@@ -1218,6 +1270,8 @@ async function apiSave(env, request) {
   const incomingStageType = module === 'stages' ? String(incomingData._stage_type || '').toUpperCase() : '';
   const incomingSourceStageId = incomingStageType === 'FIN_STAGE' ? Number(incomingData._source_stage_id || 0) : 0;
   const incomingSourceConvocationId = module === 'convocation_pv' ? Number(incomingData._source_convocation_id || 0) : 0;
+  const incomingSourceOffenseId = module === 'offense_pv' ? Number(incomingData._source_offense_id || 0) : 0;
+  if(module==='missions') await ensureMissionNumber(env,orgId,incomingData);
 
   if (action === 'create') {
     const title = String(payload.title || '').trim();
@@ -1228,6 +1282,10 @@ async function apiSave(env, request) {
     }
     if (module === 'convocation_pv') {
       try { await validateConvocationPvSource(env, orgId, incomingSourceConvocationId, 0); }
+      catch (e) { return bad(String(e?.message || e)); }
+    }
+    if (module === 'offense_pv') {
+      try { await validateOffensePvSource(env, orgId, incomingSourceOffenseId, 0); }
       catch (e) { return bad(String(e?.message || e)); }
     }
     const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
@@ -1256,6 +1314,10 @@ async function apiSave(env, request) {
       try { await validateConvocationPvSource(env, orgId, incomingSourceConvocationId, id); }
       catch (e) { return bad(String(e?.message || e)); }
     }
+    if (module === 'offense_pv') {
+      try { await validateOffensePvSource(env, orgId, incomingSourceOffenseId, id); }
+      catch (e) { return bad(String(e?.message || e)); }
+    }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
       .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();
 
@@ -1269,6 +1331,7 @@ async function apiSave(env, request) {
 
   if (action === 'delete') {
     if (module === 'convocations' && await convocationHasPv(env, orgId, id)) return bad('Cette convocation possède un procès-verbal. Supprimez d’abord le procès-verbal lié avant de supprimer la convocation.');
+    if (module === 'infractions' && await offenseHasPv(env, orgId, id)) return bad('Cette affaire possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’affaire.');
     await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
     if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
     await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
