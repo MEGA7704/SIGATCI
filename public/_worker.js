@@ -1279,6 +1279,29 @@ async function ensureMissionNumber(env,orgId,incomingData){
   const row=await env.SIGAT_DB.prepare(`SELECT MAX(CAST(substr(COALESCE(json_extract(data_json,'$.numero_mission'),''),9) AS INTEGER)) AS n FROM missions WHERE organization_id=? AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='REALISEE' AND json_extract(COALESCE(data_json,'{}'),'$.numero_mission') LIKE ?`).bind(orgId,`MC-${year}-%`).first();
   incomingData.numero_mission=`MC-${year}-${String(Number(row?.n||0)+1).padStart(4,'0')}`;
 }
+async function hydrateRepressionMissionContext(env,orgId,incomingData){
+  if(String(incomingData?._mission_type||incomingData?._offense_type||'').toUpperCase()!=='REPRESSION')return;
+  const linked=String(incomingData?.liee_mission||'').toLowerCase()==='oui';
+  const missionId=Number(incomingData?.mission_liee_id||0);
+  const clear=()=>{for(const k of ['_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'])incomingData[k]=''};
+  if(!linked||!missionId){clear();return}
+  const row=await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,data_json FROM missions WHERE id=? AND organization_id=? AND archived_at IS NULL LIMIT 1`).bind(missionId,orgId).first();
+  if(!row)throw new Error('La mission liée est introuvable dans votre structure.');
+  const d=safeJson(row.data_json);if(String(d._mission_type||'').toUpperCase()!=='REALISEE')throw new Error('La mission liée doit être une mission de contrôle réalisée.');
+  const libelle=String(d.libelle_mission||'')==='Autre'?String(d.libelle_mission_autre||''):String(d.libelle_mission||row.title||'');
+  incomingData._mission_numero=String(d.numero_mission||row.reference||'');incomingData._mission_libelle=libelle;
+  incomingData._mission_chef=String(d.chef_mission||'');incomingData._mission_chef_grade=String(d._chef_mission_grade||'');incomingData._mission_chef_fonction=String(d._chef_mission_fonction||'');incomingData._mission_agents=String(d.autres_agents_participants||'');
+  incomingData._mission_objectif=String(d.objectif_mission||'');incomingData._mission_resultat=String(d.resultat||'');
+  incomingData._mission_immatriculation=String(d.immatriculation||'');incomingData._mission_materiels=String(d.materiels_equipements||'');
+  incomingData.mission_liee_label=[incomingData._mission_numero,incomingData._mission_libelle].filter(Boolean).join(' — ');
+}
+function syncPvFromOffense(incomingData,source,sourceData){
+  const direct=['personne_mise_cause','objet_infraction','objets_saisis','date_controle','heure_controle','lieu_controle','date_naissance_mis_cause','lieu_naissance_mis_cause','profession_mis_cause','domicile_mis_cause','contact_mis_cause','type_piece_identite','numero_piece_identite','arrestation','sort_biens','lieu_conservation','liee_mission','mission_liee_id','mission_liee_label','agents_arrestation','_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'];
+  for(const key of direct)incomingData[key]=sourceData[key]??'';
+  if(!incomingData.type_piece_identite&&sourceData.type_numero_piece){const parts=String(sourceData.type_numero_piece).split(/[-–—]/);incomingData.type_piece_identite=String(parts.shift()||'').trim();incomingData.numero_piece_identite=String(parts.join('-')||'').trim()}
+  if(!String(incomingData.agents_redacteurs||'').trim())incomingData.agents_redacteurs=String(sourceData.agents_arrestation||sourceData._mission_agents||'').trim();
+  incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
+}
 
 async function apiSave(env, request) {
   const auth = await getSession(env, request, { allowExpired: false });
@@ -1301,6 +1324,9 @@ async function apiSave(env, request) {
   const incomingSourceConvocationId = module === 'convocation_pv' ? Number(incomingData._source_convocation_id || 0) : 0;
   const incomingSourceOffenseId = module === 'offense_pv' ? Number(incomingData._source_offense_id || 0) : 0;
   if(module==='missions') await ensureMissionNumber(env,orgId,incomingData);
+  if(module==='infractions'){
+    try{await hydrateRepressionMissionContext(env,orgId,incomingData)}catch(e){return bad(String(e?.message||e))}
+  }
 
   if (action === 'create') {
     let title = String(payload.title || '').trim();
@@ -1316,10 +1342,7 @@ async function apiSave(env, request) {
     if (module === 'offense_pv') {
       try {
         const source=await validateOffensePvSource(env, orgId, incomingSourceOffenseId, 0);const sourceData=safeJson(source.data_json);
-        incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
-        incomingData.objet_infraction=String(sourceData.objet_infraction||'').trim();
-        incomingData.objets_saisis=String(sourceData.objets_saisis||'').trim();
-        if(!String(incomingData.agents_redacteurs||'').trim())incomingData.agents_redacteurs=String(sourceData.agents_arrestation||'').trim();
+        syncPvFromOffense(incomingData,source,sourceData);
         payload.title=incomingData.personne_mise_cause||source.title||'Infraction';title=String(payload.title||'Infraction').trim();
       } catch (e) { return bad(String(e?.message || e)); }
     }
@@ -1352,9 +1375,7 @@ async function apiSave(env, request) {
     if (module === 'offense_pv') {
       try {
         const source=await validateOffensePvSource(env, orgId, incomingSourceOffenseId, id);const sourceData=safeJson(source.data_json);
-        incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
-        incomingData.objet_infraction=String(sourceData.objet_infraction||'').trim();
-        incomingData.objets_saisis=String(sourceData.objets_saisis||'').trim();
+        syncPvFromOffense(incomingData,source,sourceData);
         payload.title=incomingData.personne_mise_cause||source.title||'Infraction';title=String(payload.title||'Infraction').trim();
       } catch (e) { return bad(String(e?.message || e)); }
     }

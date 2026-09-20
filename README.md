@@ -512,3 +512,10 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 - Suppression de tous les champs, colonnes et mentions visibles « Service source » / « Source » liés à la structure d’origine dans les tableaux, fiches de consultation, rapports et impressions.
 - Suppression de la statistique « Structures sources » dans Rapports et bilans.
 - Les informations techniques `source_organization` restent conservées côté application pour la sécurité, le périmètre hiérarchique et les préremplissages automatiques ; elles ne sont plus affichées comme champ à l’utilisateur.
+
+## V1.63 — Répression des infractions et P-V détaillés
+- Formulaire « Répression des infractions » restructuré selon le canevas opérationnel : liaison mission oui/non, contrôle, personne mise en cause, saisies, exposé des faits, déclaration, constatations, observations, conclusion et suite donnée.
+- Mission liée : numéro/intitulé, chef et participants sont repris automatiquement depuis la mission de contrôle réalisée.
+- Procès-verbal d’infraction : les informations de l’affaire liée (personne, objet, objets saisis, contrôle, identité, saisie) sont synchronisées automatiquement et protégées contre les divergences ; les zones narratives du P-V restent modifiables.
+- Impression « Répression des infractions » en 8 sections et « Procès-verbal d’infraction » en 9 sections, avec en-tête SIGAT, ampliations éventuelles et signature du chef de mission.
+- Compatibilité maintenue avec les anciennes affaires utilisant le champ historique « type et numéro de pièce ».

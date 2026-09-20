@@ -628,7 +628,16 @@ async function manageOffensePv(offense){
     if(existing){editorMissionType='PV_INFRACTION';editorOffensePvRecord=existing;if(existing.owned)openEditor(existing,null,null,null,null,null,null,'PV_INFRACTION');else openDetails(existing);return}
     if(!offense.owned){await professionalAlert('Procès-verbal','Aucun P-V n’est encore enregistré pour cette affaire.');return}
     editorOffensePvRecord=null;openEditor(null,null,null,null,null,null,null,'PV_INFRACTION');
-    const d=offense.data||{};setEditorFieldValue('_source_offense_id',offense.id);setEditorFieldValue('objet_infraction',d.objet_infraction);setEditorFieldValue('objets_saisis',d.objets_saisis);setEditorFieldValue('agents_redacteurs',d.agents_arrestation);document.getElementById('recordTitle').value=d.personne_mise_cause||offense.title||'Infraction';
+    const d=offense.data||{};setEditorFieldValue('_source_offense_id',offense.id);document.getElementById('recordTitle').value=d.personne_mise_cause||offense.title||'Infraction';
+    const sourceMap={
+      objet_infraction:d.objet_infraction,objets_saisis:d.objets_saisis,date_controle:d.date_controle,heure_controle:d.heure_controle,lieu_controle:d.lieu_controle,
+      date_naissance_mis_cause:d.date_naissance_mis_cause,lieu_naissance_mis_cause:d.lieu_naissance_mis_cause,profession_mis_cause:d.profession_mis_cause,
+      domicile_mis_cause:d.domicile_mis_cause,contact_mis_cause:d.contact_mis_cause,type_piece_identite:d.type_piece_identite||String(d.type_numero_piece||'').split(/[-–—]/)[0]?.trim(),
+      numero_piece_identite:d.numero_piece_identite||String(d.type_numero_piece||'').split(/[-–—]/).slice(1).join('-').trim(),arrestation:d.arrestation,sort_biens:d.sort_biens,lieu_conservation:d.lieu_conservation,
+      agents_redacteurs:d.agents_arrestation||d._mission_agents,expose_faits:d.expose_faits,declaration_mis_cause:d.declaration_mis_cause,constatations:d.constatations,
+      observations_pv:d.observations,resume_infraction:d.resume_infraction||d.objet_infraction,mesures_prises:d.mesures_prises,autorite_transmission:d.autorite_transmission
+    };
+    Object.entries(sourceMap).forEach(([k,v])=>setEditorFieldValue(k,v));
   }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le P-V lié à cette affaire.')}
 }
 
@@ -1226,7 +1235,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(type==='section'){
       const section=document.createElement('div');section.className='form-section-heading full';section.dataset.sectionKey=key;section.innerHTML=`<strong>${esc(label)}</strong>`;area.appendChild(section);continue;
     }
-    const wrap=document.createElement('div');wrap.className='field'+(type==='textarea'?' full':'')+(type==='image'?' photo-field':'');wrap.dataset.fieldKey=key;
+    const wrap=document.createElement('div');wrap.className='field'+((type==='textarea'||type==='computed-textarea')?' full':'')+(type==='image'?' photo-field':'');wrap.dataset.fieldKey=key;
     if(isConvocation){
       if(key==='objet_convocation')wrap.classList.add('convocation-object-field');
       if(key==='personne_a_voir')wrap.classList.add('convocation-person-field');
@@ -1246,7 +1255,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
       wrap.append(hidden,input,preview);render();area.appendChild(wrap);continue;
     }
     let el;
-    if(type==='textarea'){el=document.createElement('textarea');el.rows=2}
+    if(type==='textarea'||type==='computed-textarea'){el=document.createElement('textarea');el.rows=2;if(type==='computed-textarea'){el.readOnly=true;el.classList.add('computed-field')}}
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
     else if(['mission-select','mission-realisee-select','agent-select','created-fire-select'].includes(type)){el=document.createElement('select');const op=document.createElement('option');op.value='';op.textContent=type==='created-fire-select'?'— Sélectionner un comité créé —':'— Sélectionner —';el.appendChild(op);if(type==='mission-select'){const other=document.createElement('option');other.value='Autre';other.textContent='Autre';el.appendChild(other)}}
     else{el=document.createElement('input');el.type=type==='computed'?'number':'text';if(!['computed','computed-text'].includes(type))el.type=type||'text';if(['computed','computed-text'].includes(type)){el.readOnly=true;el.classList.add('computed-field')}}
@@ -1386,28 +1395,57 @@ async function mountMissionEditorLogic(record=null){
         mission.value=current;
       }
       const agents=await fetchOwnModuleItems('personnel');
-      if(chef){const current=String(record?.data?.chef_mission||chef.value||'');chef.innerHTML='<option value="">— Sélectionner —</option>'+agents.map(r=>`<option value="${esc(r.title||'')}">${esc(r.title||'')}${r.data?.matricule?` — ${esc(r.data.matricule)}`:''}</option>`).join('');chef.value=current}
+      if(chef){
+        const current=String(record?.data?.chef_mission||chef.value||'');
+        chef.innerHTML='<option value="">— Sélectionner —</option>'+agents.map(r=>`<option value="${esc(r.title||'')}" data-grade="${esc(r.data?.grade||'')}" data-fonction="${esc(r.data?.fonction||'')}">${esc(r.title||'')}${r.data?.matricule?` — ${esc(r.data.matricule)}`:''}</option>`).join('');chef.value=current;
+        let grade=area.querySelector('[data-key="_chef_mission_grade"]'),fonction=area.querySelector('[data-key="_chef_mission_fonction"]');
+        if(!grade){grade=document.createElement('input');grade.type='hidden';grade.dataset.key='_chef_mission_grade';area.appendChild(grade)}
+        if(!fonction){fonction=document.createElement('input');fonction.type='hidden';fonction.dataset.key='_chef_mission_fonction';area.appendChild(fonction)}
+        grade.value=String(record?.data?._chef_mission_grade||'');fonction.value=String(record?.data?._chef_mission_fonction||'');
+        const syncChef=()=>{const op=chef.selectedOptions?.[0];grade.value=op?.dataset?.grade||'';fonction.value=op?.dataset?.fonction||''};
+        chef.addEventListener('change',syncChef);if(!record&&chef.value)syncChef();
+      }
     }catch(e){console.warn('Préremplissage mission',e)}
     const updateOther=()=>setFieldVisibility('libelle_mission_autre',String(mission?.value||'')==='Autre',{clear:String(mission?.value||'')!=='Autre'});
     mission?.addEventListener('change',updateOther);updateOther();
   }
   if(editorMissionType==='REPRESSION'){
     const linked=q('liee_mission'),mission=q('mission_liee_id');
+    let realised=[];
+    const ensureHidden=(key,value='')=>{let el=q(key);if(!el){el=document.createElement('input');el.type='hidden';el.dataset.key=key;area.appendChild(el)}if(value!==undefined&&value!==null)el.value=String(value);return el};
+    ['_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'].forEach(k=>ensureHidden(k,record?.data?.[k]||''));
     try{
-      const realised=await fetchOwnModuleItems('missions',{missionType:'REALISEE'});
-      if(mission){const current=String(record?.data?.mission_liee_id||mission.value||'');mission.innerHTML='<option value="">— Sélectionner —</option>'+realised.map(r=>{const d=r.data||{};const label=`${d.numero_mission||r.reference||`Mission ${r.id}`} — ${d.libelle_mission==='Autre'?d.libelle_mission_autre:(d.libelle_mission||r.title||'')}`;return `<option value="${r.id}">${esc(label)}</option>`}).join('');mission.value=current}
+      realised=await fetchOwnModuleItems('missions',{missionType:'REALISEE'});
+      if(mission){
+        const current=String(record?.data?.mission_liee_id||mission.value||'');
+        mission.innerHTML='<option value="">— Sélectionner —</option>'+realised.map(r=>{const d=r.data||{};const lib=d.libelle_mission==='Autre'?d.libelle_mission_autre:(d.libelle_mission||r.title||'');const label=`${d.numero_mission||r.reference||`Mission ${r.id}`} — ${lib}`;return `<option value="${r.id}">${esc(label)}</option>`}).join('');mission.value=current;
+      }
     }catch(e){console.warn('Liste missions réalisées',e)}
-    const updateLink=()=>{const yes=String(linked?.value||'').toLowerCase()==='oui';setFieldVisibility('mission_liee_id',yes,{clear:!yes});setFieldVisibility('agents_arrestation',!yes,{clear:yes})};
-    linked?.addEventListener('change',updateLink);updateLink();
+    const syncMissionSnapshot=()=>{
+      const selected=realised.find(r=>String(r.id)===String(mission?.value||''));
+      const d=selected?.data||{};
+      ensureHidden('_mission_numero',d.numero_mission||selected?.reference||'');
+      ensureHidden('_mission_libelle',d.libelle_mission==='Autre'?d.libelle_mission_autre:(d.libelle_mission||selected?.title||''));
+      ensureHidden('_mission_chef',d.chef_mission||'');ensureHidden('_mission_chef_grade',d._chef_mission_grade||'');ensureHidden('_mission_chef_fonction',d._chef_mission_fonction||'');ensureHidden('_mission_agents',d.autres_agents_participants||'');
+      ensureHidden('_mission_objectif',d.objectif_mission||'');ensureHidden('_mission_resultat',d.resultat||'');
+      ensureHidden('_mission_immatriculation',d.immatriculation||'');ensureHidden('_mission_materiels',d.materiels_equipements||'');
+    };
+    const updateLink=()=>{const yes=String(linked?.value||'').toLowerCase()==='oui';setFieldVisibility('mission_liee_id',yes,{clear:!yes});setFieldVisibility('agents_arrestation',!yes,{clear:false});if(yes)syncMissionSnapshot();else{['mission_liee_id','_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'].forEach(k=>{const el=q(k);if(el)el.value=''})}};
+    linked?.addEventListener('change',updateLink);mission?.addEventListener('change',syncMissionSnapshot);updateLink();
   }
   if(editorMissionType==='PV_INFRACTION'){
     const sourceId=Number(q('_source_offense_id')?.value||record?.data?._source_offense_id||0);
-    const title=document.getElementById('recordTitle'),objet=q('objet_infraction'),objets=q('objets_saisis');
-    [title,objet,objets].forEach(el=>{if(el){el.readOnly=true;el.classList.add('computed-field')}});
+    const title=document.getElementById('recordTitle');if(title){title.readOnly=true;title.classList.add('computed-field')}
     if(sourceId){
       try{
         const offenses=await fetchOwnModuleItems('infractions');const source=offenses.find(r=>Number(r.id)===sourceId);
-        if(source){const d=source.data||{};if(title)title.value=d.personne_mise_cause||source.title||'Infraction';if(objet)objet.value=d.objet_infraction||'';if(objets)objets.value=d.objets_saisis||'';const agents=q('agents_redacteurs');if(agents&&!agents.value)agents.value=d.agents_arrestation||''}
+        if(source){
+          const d=source.data||{};if(title)title.value=d.personne_mise_cause||source.title||'Infraction';
+          const auto={objet_infraction:d.objet_infraction,objets_saisis:d.objets_saisis,date_controle:d.date_controle,heure_controle:d.heure_controle,lieu_controle:d.lieu_controle,date_naissance_mis_cause:d.date_naissance_mis_cause,lieu_naissance_mis_cause:d.lieu_naissance_mis_cause,profession_mis_cause:d.profession_mis_cause,domicile_mis_cause:d.domicile_mis_cause,contact_mis_cause:d.contact_mis_cause,type_piece_identite:d.type_piece_identite||String(d.type_numero_piece||'').split(/[-–—]/)[0]?.trim(),numero_piece_identite:d.numero_piece_identite||String(d.type_numero_piece||'').split(/[-–—]/).slice(1).join('-').trim(),arrestation:d.arrestation,sort_biens:d.sort_biens,lieu_conservation:d.lieu_conservation};
+          Object.entries(auto).forEach(([k,v])=>{const el=q(k);if(el)el.value=v??''});
+          const defaults={agents_redacteurs:d.agents_arrestation||d._mission_agents,expose_faits:d.expose_faits,declaration_mis_cause:d.declaration_mis_cause,constatations:d.constatations,observations_pv:d.observations,resume_infraction:d.resume_infraction||d.objet_infraction,mesures_prises:d.mesures_prises,autorite_transmission:d.autorite_transmission};
+          if(!record)Object.entries(defaults).forEach(([k,v])=>{const el=q(k);if(el&&!el.value)el.value=v??''});
+        }
       }catch(e){console.warn('Affaire liée au P-V',e)}
     }
   }
@@ -1511,7 +1549,7 @@ async function saveRecord(e){
       }else if(editorMissionType==='REPRESSION'){
         data._offense_type='REPRESSION';data._mission_type='REPRESSION';const linked=String(data.liee_mission||'').toLowerCase()==='oui';
         if(linked){data.agents_arrestation='';const sel=document.querySelector('#dynamicFields [data-key="mission_liee_id"]');data.mission_liee_label=sel?.selectedOptions?.[0]?.textContent||data.mission_liee_label||''}else{data.mission_liee_id='';data.mission_liee_label=''}
-        payload.eventDate='';payload.title=data.personne_mise_cause||data.objet_infraction||'Répression d’infraction';
+        payload.eventDate=data.date_controle||'';payload.title=data.personne_mise_cause||data.objet_infraction||'Répression d’infraction';
       }
     }
     const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':(moduleKey==='missions'?effectiveModule(editorMissionType):moduleKey));
@@ -1976,11 +2014,13 @@ function officialAmpliationsHtml(s){
 }
 function officialFooterHtml(){return ''}
 
-function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass='',showAmpliations=false}){
+function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass='',showAmpliations=false,signatureHtml=''}){
   const bodyClass=(signature?'record-print':'list-print')+(documentClass?` ${documentClass}`:'');
-  const bottom=signature?`<div class="official-bottom-row">${showAmpliations&&settingsLine(settings.ampliations)?officialAmpliationsHtml(settings):'<div class="official-ampliations-placeholder"></div>'}${officialSignatureHtml(settings,date)}</div>`:'';
+  const sig=signatureHtml||officialSignatureHtml(settings,date);
+  const bottom=signature?`<div class="official-bottom-row">${showAmpliations&&settingsLine(settings.ampliations)?officialAmpliationsHtml(settings):'<div class="official-ampliations-placeholder"></div>'}${sig}</div>`:'';
   const orientationStyle=(documentClass.includes('personnel-list-print')||documentClass.includes('report-bundle-print'))?'@page{size:A4 landscape;margin:1.5cm 1.2cm 1.2cm 1.2cm}':'';
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}${orientationStyle}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
+  const offenseStyles=`.offense-report-body{width:94%;margin:0 auto;font-family:"Arial Narrow",Arial,sans-serif;font-size:13pt;line-height:1.35;text-align:justify}.offense-report-body .report-section{margin:0 0 7mm;break-inside:auto}.offense-report-body .report-section h2{font-family:"Arial Narrow",Arial,sans-serif;font-size:14pt;line-height:1.2;margin:0 0 3mm;font-weight:800;text-align:left;text-decoration:none}.offense-report-body p{margin:0 0 3.5mm;line-height:1.35;text-align:justify}.offense-report-body .identity-lines{display:grid;grid-template-columns:1fr 1fr;gap:2mm 6mm;margin:2mm 0 3mm}.offense-report-body .identity-lines div{min-width:0}.offense-report-body .evidence-photos{display:flex;gap:5mm;flex-wrap:wrap;margin:3mm 0}.offense-report-body .evidence-photos figure{margin:0;width:42mm}.offense-report-body .evidence-photos img{width:42mm;height:32mm;object-fit:contain;border:1px solid #b8c1bd}.offense-report-body .evidence-photos figcaption{font-size:9pt;text-align:center;margin-top:1mm}.mission-chief-signature .mission-signature-space{height:16mm}.mission-chief-signature .mission-agents{margin-top:4mm;font-size:11pt;line-height:1.25;text-align:left}.mission-chief-signature .mission-agents strong{display:block;text-align:center;margin-bottom:1.5mm}.mission-chief-signature .mission-signature-name{font-weight:800;text-decoration:underline}.mission-chief-signature .mission-signature-function{margin-top:1mm}.record-print.offense-report-print .document-title,.record-print.offense-pv-print .document-title{margin-top:18mm;margin-bottom:12mm}`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}${orientationStyle}${offenseStyles}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
 }
 
 async function launchPrint(html){
@@ -2039,11 +2079,67 @@ function stageResponsibleIntro(record){
   return `Le Responsable de ${org}`;
 }
 
+function offenseMissionLabel(d={}){
+  return [d._mission_numero,d._mission_libelle].filter(v=>String(v||'').trim()).join(' / ')||String(d.mission_liee_label||'').trim()||'—';
+}
+function offenseParticipants(d={}){
+  const parts=[];const chief=String(d._mission_chef||'').trim(),agents=String(d._mission_agents||d.agents_arrestation||d.agents_redacteurs||'').trim();
+  if(chief)parts.push(chief);if(agents&&!parts.includes(agents))parts.push(agents);return parts.join(' ; ')||'—';
+}
+function offenseEvidencePhotos(d={}){
+  const items=[[d.photo_personne,'Personne mise en cause'],[d.photo_piece,'Pièce d’identité'],[d.photo_objets,'Objets / produits / matériels']].filter(([src])=>String(src||'').trim());
+  if(!items.length)return '';
+  return `<div class="evidence-photos">${items.map(([src,label])=>`<figure><img src="${esc(src)}" alt="${esc(label)}"><figcaption>${esc(label)}</figcaption></figure>`).join('')}</div>`;
+}
+function missionChiefSignatureHtml(d={},settings={},date='',time=''){
+  const chief=String(d._mission_chef||'').trim();const grade=String(d._mission_chef_grade||'').trim();const fn=String(d._mission_chef_fonction||'').trim();
+  const agents=String(d._mission_agents||d.agents_arrestation||d.agents_redacteurs||'').trim();
+  const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+  const madeDate=date?longFrDate(String(date).slice(0,10)):longFrDate(new Date().toISOString().slice(0,10));
+  const madeAt=`Fait à ${esc(locality||'')}, le ${esc(madeDate)}${time?` à ${esc(String(time).slice(0,5).replace(':',' h '))}`:''}`;
+  const gradeFunction=[grade,fn].filter(Boolean).join(' / ');
+  return `<div class="official-signature mission-chief-signature"><div class="made-at">${madeAt}</div><div class="signer-title">Le Chef de mission</div><div class="mission-signature-space"></div><div class="mission-signature-name">${chief?esc(chief):'..............................................................'}</div><div class="mission-signature-function">${gradeFunction?esc(gradeFunction):'Grade / Fonction : ........................................'}</div>${agents?`<div class="mission-agents"><strong>Agent(s) ayant participé à la mission</strong>${esc(agents).split('\n').join('<br>')}</div>`:''}</div>`;
+}
+function reportSection(n,title,html){return `<section class="report-section"><h2>${n}. ${esc(title)}</h2>${html}</section>`}
+function repressionPrintBody(record){
+  const d=record.data||{};const linked=String(d.liee_mission||'').toLowerCase()==='oui';const mission=offenseMissionLabel(d);const date=fmtDate(d.date_controle||record.event_date);const lieu=displayValue(d.lieu_controle);const chief=displayValue(d._mission_chef);const agents=offenseParticipants(d);
+  const intro=linked?`Dans le cadre de la mission de contrôle <strong>${esc(mission)}</strong>, effectuée le <strong>${esc(date)}</strong> à <strong>${esc(lieu)}</strong>, une équipe d’agents des Eaux et Forêts a procédé à une opération de contrôle visant à vérifier le respect de la réglementation en vigueur.`:`Le <strong>${esc(date)}</strong> à <strong>${esc(lieu)}</strong>, une équipe d’agents des Eaux et Forêts a procédé à une opération de contrôle non liée à une mission planifiée, visant à vérifier le respect de la réglementation en vigueur.`;
+  const missionInfo=`<p>${intro}</p>${linked?`<p><strong>Chef de mission :</strong> ${esc(chief)}</p><p><strong>Agent(s) de la mission :</strong> ${esc(agents)}</p>`:`<p><strong>Agent(s) ayant procédé à l’intervention :</strong> ${esc(displayValue(d.agents_arrestation))}</p>`}<p>Au cours de cette opération, les agents ont constaté une infraction portant sur <strong>${esc(displayValue(d.objet_infraction))}</strong>.</p><p>L’intervention a donné lieu à <strong>${esc(displayValue(d.arrestation))}</strong>.</p>`;
+  const identity=`<p>La personne mise en cause est identifiée comme suit :</p><div class="identity-lines"><div><strong>Nom et prénoms :</strong> ${esc(displayValue(d.personne_mise_cause))}</div><div><strong>Contact :</strong> ${esc(displayValue(d.contact_mis_cause))}</div><div><strong>Date et lieu de naissance :</strong> ${esc([d.date_naissance_mis_cause?fmtDate(d.date_naissance_mis_cause):'',d.lieu_naissance_mis_cause].filter(Boolean).join(' à ')||'—')}</div><div><strong>Profession :</strong> ${esc(displayValue(d.profession_mis_cause))}</div><div><strong>Domicile / Localité :</strong> ${esc(displayValue(d.domicile_mis_cause))}</div><div><strong>Pièce d’identité :</strong> ${esc([d.type_piece_identite,d.numero_piece_identite].filter(Boolean).join(' — ')||d.type_numero_piece||'—')}</div></div>${offenseEvidencePhotos({photo_personne:d.photo_personne,photo_piece:d.photo_piece})}`;
+  const seizure=`<p>Au cours de l’intervention, les objets, produits ou matériels suivants ont été saisis ou retenus :</p><p><strong>${esc(displayValue(d.objets_saisis)).split('\n').join('<br>')}</strong></p>${offenseEvidencePhotos({photo_objets:d.photo_objets})}<p>Le cas échéant, les biens ont été <strong>${esc(displayValue(d.sort_biens))}</strong>${d.lieu_conservation?` à / auprès de <strong>${esc(d.lieu_conservation)}</strong>`:''}.</p>`;
+  const facts=`<p>Le <strong>${esc(date)}</strong>${d.heure_controle?` à <strong>${esc(String(d.heure_controle).slice(0,5))}</strong>`:''}, l’équipe de contrôle${d._mission_chef?` placée sous la responsabilité de <strong>${esc(d._mission_chef)}</strong>`:''} s’est rendue à <strong>${esc(lieu)}</strong>.</p><p>${esc(displayValue(d.expose_faits)).split('\n').join('<br>')}</p><p>Les éléments recueillis sur les lieux ont conduit les agents à procéder aux vérifications nécessaires et à prendre les mesures appropriées conformément aux procédures en vigueur.</p>`;
+  const declaration=`<p>Invitée à fournir ses explications sur les faits constatés, la personne mise en cause déclare ce qui suit :</p><p><strong>${esc(displayValue(d.declaration_mis_cause)).split('\n').join('<br>')}</strong></p><p>Cette déclaration a été recueillie et consignée afin d’être jointe au dossier de la procédure.</p>`;
+  const constat=`<p>À l’issue du contrôle et des vérifications effectuées, les agents ont constaté les éléments suivants :</p><p><strong>${esc(displayValue(d.constatations)).split('\n').join('<br>')}</strong></p><p>Ces constatations ont été relevées sous la responsabilité du chef de mission et consignées objectivement afin de permettre l’examen des faits par l’autorité compétente.</p>`;
+  const observations=`<p>${esc(displayValue(d.observations)).split('\n').join('<br>')}</p>`;
+  const suite=`<p>Au regard des faits constatés, des déclarations recueillies et des éléments matériels relevés au cours de l’intervention, il ressort que <strong>${esc(displayValue(d.resume_infraction||d.objet_infraction))}</strong>.</p><p>En conséquence, les mesures suivantes ont été prises :</p><p><strong>${esc(displayValue(d.mesures_prises)).split('\n').join('<br>')}</strong></p>${d.autorite_transmission?`<p>Le présent dossier est transmis à <strong>${esc(d.autorite_transmission)}</strong> pour les suites administratives et/ou judiciaires prévues par les textes en vigueur.</p>`:''}`;
+  return `<div class="document-title">RÉPRESSION DES INFRACTIONS</div><div class="offense-report-body">${reportSection(1,'Identification de la mission',missionInfo)}${reportSection(2,'Identification de la personne mise en cause',identity)}${reportSection(3,'Objets, produits ou matériels saisis',seizure)}${reportSection(4,'Exposé des faits',facts)}${reportSection(5,'Déclaration de la personne mise en cause',declaration)}${reportSection(6,'Constatations des agents',constat)}${reportSection(7,'Observations',observations)}${reportSection(8,'Conclusion et suite donnée',suite)}</div>`;
+}
+function offensePvPrintBody(record){
+  const d=record.data||{};const mission=offenseMissionLabel(d);const date=fmtDate(d.date_controle||record.event_date);const lieu=displayValue(d.lieu_controle);const linked=String(d.liee_mission||'').toLowerCase()==='oui';const agents=String(d.agents_redacteurs||d._mission_agents||d.agents_arrestation||'').trim()||'—';
+  const refMission=linked?`Dans le cadre de la mission de contrôle <strong>${esc(mission)}</strong>, effectuée le <strong>${esc(date)}</strong> à <strong>${esc(lieu)}</strong>, une équipe d’agents des Eaux et Forêts a procédé à une opération de contrôle visant à vérifier le respect de la réglementation en vigueur.`:`Le <strong>${esc(date)}</strong> à <strong>${esc(lieu)}</strong>, une équipe d’agents des Eaux et Forêts a procédé à une opération de contrôle non liée à une mission planifiée.`;
+  const s1=`<p>${refMission}</p>${d._mission_chef?`<p><strong>Chef de mission :</strong> ${esc(d._mission_chef)}${(d._mission_chef_grade||d._mission_chef_fonction)?` — ${esc([d._mission_chef_grade,d._mission_chef_fonction].filter(Boolean).join(' / '))}`:''}</p>`:''}<p><strong>Agent(s) ayant participé à la mission / intervention :</strong> ${esc(agents).split('\n').join('<br>')}</p><p>Au cours de cette opération, les agents ont constaté des faits susceptibles de constituer une infraction portant sur <strong>${esc(displayValue(d.objet_infraction))}</strong>.</p>`;
+  const s2=`<p>La personne mise en cause est identifiée comme suit :</p><div class="identity-lines"><div><strong>Nom et prénoms :</strong> ${esc(displayValue(d.personne_mise_cause||record.title))}</div><div><strong>Date et lieu de naissance :</strong> ${esc([d.date_naissance_mis_cause?fmtDate(d.date_naissance_mis_cause):'',d.lieu_naissance_mis_cause].filter(Boolean).join(' à ')||'—')}</div><div><strong>Profession :</strong> ${esc(displayValue(d.profession_mis_cause))}</div><div><strong>Domicile / Localité :</strong> ${esc(displayValue(d.domicile_mis_cause))}</div><div><strong>Contact :</strong> ${esc(displayValue(d.contact_mis_cause))}</div><div><strong>Pièce d’identité :</strong> ${esc([d.type_piece_identite,d.numero_piece_identite].filter(Boolean).join(' — ')||'—')}</div></div><p>L’intervention a donné lieu à <strong>${esc(displayValue(d.arrestation))}</strong>.</p>`;
+  const s3=`<p>L’infraction constatée porte sur :</p><p><strong>${esc(displayValue(d.objet_infraction)).split('\n').join('<br>')}</strong></p>`;
+  const s4=`<p>Au cours du contrôle, les objets, produits ou matériels suivants ont été découverts et, le cas échéant, saisis :</p><p><strong>${esc(displayValue(d.objets_saisis)).split('\n').join('<br>')}</strong></p><p>Lesdits biens ont été <strong>${esc(displayValue(d.sort_biens))}</strong>${d.lieu_conservation?` à <strong>${esc(d.lieu_conservation)}</strong>`:''}.</p>`;
+  const s5=`<p>Le <strong>${esc(date)}</strong>${d.heure_controle?` à <strong>${esc(String(d.heure_controle).slice(0,5))}</strong>`:''}, l’équipe de contrôle${d._mission_chef?` placée sous la responsabilité de <strong>${esc(d._mission_chef)}</strong>`:''} s’est rendue à <strong>${esc(lieu)}</strong>.</p><p>${esc(displayValue(d.expose_faits)).split('\n').join('<br>')}</p><p>Les vérifications entreprises ont permis de relever les éléments matériels utiles et les agents ont procédé aux mesures nécessaires conformément aux procédures applicables.</p>`;
+  const s6=`<p>Invitée à s’expliquer sur les faits qui lui sont reprochés, la personne mise en cause déclare ce qui suit :</p><p><strong>${esc(displayValue(d.declaration_mis_cause)).split('\n').join('<br>')}</strong></p><p>La présente déclaration a été recueillie et consignée dans le présent procès-verbal afin d’être versée au dossier de la procédure.</p>`;
+  const s7=`<p>À l’issue des vérifications effectuées sur les lieux, les agents ont constaté ce qui suit :</p><p><strong>${esc(displayValue(d.constatations)).split('\n').join('<br>')}</strong></p><p>Ces constatations ont été effectuées sous la responsabilité du chef de mission et consignées de manière objective dans le présent procès-verbal.</p>`;
+  const s8=`<p>${esc(displayValue(d.observations_pv)).split('\n').join('<br>')}</p>`;
+  const s9=`<p>Au regard des faits constatés, des déclarations recueillies et des éléments matériels relevés au cours de l’intervention, il ressort que <strong>${esc(displayValue(d.resume_infraction||d.objet_infraction))}</strong>.</p><p>En conséquence, les mesures suivantes ont été prises :</p><p><strong>${esc(displayValue(d.mesures_prises)).split('\n').join('<br>')}</strong></p><p>Le présent <strong>procès-verbal d’infraction</strong> est établi pour servir et valoir ce que de droit${d.autorite_transmission?` et transmis à <strong>${esc(d.autorite_transmission)}</strong>`:''} pour les suites administratives et/ou judiciaires appropriées.</p>`;
+  return `<div class="document-title">PROCÈS-VERBAL D’INFRACTION</div><div class="offense-report-body">${reportSection(1,'Références de la mission',s1)}${reportSection(2,'Identification de la personne mise en cause',s2)}${reportSection(3,"Objet de l’infraction",s3)}${reportSection(4,'Objets, produits ou matériels concernés',s4)}${reportSection(5,'Exposé des faits',s5)}${reportSection(6,'Déclaration de la personne mise en cause',s6)}${reportSection(7,'Constatations',s7)}${reportSection(8,'Observations',s8)}${reportSection(9,'Conclusion et suite donnée',s9)}</div>`;
+}
+
 async function printRecord(record){
   try{
     const s=await ensurePrintSettings();
-    let body='';let title='';
-    if(moduleKey==='stages'){
+    let body='';let title='';let customSignatureHtml='';let customDocumentClass='';
+    if(moduleKey==='missions'&&missionTypeOf(record)==='REPRESSION'){
+      title='RÉPRESSION DES INFRACTIONS';body=repressionPrintBody(record);customDocumentClass='offense-report-print';
+      const d=record.data||{};const madeDate=String(record.created_at||record.updated_at||d.date_controle||record.event_date||new Date().toISOString()).slice(0,10);customSignatureHtml=missionChiefSignatureHtml(d,s,madeDate,'');
+    }else if(moduleKey==='missions'&&missionTypeOf(record)==='PV_INFRACTION'){
+      title='PROCÈS-VERBAL D’INFRACTION';body=offensePvPrintBody(record);customDocumentClass='offense-pv-print';
+      const d=record.data||{};const stamp=String(record.created_at||record.updated_at||new Date().toISOString());customSignatureHtml=missionChiefSignatureHtml(d,s,stamp.slice(0,10),stamp.includes('T')?stamp.slice(11,16):'');
+    }else if(moduleKey==='stages'){
       const d=record.data||{};const stageType=stageTypeOf(record);const org=record.source_organization||session?.user?.organizationName||'Service des Eaux et Forêts';
       const intro=stageResponsibleIntro(record);const qual=String(d.qualite_stagiaire||'élève Sous-officier').trim();
       const ident=`${esc(qual)} <strong>${esc(record.title)}</strong>${d.matricule_stagiaire?` <strong>(${esc(d.matricule_stagiaire)})</strong>`:''}`;
@@ -2177,8 +2273,8 @@ async function printRecord(record){
     const documentSettings={...s};
     if(hasOwn(record.data,'_ampliations'))documentSettings.ampliations=String(record.data?._ampliations||'');
     if(hasOwn(record.data,'_ampliation_numbers'))documentSettings.ampliationNumbers=String(record.data?._ampliation_numbers||'');
-    const documentClass=moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':moduleKey==='personnel'?'personnel-sheet-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'';
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass});
+    const documentClass=customDocumentClass||(moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':moduleKey==='personnel'?'personnel-sheet-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'');
+    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
