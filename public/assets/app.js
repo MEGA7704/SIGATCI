@@ -98,7 +98,6 @@ const SMART_AUTOFILL={
   },
   missions:{sourceModule:'personnel',label:'Chef de mission',help:"Choisissez un agent pour renseigner le chef de mission. Le champ reste modifiable.",map:{chef_mission:'$title'}},
   controles:{sourceModule:'personnel',label:"Agent / chef d’équipe",help:"Choisissez un agent pour initialiser l’équipe. Vous pouvez ensuite compléter ou modifier librement.",map:{equipe:'$title'}},
-  formations:{sourceModule:'personnel',label:'Participant à ajouter',help:"Choisissez un agent pour initialiser la liste des participants. Le contenu reste modifiable.",map:{participants:'$title'}},
   materiel:{sourceModule:'personnel',label:'Responsable du matériel',help:"Choisissez un agent pour renseigner le responsable. Le champ reste modifiable.",map:{responsable:'$title'}},
   sensibilisations:{sourceModule:'personnel',label:'Agent en charge',help:"Choisissez un agent pour renseigner automatiquement l’agent en charge de la sensibilisation. Le champ reste modifiable.",map:{agent_charge:'$title'}},
   saisies:{sourceModule:'infractions',label:'Dossier d’infraction lié',help:"Sélectionnez une infraction existante pour reprendre sa référence dans le dossier de saisie.",map:{dossier:'$reference'}},
@@ -293,7 +292,7 @@ async function boot(){
   if(session.user.role!=='ORGANIZATION_ADMIN') document.querySelectorAll('[data-admin-only]').forEach(el=>el.remove());
   if(session.user.forcePasswordChange && location.pathname!='/mon-compte/'){location.href='/mon-compte/';return}
   handleSubscription();
-  if(moduleKey==='dashboard') loadDashboard(); else if(config) setupModule();
+  if(moduleKey==='dashboard') loadDashboard(); else if(moduleKey==='rapports') setupReportsModule(); else if(config) setupModule();
 }
 
 async function logout(){try{await api('/api/logout',{method:'POST'})}catch{}sessionStorage.clear();location.href='/'}
@@ -403,10 +402,10 @@ function setForestView(type){
 function updateForestTableHead(type){
   const head=document.getElementById('forestTableHead');if(!head)return;
   const map={
-    RECHERCHE_PARCELLAIRE:['Date','Sous-préfecture','Localité','Essence','Superficie (ha)','Coordonnées X / Y','Contact propriétaire','Actions'],
-    PEPINIERE:['Date','Localisation','Sous-préfecture','Essence','Plants produits','Plants distribués','Plants disponibles','Contact responsable','Actions'],
-    PLANTATION_CREEE:['Date','Localité','Bénéficiaire','Superficie (ha)','Essence','Densité','Total plants','Coordonnées X / Y','Actions'],
-    REBOISEMENT:['Date','Type','Localité','Bénéficiaire','Superficie (ha)','Essence','Total plants','Entreprise responsable','Actions']
+    RECHERCHE_PARCELLAIRE:['Date','Sous-préfecture','Localité','Essence','Superficie (ha)','Contact propriétaire','Actions'],
+    PEPINIERE:['Date','Localisation','Essence','Plants produits','Plants distribués','Plants disponibles','Actions'],
+    PLANTATION_CREEE:['Date','Localité','Bénéficiaire','Superficie (ha)','Essence','Total plants','Actions'],
+    REBOISEMENT:['Date','Type','Localité','Bénéficiaire','Superficie (ha)','Total plants','Actions']
   };
   head.innerHTML='<tr>'+map[type].map(v=>`<th>${esc(v)}</th>`).join('')+'</tr>';
 }
@@ -461,9 +460,9 @@ function setWoodView(type){
 function updateWoodTableHead(type){
   const head=document.getElementById('woodTableHead');if(!head)return;
   const map={
-    EXPLOITANTS_SECONDAIRES:['Opérateur','Contact','Produit exploité','N° permis','Date délivrance','Localité','Service forestier de suivi','Actions'],
-    PRODUITS_QTE:['Statut opérateur','Charbon de bois','Bois de feu','Mortiers','Kinkeliba','Fruit de karité','Bambou de chine','Actions'],
-    UNITES_BOIS:["Type d’exerçant",'Région / Département','Localité','Usine / Opérateur','Activité / Service','Contact','Coordonnées X / Y','Permis / Date','Actions']
+    EXPLOITANTS_SECONDAIRES:['Opérateur','Contact','Produit exploité','N° permis','Localité','Actions'],
+    PRODUITS_QTE:['Statut opérateur','Charbon de bois','Bois de feu','Autres produits','Actions'],
+    UNITES_BOIS:["Type d’exerçant",'Localité','Usine / Opérateur','Activité / Service','Contact','Permis / Date','Actions']
   };
   head.innerHTML='<tr>'+map[type].map(v=>`<th>${esc(v)}</th>`).join('')+'</tr>';
 }
@@ -575,7 +574,7 @@ function setFireView(type){
 }
 function updateFireTableHead(type){
   const head=document.getElementById('fireTableHead');if(!head)return;
-  const cols=type==='DEGATS'?['Date constat','Sous-préfecture','Village','Nature des dégâts','Superficie détruite (ha)','Personnes impactées','Observations','Actions']:['Département','Sous-préfecture','Village','Acte de création','Président du comité','Contact','Actions'];
+  const cols=type==='DEGATS'?['Date constat','Sous-préfecture','Village','Nature des dégâts','Superficie détruite (ha)','Personnes impactées','Actions']:['Département','Sous-préfecture','Village','Acte de création','Président du comité','Contact','Actions'];
   head.innerHTML='<tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
 }
 function bindFireFilters(){
@@ -601,7 +600,7 @@ function setFaunaView(type){
   const addBtn=document.getElementById('addBtn');if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,null,null,null,null,type)}
   updateFaunaTableHead(type);updateFaunaFilterVisibility(type);const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);loadRecords();
 }
-function updateFaunaTableHead(type){const head=document.getElementById('faunaTableHead');if(!head)return;const cols=type==='OBSERVATIONS'?['Date d’observation','Espèces animales','Zone d’observation','Commentaires utiles','Actions']:['S/Préfecture','Village','Type de conflit','Animaux impliqués','Dégâts recensés','Personnes impactées H/F','Action menée','Actions'];head.innerHTML='<tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>'}
+function updateFaunaTableHead(type){const head=document.getElementById('faunaTableHead');if(!head)return;const cols=type==='OBSERVATIONS'?['Date d’observation','Espèces animales','Zone d’observation','Commentaires utiles','Actions']:['S/Préfecture','Village','Type de conflit','Dégâts recensés','Personnes impactées H/F','Action menée','Actions'];head.innerHTML='<tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>'}
 function bindFaunaFilters(){const ids=['faunaDateFilter','faunaSpeciesFilter','faunaZoneFilter','faunaSousPrefFilter','faunaVillageFilter','faunaConflictFilter'];ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;const ev=el.type==='text'?'input':'change';el.addEventListener(ev,()=>{clearTimeout(window.__faunaFilterTimer);window.__faunaFilterTimer=setTimeout(()=>{currentPage=1;loadRecords()},220)})});document.getElementById('faunaResetFilters')?.addEventListener('click',()=>{ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});currentSearch='';const q=document.getElementById('searchInput');if(q)q.value='';currentPage=1;loadRecords()})}
 function updateFaunaFilterVisibility(type){const set=(id,on)=>{const el=document.getElementById(id);if(el){el.hidden=!on;if(!on)el.value=''}};set('faunaDateFilter',type==='OBSERVATIONS');set('faunaSpeciesFilter',type==='OBSERVATIONS');set('faunaZoneFilter',type==='OBSERVATIONS');set('faunaSousPrefFilter',type==='CONFLITS');set('faunaVillageFilter',type==='CONFLITS');set('faunaConflictFilter',type==='CONFLITS')}
 
@@ -631,6 +630,142 @@ async function manageOffensePv(offense){
     const d=offense.data||{};setEditorFieldValue('_source_offense_id',offense.id);setEditorFieldValue('personne_mise_cause',d.personne_mise_cause);setEditorFieldValue('objet_infraction',d.objet_infraction);setEditorFieldValue('objets_saisis',d.objets_saisis);setEditorFieldValue('agents_redacteurs',d.agents_arrestation);document.getElementById('recordTitle').value=`P-V — ${d.personne_mise_cause||offense.title||'Infraction'}`;
   }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le P-V lié à cette affaire.')}
 }
+
+/* V1.59 — Rapports et bilans consolidés.
+   La page agrège les registres imprimables du périmètre hiérarchique autorisé
+   et compose un seul document pour la période sélectionnée. */
+let reportCache=new Map(),reportCurrentSections=[],reportLoadingPromise=null;
+const reportCol=(label,get)=>({label,get});
+const reportData=r=>r?.data||{};
+const reportText=v=>{const x=String(v??'').trim();return x||'—'};
+const reportDateValue=v=>v?fmtDate(String(v).slice(0,10)):'—';
+const reportSum=(...vals)=>vals.reduce((a,v)=>a+(Number(v)||0),0);
+function reportDocType(r){const t=String(r?.data?._document_type||'').toUpperCase();if(t)return t;const x=String(r?.data?.type||'').toUpperCase();if(x.includes('CESSATION'))return 'CESSATION_SERVICE';if(x.includes('REPRISE'))return 'REPRISE_SERVICE';return ''}
+function reportStageType(r){return String(r?.data?._stage_type||'FIN_STAGE').toUpperCase()}
+function reportForestType(r){return String(r?.data?._forest_type||'RECHERCHE_PARCELLAIRE').toUpperCase()}
+function reportWoodType(r){return String(r?.data?._wood_type||'UNITES_BOIS').toUpperCase()}
+function reportFireType(r){return String(r?.data?._fire_type||'DEGATS').toUpperCase()}
+function reportFaunaType(r){return String(r?.data?._fauna_type||'OBSERVATIONS').toUpperCase()}
+function reportMissionType(r){return String(r?.data?._mission_type||r?.data?._offense_type||'REALISEE').toUpperCase()}
+function reportRecordDate(r){
+  const d=reportData(r);
+  const keys=['date_activite','date_observation','date_constat','date_rencontre','date_presentation','date_debut','date_fin','date_cessation','date_reprise','date_prise_service','date_demande','date_delivrance','note_service_date','lettre_mise_stage_date','decision_date','date_naissance'];
+  for(const k of keys){const v=String(d[k]||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v}
+  const v=String(r?.event_date||r?.created_at||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(v)?v:'';
+}
+function reportCoordinate(d){return [d.coord_x,d.coord_y].filter(v=>String(v??'').trim()).join(' / ')||'—'}
+function reportPermit(d){return [d.numero_permis,d.date_delivrance?reportDateValue(d.date_delivrance):''].filter(Boolean).join(' / ')||'—'}
+const REPORT_SECTIONS=[
+  {module:'personnel',label:'Situation du personnel',snapshot:true,columns:[reportCol('N°',(r,i)=>i+1),reportCol('Nom et prénoms',r=>r.title),reportCol('Sexe',r=>reportData(r).sexe),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Emploi',r=>reportData(r).emploi),reportCol('Fonction',r=>reportData(r).fonction),reportCol('Téléphone',r=>reportData(r).telephone)]},
+  {module:'documents',label:'Cessations de service / mutation',match:r=>reportDocType(r)==='CESSATION_SERVICE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_cessation||r.event_date)),reportCol('Agent',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Emploi',r=>reportData(r).emploi),reportCol('Nouvelle affectation',r=>reportData(r).nouvelle_affectation)]},
+  {module:'documents',label:'Cessations de service / congé',match:r=>reportDocType(r)==='CESSATION_CONGE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_cessation||r.event_date)),reportCol('Agent',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Nature du congé',r=>reportData(r).type_conge),reportCol('Reprise prévue',r=>reportDateValue(reportData(r).date_reprise_prevue))]},
+  {module:'documents',label:'Reprises de service / congé',match:r=>reportDocType(r)==='REPRISE_SERVICE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_reprise||r.event_date)),reportCol('Agent',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Nature',r=>reportData(r).type_conge),reportCol('Service de reprise',r=>reportData(r).service_reprise)]},
+  {module:'documents',label:'Prises de service / mutation',match:r=>reportDocType(r)==='PRISE_SERVICE_MUTATION',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_prise_service||r.event_date)),reportCol('Agent',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Ancien service',r=>reportData(r).ancien_service),reportCol('Nouvelle affectation',r=>reportData(r).nouvelle_affectation)]},
+  {module:'documents',label:'Demandes d’explication',match:r=>reportDocType(r)==='DEMANDE_EXPLICATION',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Agent',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Emploi / qualité',r=>reportData(r).emploi_qualite),reportCol('Service',r=>reportData(r).service_affectation)]},
+  {module:'absences',label:'Autorisations d’absence',columns:[reportCol('Demande',r=>reportDateValue(reportData(r).date_demande||r.event_date)),reportCol('Agent',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule),reportCol('Début',r=>reportDateValue(reportData(r).date_debut)),reportCol('Fin',r=>reportDateValue(reportData(r).date_fin)),reportCol('Jours',r=>reportData(r).nombre_jours)]},
+  {module:'stages',label:'Mises en stage',match:r=>reportStageType(r)==='MISE_STAGE',columns:[reportCol('Stagiaire',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule_stagiaire),reportCol('Début',r=>reportDateValue(reportData(r).date_debut)),reportCol('Fin',r=>reportDateValue(reportData(r).date_fin)),reportCol('Thème',r=>reportData(r).theme)]},
+  {module:'stages',label:'Fins de stage',match:r=>reportStageType(r)==='FIN_STAGE',columns:[reportCol('Stagiaire',r=>r.title),reportCol('Matricule',r=>reportData(r).matricule_stagiaire),reportCol('Début',r=>reportDateValue(reportData(r).date_debut)),reportCol('Fin',r=>reportDateValue(reportData(r).date_fin)),reportCol('Niveau',r=>reportData(r).niveau_recrutement)]},
+  {module:'convocations',label:'Convocations administratives',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_presentation||r.event_date)),reportCol('Personne convoquée',r=>r.title),reportCol('Profession',r=>reportData(r).profession),reportCol('Domicile',r=>reportData(r).domicile),reportCol('Objet',r=>reportData(r).objet_convocation)]},
+  {module:'convocation_pv',label:'Procès-verbaux de rencontres',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_rencontre||r.event_date)),reportCol('Personne concernée',r=>r.title),reportCol('Lieu',r=>reportData(r).lieu_rencontre),reportCol('Objet',r=>reportData(r).objet_rencontre),reportCol('Décisions',r=>reportData(r).conclusions_decisions)]},
+  {module:'activites-minef',label:'Activités du MINEF et activités externes',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Type',r=>reportData(r).type_activite),reportCol('Cadre MINEF',r=>reportData(r).categorie_minef),reportCol('Intitulé',r=>reportData(r).intitule_activite||r.title),reportCol('Organisateur',r=>reportData(r).organisateur),reportCol('Commentaire',r=>reportData(r).commentaire)]},
+  {module:'missions',label:'Dispositions des missions de contrôle',match:r=>reportMissionType(r)==='DISPOSITION',columns:[reportCol('Libellé',r=>reportData(r).libelle_mission||r.title),reportCol('Fréquence',r=>reportData(r).frequence),reportCol('Service source',r=>r.source_organization)]},
+  {module:'missions',label:'Missions de contrôle réalisées',match:r=>reportMissionType(r)==='REALISEE',columns:[reportCol('N° mission',r=>reportData(r).numero_mission||r.reference),reportCol('Libellé',r=>reportData(r).libelle_mission==='Autre'?reportData(r).libelle_mission_autre:reportData(r).libelle_mission),reportCol('Chef de mission',r=>reportData(r).chef_mission),reportCol('Objectif',r=>reportData(r).objectif_mission),reportCol('Résultat',r=>reportData(r).resultat)]},
+  {module:'controles',label:'Contrôles',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Contrôle',r=>r.title),reportCol('Type',r=>reportData(r).type),reportCol('Lieu',r=>reportData(r).lieu),reportCol('Équipe',r=>reportData(r).equipe),reportCol('Résultat',r=>reportData(r).resultat)]},
+  {module:'infractions',label:'Répression des infractions',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Objet',r=>reportData(r).objet_infraction||r.title),reportCol('Personne mise en cause',r=>reportData(r).personne_mise_cause||reportData(r).personne),reportCol('Contact',r=>reportData(r).contact_mis_cause),reportCol('Objets saisis',r=>reportData(r).objets_saisis),reportCol('Observations',r=>reportData(r).observations)]},
+  {module:'offense_pv',label:'Procès-verbaux d’infraction',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Affaire',r=>r.title),reportCol('Personne mise en cause',r=>reportData(r).personne_mise_cause),reportCol('Objet',r=>reportData(r).objet_infraction),reportCol('Agents rédacteurs',r=>reportData(r).agents_redacteurs)]},
+  {module:'saisies',label:'Saisies',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Saisie',r=>r.title),reportCol('Dossier',r=>reportData(r).dossier),reportCol('Nature',r=>reportData(r).nature),reportCol('Quantité',r=>reportData(r).quantite),reportCol('Lieu de dépôt',r=>reportData(r).lieu_depot)]},
+  {module:'exploitation-forestiere',label:'Recherche parcellaire',match:r=>reportForestType(r)==='RECHERCHE_PARCELLAIRE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Localité',r=>reportData(r).localite),reportCol('Essence',r=>reportData(r).essence),reportCol('Superficie (ha)',r=>reportData(r).superficie_parcelle),reportCol('Coordonnées',r=>reportCoordinate(reportData(r)))]},
+  {module:'exploitation-forestiere',label:'Situation de la pépinière',match:r=>reportForestType(r)==='PEPINIERE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Localisation',r=>reportData(r).localisation),reportCol('Essence',r=>reportData(r).essence),reportCol('Produits',r=>reportData(r).nbr_plants_produits),reportCol('Distribués',r=>reportData(r).nbr_plants_distribues),reportCol('Disponibles',r=>reportData(r).nbr_plants_disponibles)]},
+  {module:'exploitation-forestiere',label:'Plantations forestières créées',match:r=>reportForestType(r)==='PLANTATION_CREEE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Localité',r=>reportData(r).localite),reportCol('Bénéficiaire',r=>reportData(r).beneficiaire),reportCol('Superficie',r=>reportData(r).superficie),reportCol('Essence',r=>reportData(r).essence),reportCol('Total plants',r=>reportData(r).nombre_total_plants)]},
+  {module:'exploitation-forestiere',label:'Reboisements suivis',match:r=>reportForestType(r)==='REBOISEMENT',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Type',r=>reportData(r).type_reboisement),reportCol('Localité',r=>reportData(r).localite),reportCol('Bénéficiaire',r=>reportData(r).beneficiaire),reportCol('Superficie',r=>reportData(r).superficie),reportCol('Plants',r=>reportData(r).nombre_total_plants)]},
+  {module:'transformation-bois',label:'Exploitants de produits secondaires',match:r=>reportWoodType(r)==='EXPLOITANTS_SECONDAIRES',columns:[reportCol('Opérateur',r=>reportData(r).nom_operateur||r.title),reportCol('Contact',r=>reportData(r).contact),reportCol('Produit',r=>reportData(r).nature_produit),reportCol('N° permis',r=>reportData(r).numero_permis),reportCol('Localité',r=>reportData(r).localite),reportCol('Service de suivi',r=>reportData(r).service_suivi)]},
+  {module:'transformation-bois',label:'Quantités de produits secondaires exploités',match:r=>reportWoodType(r)==='PRODUITS_QTE',columns:[reportCol('Statut opérateur',r=>reportData(r).statut_operateur),reportCol('Charbon (sacs)',r=>reportData(r).charbon_qte_sacs),reportCol('Bois de feu (T)',r=>reportData(r).bois_feu_qte_t),reportCol('Mortiers (T)',r=>reportData(r).mortiers_qte_t),reportCol('Kinkeliba (T)',r=>reportData(r).kinkeliba_qte_t),reportCol('Karité (T)',r=>reportData(r).karite_qte_t)]},
+  {module:'transformation-bois',label:'Unités de transformation, déligneuses, menuiseries et dépôts-ventes',match:r=>reportWoodType(r)==='UNITES_BOIS',columns:[reportCol('Type',r=>reportData(r).type_exercant),reportCol('Localité',r=>reportData(r).localite),reportCol('Usine / opérateur',r=>reportData(r).nom_usine||reportData(r).nom_operateur||r.title),reportCol('Activité / service',r=>reportData(r).activites_principales||reportData(r).service_rattachement),reportCol('Contact',r=>reportData(r).contact_operateur),reportCol('Permis / date',r=>reportPermit(reportData(r)))]},
+  {module:'sensibilisations',label:'Actions de sensibilisation',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Type',r=>reportData(r).type_sensibilisation||reportData(r).theme),reportCol('Lieu',r=>reportData(r).lieu),reportCol('Cible',r=>reportData(r).cible),reportCol('H/F/Total',r=>`${Number(reportData(r).hommes||0)}/${Number(reportData(r).femmes||0)}/${reportSum(reportData(r).hommes,reportData(r).femmes)}`),reportCol('Agent',r=>reportData(r).agent_charge)]},
+  {module:'reboisement',label:'Reboisement — registre général',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Intitulé',r=>r.title),reportCol('Type',r=>reportData(r).type),reportCol('Localité',r=>reportData(r).localite),reportCol('Superficie',r=>reportData(r).superficie),reportCol('Essence',r=>reportData(r).essence)]},
+  {module:'ressources-naturelles',label:'Ressources naturelles',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Intitulé',r=>r.title),reportCol('Type',r=>reportData(r).type),reportCol('Localité',r=>reportData(r).localite),reportCol('Observation',r=>reportData(r).observations||reportData(r).description)]},
+  {module:'feux-brousse',label:'Comités de lutte contre les feux de brousse créés',match:r=>reportFireType(r)==='CREE',columns:[reportCol('Département',r=>reportData(r).departement),reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Village',r=>reportData(r).village),reportCol('N° acte',r=>reportData(r).acte_creation),reportCol('Président',r=>reportData(r).president_nom),reportCol('Contact',r=>reportData(r).president_contact)]},
+  {module:'feux-brousse',label:'Comités redynamisés',match:r=>reportFireType(r)==='REDYNAMISE',columns:[reportCol('Département',r=>reportData(r).departement),reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Village',r=>reportData(r).village),reportCol('N° acte',r=>reportData(r).acte_creation),reportCol('Président',r=>reportData(r).president_nom),reportCol('Contact',r=>reportData(r).president_contact)]},
+  {module:'feux-brousse',label:'Comités renouvelés',match:r=>reportFireType(r)==='RENOUVELE',columns:[reportCol('Département',r=>reportData(r).departement),reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Village',r=>reportData(r).village),reportCol('N° acte',r=>reportData(r).acte_creation),reportCol('Président',r=>reportData(r).president_nom),reportCol('Contact',r=>reportData(r).president_contact)]},
+  {module:'feux-brousse',label:'Dégâts des feux de brousse',match:r=>reportFireType(r)==='DEGATS',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_constat||r.event_date)),reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Village',r=>reportData(r).village),reportCol('Nature des dégâts',r=>reportData(r).nature_degats),reportCol('Superficie (ha)',r=>reportData(r).superficie_detruite),reportCol('Personnes impactées',r=>reportData(r).personnes_impactees)]},
+  {module:'faune',label:'Animaux rencontrés',match:r=>reportFaunaType(r)==='OBSERVATIONS',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_observation||r.event_date)),reportCol('Espèces',r=>reportData(r).especes_animales),reportCol('Zone',r=>reportData(r).zone_observation),reportCol('Commentaires',r=>reportData(r).commentaires_utiles)]},
+  {module:'faune',label:'Gestion des conflits homme-faune',match:r=>reportFaunaType(r)==='CONFLITS',columns:[reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Village',r=>reportData(r).village),reportCol('Type de conflit',r=>reportData(r).type_conflit),reportCol('Animaux',r=>reportData(r).nombre_animaux),reportCol('Personnes H/F',r=>`${Number(reportData(r).hommes_impactes||0)}/${Number(reportData(r).femmes_impactees||0)}`),reportCol('Action menée',r=>reportData(r).action_menee)]},
+  {module:'formations',label:'Formations / renforcement des capacités',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Thème',r=>String(reportData(r).theme||'').toLowerCase().startsWith('autres')?(reportData(r).theme_autre||reportData(r).theme):reportData(r).theme),reportCol('Hommes',r=>reportData(r).hommes),reportCol('Femmes',r=>reportData(r).femmes),reportCol('Total',r=>reportSum(reportData(r).hommes,reportData(r).femmes)),reportCol('Observations',r=>reportData(r).observations)]},
+  {module:'materiel',label:'Situation du matériel et du patrimoine',snapshot:true,columns:[reportCol('Équipement',r=>r.title),reportCol('Catégorie',r=>reportData(r).categorie),reportCol('Marque',r=>reportData(r).marque),reportCol('N° / marquage',r=>reportData(r).numero),reportCol('État',r=>reportData(r).etat),reportCol('Responsable',r=>reportData(r).responsable)]},
+  {module:'finances',label:'Situation financière / budgétaire',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Ligne / intitulé',r=>r.title),reportCol('Prévu (FCFA)',r=>reportData(r).montant_prevu),reportCol('Exécuté (FCFA)',r=>reportData(r).montant_execute),reportCol('Observations',r=>reportData(r).observations)]}
+];
+function reportUniqueModules(){return [...new Set(REPORT_SECTIONS.map(s=>s.module))]}
+async function reportLoadAllModule(module){
+  const scope=new URLSearchParams(location.search).get('scopeOrg');let page=1,totalPages=1;const items=[];
+  do{const q=new URLSearchParams({module,page:String(page),limit:'100',search:''});if(scope)q.set('scopeOrg',scope);const d=await api(`/api/load?${q.toString()}`);items.push(...(d.items||[]));totalPages=Number(d.totalPages||1);page++}while(page<=totalPages&&page<=250);
+  return items;
+}
+function reportIso(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
+function reportPeriodRange(){
+  const mode=document.getElementById('reportPeriodType')?.value||'MONTH';const now=new Date();const y=Number(document.getElementById('reportYear')?.value||now.getFullYear());let from='',to='',label='';
+  if(mode==='MONTH'){const m=Number(document.getElementById('reportMonth')?.value||now.getMonth()+1);from=reportIso(y,m,1);to=reportIso(y,m,new Date(y,m,0).getDate());label=new Date(y,m-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}
+  else if(mode==='QUARTER'){const q=Number(document.getElementById('reportQuarter')?.value||1),m=(q-1)*3+1;from=reportIso(y,m,1);to=reportIso(y,m+2,new Date(y,m+2,0).getDate());label=`${q}${q===1?'er':'e'} trimestre ${y}`}
+  else if(mode==='SEMESTER'){const sem=Number(document.getElementById('reportSemester')?.value||1),m=sem===1?1:7;from=reportIso(y,m,1);to=reportIso(y,m+5,new Date(y,m+5,0).getDate());label=`${sem}${sem===1?'er':'e'} semestre ${y}`}
+  else if(mode==='YEAR'){from=reportIso(y,1,1);to=reportIso(y,12,31);label=`Année ${y}`}
+  else {from=document.getElementById('reportStartDate')?.value||'';to=document.getElementById('reportEndDate')?.value||'';label=from&&to?`Du ${reportDateValue(from)} au ${reportDateValue(to)}`:'Période personnalisée'}
+  return {mode,year:y,from,to,label};
+}
+function reportUpdatePeriodFields(){
+  const mode=document.getElementById('reportPeriodType')?.value||'MONTH';const show=(id,on)=>{const el=document.getElementById(id);if(el)el.hidden=!on};
+  show('reportYearField',mode!=='CUSTOM');show('reportMonthField',mode==='MONTH');show('reportQuarterField',mode==='QUARTER');show('reportSemesterField',mode==='SEMESTER');show('reportStartField',mode==='CUSTOM');show('reportEndField',mode==='CUSTOM');
+}
+function reportRecordInRange(record,section,range){if(section.snapshot)return true;const d=reportRecordDate(record);if(!range.from||!range.to)return true;if(!d)return false;return d>=range.from&&d<=range.to}
+function reportBuildSections(){
+  const range=reportPeriodRange();const includeEmpty=document.getElementById('reportIncludeEmpty')?.checked!==false;
+  const sections=REPORT_SECTIONS.map(section=>{let rows=(reportCache.get(section.module)||[]).filter(r=>!section.match||section.match(r));rows=rows.filter(r=>reportRecordInRange(r,section,range));return {...section,rows}}).filter(s=>includeEmpty||s.rows.length);
+  reportCurrentSections=sections;return {sections,range};
+}
+function reportCell(v){return esc(reportText(v))}
+function reportSectionTable(section,{print=false}={}){
+  const head=section.columns.map(c=>`<th>${esc(c.label)}</th>`).join('');
+  const rows=section.rows.map((r,i)=>`<tr>${section.columns.map(c=>`<td>${reportCell(c.get(r,i))}</td>`).join('')}</tr>`).join('');
+  const empty=section.rows.length?'':`<tr><td colspan="${section.columns.length}" class="report-empty-cell">Aucune donnée pour la période sélectionnée.</td></tr>`;
+  return `<section class="${print?'report-print-section':'report-preview-section'}"><div class="report-section-head"><h3>${esc(section.label)}</h3><span>${section.rows.length} enregistrement(s)</span></div><table class="report-table"><thead><tr>${head}</tr></thead><tbody>${rows||empty}</tbody></table></section>`;
+}
+function reportRenderPreview(){
+  const {sections,range}=reportBuildSections();const box=document.getElementById('reportSections');const loading=document.getElementById('reportLoading');if(!box)return;
+  const total=sections.reduce((n,s)=>n+s.rows.length,0),active=sections.filter(s=>s.rows.length).length;
+  const sources=new Set();sections.forEach(s=>s.rows.forEach(r=>{if(r.source_organization)sources.add(r.source_organization)}));
+  document.getElementById('reportPeriodBadge').textContent=range.label;
+  document.getElementById('reportPreviewTitle').textContent=`Bilan — ${range.label}`;
+  document.getElementById('reportPreviewSubtitle').textContent=`${active} rubrique(s) avec données · ${total} enregistrement(s) consolidé(s) · ${sources.size||1} structure(s) source(s).`;
+  document.getElementById('reportMetrics').innerHTML=`<div class="card report-metric"><span>Période</span><strong>${esc(range.label)}</strong></div><div class="card report-metric"><span>Rubriques actives</span><strong>${active}</strong></div><div class="card report-metric"><span>Enregistrements</span><strong>${total}</strong></div><div class="card report-metric"><span>Structures sources</span><strong>${sources.size||1}</strong></div>`;
+  box.innerHTML=sections.map(s=>reportSectionTable(s)).join('');box.hidden=false;if(loading)loading.hidden=true;
+}
+async function reportLoadDataset(force=false){
+  if(reportLoadingPromise&&!force)return reportLoadingPromise;
+  if(force){reportCache=new Map();reportLoadingPromise=null}
+  const loading=document.getElementById('reportLoading');const box=document.getElementById('reportSections');if(loading){loading.hidden=false;loading.textContent='Chargement et consolidation des travaux du service…'}if(box)box.hidden=true;
+  reportLoadingPromise=(async()=>{const modules=reportUniqueModules();let done=0;await Promise.all(modules.map(async m=>{try{reportCache.set(m,await reportLoadAllModule(m))}catch(e){reportCache.set(m,[]);console.warn('Rapport module',m,e)}finally{done++;if(loading)loading.textContent=`Chargement des rubriques… ${done}/${modules.length}`}}));reportRenderPreview()})();
+  try{await reportLoadingPromise}finally{reportLoadingPromise=null}
+}
+function reportBindReactiveFilters(){
+  const ids=['reportPeriodType','reportYear','reportMonth','reportQuarter','reportSemester','reportStartDate','reportEndDate','reportIncludeEmpty'];
+  ids.forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{reportUpdatePeriodFields();clearTimeout(window.__reportFilterTimer);window.__reportFilterTimer=setTimeout(reportRenderPreview,80)}));
+  document.getElementById('reportYear')?.addEventListener('input',()=>{clearTimeout(window.__reportFilterTimer);window.__reportFilterTimer=setTimeout(reportRenderPreview,220)});
+}
+async function printConsolidatedReport(){
+  if(!reportCache.size)await reportLoadDataset();const {sections,range}=reportBuildSections();if(!range.from||!range.to){await professionalAlert('Période incomplète','Renseignez une date de début et une date de fin avant l’impression.');return}
+  if(range.from>range.to){await professionalAlert('Période invalide','La date de début doit être antérieure ou égale à la date de fin.');return}
+  const settings=await ensurePrintSettings();const structure=String(session?.user?.organizationName||'Structure SIGAT');const total=sections.reduce((n,s)=>n+s.rows.length,0);
+  const summary=`<div class="report-print-summary"><div><strong>Structure :</strong> ${esc(structure)}</div><div><strong>Période :</strong> ${esc(range.label)}</div><div><strong>Enregistrements consolidés :</strong> ${total}</div></div>`;
+  const tables=sections.map(s=>reportSectionTable(s,{print:true})).join('');const conclusion=String(document.getElementById('reportConclusion')?.value||'').trim();
+  const conclusionHtml=conclusion?`<section class="report-print-conclusion"><h3>OBSERVATIONS GÉNÉRALES / CONCLUSION</h3><p>${esc(conclusion).replace(/\n/g,'<br>')}</p></section>`:'';
+  const title=`RAPPORT ET BILAN DES ACTIVITÉS — ${range.label.toUpperCase()}`;
+  const body=`<div class="document-title report-bundle-title">${esc(title)}</div>${summary}<div class="official-body wide report-bundle-body">${tables}${conclusionHtml}</div>`;
+  const html=buildPrintDocument({title,body,settings,signature:true,reference:'',date:range.to,hideReference:false,documentClass:'report-bundle-print',showAmpliations:false});await launchPrint(html);
+}
+async function setupReportsModule(){
+  const now=new Date();document.getElementById('reportYear').value=String(now.getFullYear());document.getElementById('reportMonth').value=String(now.getMonth()+1);document.getElementById('reportQuarter').value=String(Math.floor(now.getMonth()/3)+1);document.getElementById('reportSemester').value=String(now.getMonth()<6?1:2);
+  document.getElementById('reportStartDate').value=reportIso(now.getFullYear(),now.getMonth()+1,1);document.getElementById('reportEndDate').value=reportIso(now.getFullYear(),now.getMonth()+1,now.getDate());
+  reportUpdatePeriodFields();reportBindReactiveFilters();document.getElementById('reportReloadBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>reportLoadDataset(true),'Actualisation…'));document.getElementById('reportPrintBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,printConsolidatedReport,'Préparation…'));await reportLoadDataset();
+}
+
 function setupModule(){
   if(moduleKey==='stages'){setupStageModule();return}
   if(moduleKey==='documents'){setupDocumentsModule();return}
@@ -699,6 +834,53 @@ async function loadRecords(){
   }catch(e){showToast(e.message,'error')}
 }
 
+
+function genericTableSpec(){
+  const title=(label='Intitulé / nom')=>({key:'$title',label});
+  const field=(key,label,kind='text')=>({key,label,kind});
+  if(moduleKey==='stages'){
+    return currentStageType==='MISE_STAGE'?[title('Stagiaire'),field('matricule_stagiaire','Matricule'),field('date_debut','Début','date'),field('date_fin','Fin','date'),field('theme','Thème')]:[title('Stagiaire'),field('matricule_stagiaire','Matricule'),field('niveau_recrutement','Niveau'),field('date_debut','Début','date'),field('date_fin','Fin','date')];
+  }
+  if(moduleKey==='documents'){
+    const map={
+      CESSATION_SERVICE:[title('Agent'),field('matricule','Matricule'),field('emploi','Emploi'),field('nouvelle_affectation','Nouvelle affectation'),field('date_cessation','Date cessation','date')],
+      CESSATION_CONGE:[title('Agent'),field('matricule','Matricule'),field('type_conge','Nature du congé'),field('date_cessation','Date cessation','date'),field('date_reprise_prevue','Reprise prévue','date')],
+      REPRISE_SERVICE:[title('Agent'),field('matricule','Matricule'),field('type_conge','Nature du congé'),field('date_reprise','Date reprise','date'),field('heure_reprise','Heure reprise')],
+      PRISE_SERVICE_MUTATION:[title('Agent'),field('matricule','Matricule'),field('ancien_service','Ancien service'),field('nouvelle_affectation','Nouvelle affectation'),field('date_prise_service','Prise de service','date')],
+      DEMANDE_EXPLICATION:[title('Agent'),field('matricule','Matricule'),field('emploi_qualite','Emploi / qualité'),field('service_affectation','Service'),field('delai_reponse_heures','Délai (h)')],
+      ABSENCE:[title('Agent'),field('matricule','Matricule'),field('date_debut','Début','date'),field('date_fin','Fin','date'),field('nombre_jours','Jours')]
+    };return map[currentDocumentType]||[title('Document')];
+  }
+  if(moduleKey==='convocations'){
+    return currentConvocationView==='PV'?[title('Personne concernée'),field('date_rencontre','Date rencontre','date'),field('lieu_rencontre','Lieu'),field('objet_rencontre','Objet'),field('personne_a_voir','Responsable')]:[title('Personne convoquée'),field('profession','Profession'),field('domicile','Domicile'),field('date_presentation','Date présentation','date'),field('heure','Heure')];
+  }
+  const overrides={
+    controles:[title('Contrôle'),field('type','Type de contrôle'),field('lieu','Lieu'),field('equipe','Équipe'),field('resultat','Résultat')],
+    infractions:[title('Infraction'),field('personne','Personne mise en cause'),field('nature','Nature'),field('lieu','Lieu'),field('mesures','Mesures prises')],
+    saisies:[title('Saisie'),field('dossier','Dossier lié'),field('designation','Désignation'),field('quantite','Quantité'),field('lieu_conservation','Lieu de conservation')],
+    formations:[field('date_activite','Date','date'),field('theme','Thème'),field('hommes','Hommes'),field('femmes','Femmes'),field('observations','Observations')],
+    materiel:[title('Équipement'),field('categorie','Catégorie'),field('marque','Marque'),field('numero','N° immatriculation / marquage'),field('etat','État')],
+    finances:[title('Ligne budgétaire'),field('montant_prevu','Montant prévu'),field('montant_execute','Montant exécuté'),field('observations','Observations')],
+    rapports:[title('Rapport'),field('type','Type'),field('periode','Période'),field('conclusion','Conclusion')],
+    reboisement:[field('localite','Localité'),field('beneficiaire','Bénéficiaire'),field('superficie','Superficie (ha)'),field('essences','Essences'),field('plants','Plants')],
+    'ressources-naturelles':[field('type','Type'),field('localite','Localité'),field('superficie','Superficie (ha)'),field('coordonnees','Coordonnées'),field('observations','Observations')],
+    archives:[title('Archive'),field('type','Type d’archive'),field('annee','Année'),field('mot_cle','Mot-clé'),field('description','Description')]
+  };
+  if(overrides[moduleKey])return overrides[moduleKey];
+  const fields=(config?.fields||[]).filter(x=>!['section','image','computed'].includes(x[2]));
+  const compact=fields.filter(x=>x[2]!=='textarea').slice(0,4);
+  if(compact.length<4)compact.push(...fields.filter(x=>x[2]==='textarea').slice(0,4-compact.length));
+  return [title(config?.singular||'Intitulé'),...compact.map(([key,label,kind])=>field(key,label,kind))].slice(0,5);
+}
+function genericCellValue(record,col){
+  const d=record?.data||{};let v=col.key==='$title'?record?.title:d[col.key];
+  if(col.kind==='date')v=fmtDate(v);return displayValue(v);
+}
+function updateGenericTableHead(spec){
+  const table=document.getElementById('recordsBody')?.closest('table');const head=table?.querySelector('thead');if(!table||!head)return;
+  table.classList.add('adaptive-data-table');
+  head.innerHTML='<tr>'+spec.map(c=>`<th title="${esc(c.label)}">${esc(c.label)}</th>`).join('')+'<th class="actions-col">Actions</th></tr>';
+}
 function renderRows(items){
   const tb=document.getElementById('recordsBody');
   const isPersonnelRegister=moduleKey==='personnel';
@@ -709,11 +891,13 @@ function renderRows(items){
   const isFireRegister=moduleKey==='feux-brousse';
   const isFaunaRegister=moduleKey==='faune';
   const isMissionRegister=moduleKey==='missions';
-  if(!items.length){tb.innerHTML='<tr><td colspan="12" class="muted">Aucune donnée enregistrée.</td></tr>';return}
+  const genericSpec=(!isPersonnelRegister&&!isMinefActivityRegister&&!isAwarenessRegister&&!isForestRegister&&!isWoodRegister&&!isFireRegister&&!isFaunaRegister&&!isMissionRegister)?genericTableSpec():null;
+  if(genericSpec)updateGenericTableHead(genericSpec);
+  if(!items.length){tb.innerHTML=`<tr><td colspan="${genericSpec?genericSpec.length+1:12}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
   const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
   const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
-  const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}">Archiver</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
-  const personnelActionsHtml=r=>`<div class="actions personnel-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir la fiche complète" aria-label="Voir la fiche complète">👁</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="Imprimer PDF" aria-label="Imprimer PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier" aria-label="Modifier">✎</button><button class="btn btn-secondary btn-sm" data-archive="${r.id}" title="Archiver" aria-label="Archiver">A</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer" aria-label="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
+  const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
+  const personnelActionsHtml=r=>`<div class="actions personnel-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir la fiche complète" aria-label="Voir la fiche complète">👁</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="Imprimer PDF" aria-label="Imprimer PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier" aria-label="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer" aria-label="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
   if(isPersonnelRegister){
     tb.innerHTML=items.map((r,i)=>{const d=r.data||{};const order=(currentPage-1)*25+i+1;return `<tr><td class="personnel-order">${order}</td><td><strong>${esc(r.title)}</strong></td><td>${esc(personnelSexeShort(d.sexe))}</td><td>${esc(displayValue(d.matricule))}</td><td>${esc(displayValue(d.emploi))}</td><td>${esc(displayValue(d.fonction))}</td><td>${esc(fmtDate(d.date_naissance))}</td><td>${esc(displayValue(d.telephone))}</td><td>${esc(fmtDate(d.date_prise_service_gbeke))}</td><td>${personnelActionsHtml(r)}</td></tr>`}).join('');
   }else if(isMinefActivityRegister){
@@ -724,21 +908,21 @@ function renderRows(items){
     tb.innerHTML=items.map(r=>{const d=r.data||{};const hommes=Number(d.hommes||0),femmes=Number(d.femmes||0),total=hommes+femmes;const type=d.type_sensibilisation||d.theme||r.title||'—';return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td title="${esc(type)}"><strong>${esc(type)}</strong></td><td title="${esc(displayValue(d.lieu))}">${esc(displayValue(d.lieu))}</td><td title="${esc(displayValue(d.cible))}">${esc(displayValue(d.cible))}</td><td class="awareness-count">H : ${hommes} · F : ${femmes} · Total : <strong>${total}</strong></td><td>${awarenessActionsHtml(r)}</td></tr>`}).join('');
   }else if(isForestRegister){
     const forestActionsHtml=r=>`<div class="actions forest-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
-    tb.innerHTML=items.map(r=>{const d=r.data||{};const coord=[d.coord_x,d.coord_y].filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').join(' / ')||'—';const a=forestActionsHtml(r);if(currentForestType==='PEPINIERE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localisation))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${esc(displayValue(d.nbr_plants_distribues))}</td><td><strong>${esc(displayValue(d.nbr_plants_disponibles))}</strong></td><td>${esc(displayValue(d.contact_responsable))}</td><td>${a}</td></tr>`;if(currentForestType==='PLANTATION_CREEE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.densite))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(coord)}</td><td>${a}</td></tr>`;if(currentForestType==='REBOISEMENT')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.type_reboisement))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(displayValue(d.entreprise_responsable))}</td><td>${a}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie_parcelle))}</td><td>${esc(coord)}</td><td>${esc(displayValue(d.contact_proprietaire))}</td><td>${a}</td></tr>`}).join('');
+    tb.innerHTML=items.map(r=>{const d=r.data||{};const coord=[d.coord_x,d.coord_y].filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').join(' / ')||'—';const a=forestActionsHtml(r);if(currentForestType==='PEPINIERE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localisation))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${esc(displayValue(d.nbr_plants_distribues))}</td><td><strong>${esc(displayValue(d.nbr_plants_disponibles))}</strong></td><td>${a}</td></tr>`;if(currentForestType==='PLANTATION_CREEE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${a}</td></tr>`;if(currentForestType==='REBOISEMENT')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.type_reboisement))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${a}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie_parcelle))}</td><td>${esc(displayValue(d.contact_proprietaire))}</td><td>${a}</td></tr>`}).join('');
   }else if(isWoodRegister){
     const woodActionsHtml=r=>`<div class="actions wood-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
-    tb.innerHTML=items.map(r=>{const d=r.data||{},a=woodActionsHtml(r);if(currentWoodType==='EXPLOITANTS_SECONDAIRES')return `<tr><td title="${esc(displayValue(d.nom_operateur||r.title))}"><strong>${esc(displayValue(d.nom_operateur||r.title))}</strong></td><td>${esc(displayValue(d.contact))}</td><td title="${esc(displayValue(d.nature_produit))}">${esc(displayValue(d.nature_produit))}</td><td>${esc(displayValue(d.numero_permis))}</td><td>${esc(fmtDate(d.date_delivrance||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td title="${esc(displayValue(d.service_suivi))}">${esc(displayValue(d.service_suivi))}</td><td>${a}</td></tr>`;if(currentWoodType==='PRODUITS_QTE')return `<tr><td><strong>${esc(displayValue(d.statut_operateur))}</strong></td><td>${esc(woodProductSummary(d.charbon_qte_sacs,d.charbon_nbr_carnet,'sac'))}</td><td>${esc(woodProductSummary(d.bois_feu_qte_t,d.bois_feu_nbr_carnet,'T'))}</td><td>${esc(woodProductSummary(d.mortiers_qte_t,d.mortiers_nbr_carnet,'T'))}</td><td>${esc(woodProductSummary(d.kinkeliba_qte_t,d.kinkeliba_nbr_carnet,'T'))}</td><td>${esc(woodProductSummary(d.karite_qte_t,d.karite_nbr_carnet,'T'))}</td><td>${esc(woodProductSummary(d.bambou_qte_t,d.bambou_nbr_carnet,'T'))}</td><td>${a}</td></tr>`;const coord=[d.coord_x,d.coord_y].filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').join(' / ')||'—';const regDep=[d.region,d.departement].filter(Boolean).join(' / ')||'—';const name=d.nom_usine||d.nom_operateur||r.title||'—';const activity=d.activites_principales||d.service_rattachement||'—';const permit=[d.numero_permis,d.date_delivrance?fmtDate(d.date_delivrance):''].filter(Boolean).join(' / ')||'—';return `<tr><td>${esc(displayValue(d.type_exercant))}</td><td title="${esc(regDep)}">${esc(regDep)}</td><td>${esc(displayValue(d.localite))}</td><td title="${esc(name)}"><strong>${esc(name)}</strong></td><td title="${esc(activity)}">${esc(activity)}</td><td>${esc(displayValue(d.contact_operateur))}</td><td>${esc(coord)}</td><td>${esc(permit)}</td><td>${a}</td></tr>`}).join('');
+    tb.innerHTML=items.map(r=>{const d=r.data||{},a=woodActionsHtml(r);if(currentWoodType==='EXPLOITANTS_SECONDAIRES')return `<tr><td title="${esc(displayValue(d.nom_operateur||r.title))}"><strong>${esc(displayValue(d.nom_operateur||r.title))}</strong></td><td>${esc(displayValue(d.contact))}</td><td title="${esc(displayValue(d.nature_produit))}">${esc(displayValue(d.nature_produit))}</td><td>${esc(displayValue(d.numero_permis))}</td><td>${esc(displayValue(d.localite))}</td><td>${a}</td></tr>`;if(currentWoodType==='PRODUITS_QTE'){const autres=[woodProductSummary(d.mortiers_qte_t,d.mortiers_nbr_carnet,'T'),woodProductSummary(d.kinkeliba_qte_t,d.kinkeliba_nbr_carnet,'T'),woodProductSummary(d.karite_qte_t,d.karite_nbr_carnet,'T'),woodProductSummary(d.bambou_qte_t,d.bambou_nbr_carnet,'T')].filter(v=>v!=='—').join(' · ')||'—';return `<tr><td><strong>${esc(displayValue(d.statut_operateur))}</strong></td><td>${esc(woodProductSummary(d.charbon_qte_sacs,d.charbon_nbr_carnet,'sac'))}</td><td>${esc(woodProductSummary(d.bois_feu_qte_t,d.bois_feu_nbr_carnet,'T'))}</td><td title="${esc(autres)}">${esc(autres)}</td><td>${a}</td></tr>`;}const name=d.nom_usine||d.nom_operateur||r.title||'—';const activity=d.activites_principales||d.service_rattachement||'—';const permit=[d.numero_permis,d.date_delivrance?fmtDate(d.date_delivrance):''].filter(Boolean).join(' / ')||'—';return `<tr><td>${esc(displayValue(d.type_exercant))}</td><td>${esc(displayValue(d.localite))}</td><td title="${esc(name)}"><strong>${esc(name)}</strong></td><td title="${esc(activity)}">${esc(activity)}</td><td>${esc(displayValue(d.contact_operateur))}</td><td>${esc(permit)}</td><td>${a}</td></tr>`}).join('');
   }else if(isFireRegister){
     const a=r=>`<div class="actions compact-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consult.</span>'}</div>`;
-    tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentFireType==='DEGATS')return `<tr><td>${esc(fmtDate(d.date_constat||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.village))}</td><td>${esc(displayValue(d.nature_degats))}</td><td>${esc(displayValue(d.superficie_detruite))}</td><td>${esc(displayValue(d.personnes_impactees))}</td><td>${esc(displayValue(d.observations))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(displayValue(d.departement))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td><strong>${esc(displayValue(d.village))}</strong></td><td>${esc(displayValue(d.acte_creation))}</td><td>${esc(displayValue(d.president_nom))}</td><td>${esc(displayValue(d.president_contact))}</td><td>${ac}</td></tr>`}).join('');
+    tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentFireType==='DEGATS')return `<tr><td>${esc(fmtDate(d.date_constat||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.village))}</td><td title="${esc(displayValue(d.nature_degats))}">${esc(displayValue(d.nature_degats))}</td><td>${esc(displayValue(d.superficie_detruite))}</td><td title="${esc(displayValue(d.personnes_impactees))}">${esc(displayValue(d.personnes_impactees))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(displayValue(d.departement))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td><strong>${esc(displayValue(d.village))}</strong></td><td>${esc(displayValue(d.acte_creation))}</td><td>${esc(displayValue(d.president_nom))}</td><td>${esc(displayValue(d.president_contact))}</td><td>${ac}</td></tr>`}).join('');
   }else if(isFaunaRegister){
     const a=r=>`<div class="actions compact-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consult.</span>'}</div>`;
-    tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentFaunaType==='CONFLITS')return `<tr><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.village))}</td><td>${esc(displayValue(d.type_conflit))}</td><td>${esc(displayValue(d.nombre_animaux))}</td><td>${esc(displayValue(d.degats_recenses))}</td><td>H : ${esc(displayValue(d.hommes_impactes))} · F : ${esc(displayValue(d.femmes_impactees))}</td><td>${esc(displayValue(d.action_menee))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_observation||r.event_date))}</td><td><strong>${esc(displayValue(d.especes_animales))}</strong></td><td>${esc(displayValue(d.zone_observation))}</td><td>${esc(displayValue(d.commentaires_utiles))}</td><td>${ac}</td></tr>`}).join('');
+    tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentFaunaType==='CONFLITS')return `<tr><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.village))}</td><td>${esc(displayValue(d.type_conflit))}</td><td title="${esc(displayValue(d.degats_recenses))}">${esc(displayValue(d.degats_recenses))}</td><td>H : ${esc(displayValue(d.hommes_impactes))} · F : ${esc(displayValue(d.femmes_impactees))}</td><td title="${esc(displayValue(d.action_menee))}">${esc(displayValue(d.action_menee))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_observation||r.event_date))}</td><td><strong>${esc(displayValue(d.especes_animales))}</strong></td><td>${esc(displayValue(d.zone_observation))}</td><td>${esc(displayValue(d.commentaires_utiles))}</td><td>${ac}</td></tr>`}).join('');
   }else if(isMissionRegister){
     const a=r=>`<div class="actions compact-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${currentMissionType==='REPRESSION'?`<button class="btn btn-primary btn-sm" data-offense-pv="${r.id}">P-V</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consult.</span>'}</div>`;
     tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentMissionType==='DISPOSITION')return `<tr><td><strong>${esc(displayValue(d.libelle_mission||r.title))}</strong></td><td>${esc(displayValue(d.frequence))}</td><td>${ac}</td></tr>`;if(currentMissionType==='REALISEE')return `<tr><td><strong>${esc(displayValue(d.numero_mission||r.reference))}</strong></td><td>${esc(displayValue(d.libelle_mission==='Autre'?d.libelle_mission_autre:d.libelle_mission))}</td><td>${esc(displayValue(d.chef_mission))}</td><td>${esc(displayValue(d.autres_agents_participants))}</td><td>${esc(displayValue(d.objectif_mission))}</td><td>${esc(displayValue(d.resultat))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(displayValue(d.objet_infraction))}</td><td><strong>${esc(displayValue(d.personne_mise_cause))}</strong></td><td>${esc(displayValue(d.contact_mis_cause))}</td><td>${esc(String(d.liee_mission||'').toLowerCase()==='oui'?(d.mission_liee_label||'Oui'):'Non')}</td><td>${esc(displayValue(d.objets_saisis))}</td><td>${esc(displayValue(d.observations))}</td><td>${ac}</td></tr>`}).join('');
   }else{
-    tb.innerHTML=items.map(r=>`<tr><td>${esc(r.reference||'—')}</td><td><strong>${esc(r.title)}</strong>${isPvRegister&&r.data?.convocation_reference?`<br><span class="muted">Convocation : ${esc(r.data.convocation_reference)}</span>`:''}</td><td>${fmtDate(r.event_date)}</td><td><span class="pill">${esc(r.status)}</span></td><td><strong>${esc(r.source_organization)}</strong>${r.source_path&&r.source_path!==r.source_organization?`<br><span class="muted">${esc(r.source_path)}</span>`:''}</td><td>${fmtDate(r.updated_at)}</td><td>${actionsHtml(r)}</td></tr>`).join('');
+    tb.innerHTML=items.map(r=>`<tr>${genericSpec.map(c=>{const v=genericCellValue(r,c);return `<td title="${esc(v)}">${c.key==='$title'?`<strong>${esc(v)}</strong>`:esc(v)}</td>`}).join('')}<td class="actions-col">${actionsHtml(r)}</td></tr>`).join('');
   }
   items.forEach(r=>{
     tb.querySelector(`[data-view="${r.id}"]`)?.addEventListener('click',()=>openDetails(r));
@@ -747,7 +931,6 @@ function renderRows(items){
     if(isMissionRegister&&currentMissionType==='REPRESSION')tb.querySelector(`[data-offense-pv="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>manageOffensePv(r),'Ouverture…'));
     if(!r.owned)return;
     tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r,null,moduleKey==='documents'?currentDocumentType:null,null,moduleKey==='exploitation-forestiere'?forestTypeOf(r):null));
-    tb.querySelector(`[data-archive="${r.id}"]`)?.addEventListener('click',e=>archiveRecord(r,e.currentTarget));
     tb.querySelector(`[data-delete="${r.id}"]`)?.addEventListener('click',e=>deleteRecord(r,e.currentTarget));
   });
 }
@@ -1084,7 +1267,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     if(isExplanationDocument&&!record&&key==='delai_reponse_heures')el.value='48';
     wrap.appendChild(el);area.appendChild(wrap);
   }
-  const hideDocumentAmpliations=isMission&&editorMissionType==='DISPOSITION';
+  const hideDocumentAmpliations=(isMission&&editorMissionType==='DISPOSITION')||isFormation;
   if(!isPersonnel&&!hideDocumentAmpliations){
     const ampliationsWrap=document.createElement('div');
     ampliationsWrap.className='field full ampliations-toggle-field document-ampliations-field';
@@ -1313,13 +1496,6 @@ async function saveRecord(e){
     const saveModule=moduleKey==='documents'?effectiveModule(editorDocumentType):(moduleKey==='convocations'&&editorConvocationView==='PV'?'convocation_pv':(moduleKey==='missions'?effectiveModule(editorMissionType):moduleKey));
     try{await api('/api/save',{method:'POST',body:{module:saveModule,action:id?'update':'create',payload}});document.getElementById('editorDialog').close();await professionalAlert('Enregistrement réussi',`${activeSingular()} enregistré(e) avec succès.`);loadRecords()}catch(err){await professionalAlert('Enregistrement impossible',err.message);}
   },'Enregistrement…');
-}
-
-async function archiveRecord(r,button){
-  const yes=await professionalConfirm('Confirmer l’archivage',`Voulez-vous archiver « ${r.title} » ? L’historique sera conservé.`,{confirmText:'Archiver'});
-  if(!yes)return;
-  const actionModule=moduleKey==='documents'?effectiveModule(currentDocumentType):(moduleKey==='convocations'&&currentConvocationView==='PV'?'convocation_pv':(moduleKey==='missions'?effectiveModule(currentMissionType):moduleKey));
-  return withButtonLock(button,async()=>{try{await api('/api/save',{method:'POST',body:{module:actionModule,action:'archive',payload:{id:r.id}}});await professionalAlert('Archivage effectué','L’élément a été archivé avec succès.');loadRecords()}catch(e){await professionalAlert('Archivage impossible',e.message)}},'Archivage…');
 }
 
 async function deleteRecord(r,button){
@@ -1698,6 +1874,28 @@ body.list-print.personnel-sheet-print{font-family:"Arial Narrow",Arial,sans-seri
   .personnel-sheet-print .agent-profile,.personnel-sheet-print .agent-profile-section{break-inside:avoid!important;page-break-inside:avoid!important}
 }
 
+/* V1.59 — Rapport consolidé, A4 paysage */
+.report-bundle-print{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:9pt!important;padding-bottom:0!important}
+.report-bundle-print .official-header{margin-bottom:3mm;min-height:0}
+.report-bundle-print .official-reference{margin:1.5mm 0 4mm!important}
+.report-bundle-print .report-bundle-title{font-family:"Cooper Black",Cooper,serif!important;font-size:18pt!important;margin:4mm 0 5mm!important;line-height:1.08!important}
+.report-bundle-print .report-print-summary{display:grid;grid-template-columns:1.4fr 1.2fr .8fr;gap:2mm;border:1px solid #9ab7af;background:#f3f7f5;padding:2.2mm 3mm;margin:0 0 4mm;font-size:9pt;break-inside:avoid}
+.report-bundle-print .report-bundle-body{font-family:"Arial Narrow",Arial,sans-serif!important;font-size:8.2pt!important;line-height:1.08!important;margin-bottom:42mm!important}
+.report-bundle-print .report-print-section{margin:0 0 4mm;break-inside:auto;page-break-inside:auto}
+.report-bundle-print .report-section-head{display:flex;align-items:center;justify-content:space-between;gap:3mm;background:#e9f2ef;border-left:1.2mm solid #0a6657;padding:1.4mm 2mm;margin:0 0 1.2mm;break-after:avoid;page-break-after:avoid}
+.report-bundle-print .report-section-head h3{font-size:10pt!important;line-height:1!important;margin:0;font-weight:900;color:#173f33}
+.report-bundle-print .report-section-head span{font-size:7.5pt;color:#55645e;white-space:nowrap}
+.report-bundle-print .report-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:7.5pt!important;line-height:1.05!important;margin:0}
+.report-bundle-print .report-table thead{display:table-header-group}
+.report-bundle-print .report-table tr{break-inside:avoid;page-break-inside:avoid}
+.report-bundle-print .report-table th,.report-bundle-print .report-table td{font-size:7.5pt!important;line-height:1.05!important;padding:1.15mm .9mm;border:1px solid #a8b6b1;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}
+.report-bundle-print .report-table th{text-align:center;font-weight:800;background:#f0f4f2;color:#173f33}
+.report-bundle-print .report-empty-cell{text-align:center!important;color:#6b746f;font-style:italic;padding:2mm!important}
+.report-bundle-print .report-print-conclusion{margin-top:5mm;border:1px solid #b7c8c2;padding:3mm;break-inside:avoid;page-break-inside:avoid}
+.report-bundle-print .report-print-conclusion h3{font-size:10pt;margin:0 0 2mm;color:#173f33}
+.report-bundle-print .report-print-conclusion p{font-size:9pt;line-height:1.25;margin:0;text-align:justify}
+.report-bundle-print .official-bottom-row{margin-top:7mm}
+
 `}
 
 
@@ -1760,7 +1958,7 @@ function officialFooterHtml(){return ''}
 function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass='',showAmpliations=false}){
   const bodyClass=(signature?'record-print':'list-print')+(documentClass?` ${documentClass}`:'');
   const bottom=signature?`<div class="official-bottom-row">${showAmpliations&&settingsLine(settings.ampliations)?officialAmpliationsHtml(settings):'<div class="official-ampliations-placeholder"></div>'}${officialSignatureHtml(settings,date)}</div>`:'';
-  const orientationStyle=documentClass.includes('personnel-list-print')?'@page{size:A4 landscape;margin:1.5cm 1.2cm 1.2cm 1.2cm}':'';
+  const orientationStyle=(documentClass.includes('personnel-list-print')||documentClass.includes('report-bundle-print'))?'@page{size:A4 landscape;margin:1.5cm 1.2cm 1.2cm 1.2cm}':'';
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}${orientationStyle}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
 }
 

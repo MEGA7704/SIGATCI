@@ -716,3 +716,115 @@ body table.table td .btn{
   body table.table th,body table.table td{font-size:8px!important;padding:4px 2px!important;letter-spacing:0!important}
   body table.table .actions .btn,body table.table td .btn{font-size:7.5px!important;padding:4px 5px!important;border-radius:7px!important}
 }
+
+/* V1.57 — Tableaux compacts, justifiés et sans défilement horizontal. */
+body .table-wrap,
+body .personnel-table-wrap,
+body .sensibilisations-table-wrap,
+body .forest-table-wrap,
+body .wood-table-wrap,
+body .fire-table-wrap,
+body .fauna-table-wrap,
+body .mission-table-wrap,
+body .minef-activities-table-wrap{
+  overflow-x:hidden!important;
+}
+body table.table{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  table-layout:fixed!important;
+}
+body table.table th,
+body table.table td{
+  text-align:center!important;
+  vertical-align:middle!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+}
+body table.table th:first-child,
+body table.table td:first-child{padding-left:7px!important}
+body table.table th:last-child,
+body table.table td:last-child{padding-right:7px!important}
+body table.table .actions,
+body table.table td .actions{
+  width:100%!important;
+  display:flex!important;
+  justify-content:center!important;
+  align-items:center!important;
+  flex-wrap:nowrap!important;
+  gap:3px!important;
+  overflow:visible!important;
+}
+body table.table .actions .btn,
+body table.table td .btn{
+  flex:0 1 auto!important;
+  min-width:0!important;
+  padding:4px 6px!important;
+  white-space:nowrap!important;
+}
+body table.table .actions-col{width:23%!important;min-width:0!important}
+body table.table.adaptive-data-table th:not(.actions-col),
+body table.table.adaptive-data-table td:not(.actions-col){width:auto!important}
+
+/* Sur les écrans étroits, les colonnes secondaires d'un registre adaptatif sont masquées
+   afin de conserver une lecture sans barre de défilement horizontale. */
+@media(max-width:760px){
+  body table.table.adaptive-data-table th:nth-child(n+4):not(:last-child),
+  body table.table.adaptive-data-table td:nth-child(n+4):not(:last-child){display:none!important}
+  body table.table.adaptive-data-table .actions-col{width:34%!important;min-width:0!important}
+  body table.table.adaptive-data-table th,
+  body table.table.adaptive-data-table td{font-size:8.5px!important;padding:5px 3px!important}
+  body table.table.adaptive-data-table .actions .btn{font-size:7.5px!important;padding:4px 4px!important}
+}
+
+/* V1.59 — Rapports et bilans consolidés */
+.reports-page{max-width:1680px}
+.reports-page-head{align-items:flex-end;gap:18px}
+.report-filter-card,.report-preview-card{overflow:hidden}
+.report-filter-head,.report-preview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px}
+.report-filter-head h2,.report-preview-head h2{margin:2px 0 4px;font-size:1.25rem}
+.report-kicker{text-transform:uppercase;letter-spacing:.09em;font-size:.72rem;font-weight:900;color:#87681b}
+.report-period-badge{border:1px solid #b9ccc6;background:#edf6f3;color:#174a3f;border-radius:999px;padding:8px 13px;font-weight:800;white-space:nowrap}
+.report-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.report-filter-grid .field{min-width:0}
+.report-filter-grid .field[hidden]{display:none!important}
+.report-conclusion-field{grid-column:span 2}
+.report-filter-grid textarea{resize:vertical;min-height:70px}
+.report-filter-actions{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #dce7e3}
+.report-check{display:flex;align-items:center;gap:8px;font-weight:700;color:#334c44}
+.report-check input{width:18px;height:18px}
+.report-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.report-metric{padding:14px 16px;display:grid;gap:5px;min-width:0}
+.report-metric span{font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:#697a74;font-weight:800}
+.report-metric strong{font-size:1.15rem;color:#173f33;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.report-loading{text-align:center;padding:34px 14px;color:#63736e;font-weight:700}
+.report-sections{display:grid;gap:14px}
+.report-preview-section{border:1px solid #d7e3df;border-radius:10px;overflow:hidden;background:#fff;min-width:0}
+.report-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#f1f7f5;border-bottom:1px solid #d7e3df}
+.report-section-head h3{margin:0;font-size:.98rem;color:#173f33}
+.report-section-head span{font-size:.78rem;color:#687872;font-weight:700;white-space:nowrap}
+.report-preview-section .report-table{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse}
+.report-preview-section .report-table th,.report-preview-section .report-table td{padding:8px 7px;border:1px solid #e0e8e5;font-size:.78rem;line-height:1.15;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.report-preview-section .report-table th{background:#fafcfb;color:#345149;text-align:center;font-weight:900}
+.report-preview-section .report-table td{text-align:left}
+.report-empty-cell{text-align:center!important;color:#7a8581;font-style:italic;white-space:normal!important}
+@media(max-width:1100px){
+  .report-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .report-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .report-conclusion-field{grid-column:1/-1}
+}
+@media(max-width:700px){
+  .reports-page-head,.report-filter-head,.report-preview-head{align-items:stretch;flex-direction:column}
+  .reports-page-head .btn{width:100%}
+  .report-period-badge{align-self:flex-start;white-space:normal}
+  .report-filter-grid,.report-metrics{grid-template-columns:1fr}
+  .report-conclusion-field{grid-column:auto}
+  .report-filter-actions{align-items:stretch;flex-direction:column}
+  .report-filter-actions .spacer{display:none}
+  .report-filter-actions .btn{width:100%}
+  .report-preview-section .report-table th,.report-preview-section .report-table td{font-size:.68rem;padding:6px 4px}
+}

@@ -483,3 +483,18 @@ Le formulaire Activités du MINEF masque désormais complètement le champ Statu
 ## V1.56 — Popup Disposition de mission
 - Suppression du bloc « Chef de mission » dans « Ajouter — Disposition de mission de contrôle ».
 - Suppression du bloc « AMPLIATIONS du document » uniquement pour ce formulaire.
+
+## V1.57 — Tableaux adaptatifs sans archivage
+- Tableaux métier justifiés sur 100 % du cadre, sans défilement horizontal.
+- Colonnes affichées selon les champs des formulaires dédiés ; colonnes secondaires masquées lorsque nécessaire.
+- Données longues condensées sur une ligne avec ellipse, accessibles intégralement via « Voir ».
+- Suppression de tous les boutons d’archivage visibles du programme.
+
+## V1.58 — Formations : popup simplifié
+- Dans le popup Ajouter / Modifier — Formation, suppression de la section « Participant à ajouter ».
+- Suppression de toute la section « AMPLIATIONS du document » uniquement pour les formulaires Formation.
+- Les champs métier de la formation (date, thème, effectifs H/F et observations) sont conservés.
+- Les autres modules et leurs ampliations restent inchangés.
+
+## V1.59 — Rapports et bilans consolidés
+La section Rapports et bilans consolide désormais les registres et travaux du service dans un document unique. Le filtre de période gère les vues mensuelle, trimestrielle, semestrielle, annuelle et personnalisée. L'impression produit un bilan complet en A4 paysage avec l'en-tête administratif et la signature configurés.
