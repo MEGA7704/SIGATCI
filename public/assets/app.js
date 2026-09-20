@@ -1,6 +1,6 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
 import {MODULE_CONFIG} from './module-config.js';
-let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='REDYNAMISE',editorFireType='REDYNAMISE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,pendingSmartSourceRecord=null;
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
 const config=MODULE_CONFIG[moduleKey];
@@ -561,10 +561,10 @@ function setupFireModule(){
   document.querySelectorAll('[data-fire-tab]').forEach(btn=>btn.addEventListener('click',()=>setFireView(btn.dataset.fireTab)));
   bindFireFilters();
   const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();
-  setFireView(['REDYNAMISE','CREE','RENOUVELE','DEGATS'].includes(requested)?requested:'REDYNAMISE');
+  setFireView(['CREE','REDYNAMISE','RENOUVELE','DEGATS'].includes(requested)?requested:'CREE');
 }
 function setFireView(type){
-  if(!['REDYNAMISE','CREE','RENOUVELE','DEGATS'].includes(type))type='REDYNAMISE';
+  if(!['CREE','REDYNAMISE','RENOUVELE','DEGATS'].includes(type))type='CREE';
   currentFireType=type;editorFireType=type;currentPage=1;
   document.querySelectorAll('[data-fire-tab]').forEach(btn=>{const on=btn.dataset.fireTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
   const cfg=fireConfig(type)||{};
@@ -925,7 +925,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   statusInput.value=record?.status||'ACTIVE';
   const refField=refInput.closest('.field'),dateField=dateInput.closest('.field'),titleField=titleInput.closest('.field'),statusField=statusInput.closest('.field');
   titleInput.required=true;
-  refField.classList.remove('personnel-base-hidden');dateField.classList.remove('personnel-base-hidden');titleField.classList.remove('personnel-base-hidden');statusField.classList.remove('personnel-status-hidden');
+  refField.classList.remove('personnel-base-hidden');dateField.classList.remove('personnel-base-hidden');titleField.classList.remove('personnel-base-hidden');statusField.classList.remove('personnel-status-hidden');statusField.hidden=false;
   if(isPersonnel){
     refField.classList.add('personnel-base-hidden');
     dateField.classList.add('personnel-base-hidden');
@@ -937,6 +937,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     dateField.classList.add('personnel-base-hidden');
     titleField.classList.add('personnel-base-hidden');
     statusField.classList.add('personnel-status-hidden');
+    statusField.hidden=true;
     titleInput.required=false;
     titleInput.value=record?.title||record?.data?.intitule_activite||'Activité';
     statusInput.value=record?.status||'ACTIVE';
@@ -1054,7 +1055,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     let el;
     if(type==='textarea'){el=document.createElement('textarea');el.rows=2}
     else if(type==='select'){el=document.createElement('select');for(const o of String(opts||'').split('|')){const op=document.createElement('option');op.value=o;op.textContent=o;el.appendChild(op)}}
-    else if(['mission-select','mission-realisee-select','agent-select'].includes(type)){el=document.createElement('select');const op=document.createElement('option');op.value='';op.textContent='— Sélectionner —';el.appendChild(op);if(type==='mission-select'){const other=document.createElement('option');other.value='Autre';other.textContent='Autre';el.appendChild(other)}}
+    else if(['mission-select','mission-realisee-select','agent-select','created-fire-select'].includes(type)){el=document.createElement('select');const op=document.createElement('option');op.value='';op.textContent=type==='created-fire-select'?'— Sélectionner un comité créé —':'— Sélectionner —';el.appendChild(op);if(type==='mission-select'){const other=document.createElement('option');other.value='Autre';other.textContent='Autre';el.appendChild(other)}}
     else{el=document.createElement('input');el.type=type==='computed'?'number':'text';if(!['computed','computed-text'].includes(type))el.type=type||'text';if(['computed','computed-text'].includes(type)){el.readOnly=true;el.classList.add('computed-field')}}
     el.dataset.key=key;
     let initialValue=record?.data?.[key]??'';
@@ -1114,6 +1115,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   }
   if(isForest)mountForestEditorLogic(record);
   if(isWood)mountWoodEditorLogic(record);
+  if(isFire)mountFireEditorLogic(record);
   if(isMission)mountMissionEditorLogic(record);
   if(isFormation)mountFormationEditorLogic(record);
   if(isMinefActivity)mountMinefActivityEditorLogic(record);
@@ -1136,6 +1138,48 @@ async function fetchOwnModuleItems(module,extra={}){
 }
 function editorFieldWrap(key){return document.querySelector(`#dynamicFields [data-field-key="${key}"]`)}
 function setFieldVisibility(key,show,{clear=false}={}){const w=editorFieldWrap(key);if(!w)return;w.hidden=!show;if(!show&&clear){const el=w.querySelector('[data-key]');if(el)el.value=''}}
+async function mountFireEditorLogic(record=null){
+  if(!['REDYNAMISE','RENOUVELE'].includes(editorFireType))return;
+  const area=document.getElementById('dynamicFields');if(!area)return;
+  const q=k=>area.querySelector(`[data-key="${k}"]`);
+  const village=q('village'),departement=q('departement'),sous=q('sous_prefecture'),acte=q('acte_creation'),president=q('president_nom'),contact=q('president_contact');
+  if(!village)return;
+  const currentVillage=String(record?.data?.village||village.value||'');
+  try{
+    const created=await fetchOwnModuleItems('feux-brousse',{fireType:'CREE'});
+    const rows=created
+      .filter(r=>String(r?.data?.village||'').trim())
+      .sort((a,b)=>String(a.data?.village||'').localeCompare(String(b.data?.village||''),'fr',{sensitivity:'base'}));
+    village.innerHTML='<option value="">— Sélectionner un comité créé —</option>';
+    rows.forEach(r=>{
+      const d=r.data||{};const op=document.createElement('option');
+      op.value=String(d.village||'');
+      op.textContent=[d.village,d.sous_prefecture,d.departement].filter(Boolean).join(' — ');
+      op.dataset.departement=String(d.departement||'');op.dataset.sousPrefecture=String(d.sous_prefecture||'');op.dataset.acte=String(d.acte_creation||'');op.dataset.president=String(d.president_nom||'');op.dataset.contact=String(d.president_contact||'');op.dataset.sourceId=String(r.id||'');
+      village.appendChild(op);
+    });
+    if(currentVillage && !Array.from(village.options).some(o=>o.value===currentVillage)){
+      const legacy=document.createElement('option');legacy.value=currentVillage;legacy.textContent=`${currentVillage} — comité enregistré`;village.appendChild(legacy);
+    }
+    village.value=currentVillage;
+  }catch(e){
+    console.warn('Liste des comités créés',e);
+    if(currentVillage){const op=document.createElement('option');op.value=currentVillage;op.textContent=currentVillage;village.appendChild(op);village.value=currentVillage}
+  }
+  const autofill=()=>{
+    const op=village.selectedOptions?.[0];if(!op||!op.value)return;
+    if(departement)departement.value=op.dataset.departement||departement.value||'';
+    if(sous)sous.value=op.dataset.sousPrefecture||sous.value||'';
+    if(acte)acte.value=op.dataset.acte||acte.value||'';
+    if(president)president.value=op.dataset.president||president.value||'';
+    if(contact)contact.value=op.dataset.contact||contact.value||'';
+  };
+  village.addEventListener('change',autofill);
+  // Pour une nouvelle redynamisation / un nouveau renouvellement, le choix du village
+  // récupère automatiquement les informations du comité créé. Tous les champs restent modifiables.
+  if(!record && village.value)autofill();
+}
+
 async function mountMissionEditorLogic(record=null){
   const area=document.getElementById('dynamicFields');if(!area)return;
   const q=k=>area.querySelector(`[data-key="${k}"]`);

@@ -458,3 +458,10 @@ Voir `CORRECTION_V1_50_FEUX_FAUNE_MISSIONS_FORMATIONS.txt`.
 
 ## V1.51 — Activités du MINEF
 Ajout d’une page dédiée dans Activités techniques pour enregistrer et suivre les activités du MINEF et les activités externes, avec formulaire conditionnel, filtres, tableau, impression et gestion complète des enregistrements.
+
+
+## V1.52 — Feux de brousse : comités créés, redynamisés et renouvelés
+Ordre des onglets corrigé et préremplissage intelligent des comités redynamisés/renouvelés depuis le registre des comités créés.
+
+## V1.53 — Correction Activités du MINEF
+Le formulaire Activités du MINEF masque désormais complètement le champ Statut. Le champ Cadre MINEF est affiché uniquement pour « activités du MINEF » et masqué/vidé pour « activités externes au MINEF ».
