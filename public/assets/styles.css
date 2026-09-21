@@ -876,3 +876,8 @@ body[data-module="missions"] .forest-tab{white-space:nowrap;overflow:hidden;text
 body[data-module="missions"] .forest-tabs{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important;overflow:visible!important}
 body[data-module="missions"] .forest-tab{min-width:0!important;white-space:normal!important;line-height:1.15!important;min-height:46px!important}
 @media(max-width:760px){body[data-module="missions"] .forest-tabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;justify-content:flex-start!important}body[data-module="missions"] .forest-tab{flex:0 0 auto!important;min-width:185px!important;white-space:normal!important}}
+
+/* V1.68 — Ordre de mission : boutons sur une seule ligne sans retour */
+body[data-module="missions"] .forest-tabs{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important;overflow:visible!important}
+body[data-module="missions"] .forest-tab{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;min-width:0!important;font-size:clamp(8.5px,.92vw,12px)!important;line-height:1.1!important;min-height:44px!important;padding:8px 5px!important}
+@media(max-width:760px){body[data-module="missions"] .forest-tabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;justify-content:flex-start!important}body[data-module="missions"] .forest-tab{flex:0 0 auto!important;min-width:max-content!important;white-space:nowrap!important;font-size:11px!important;padding-left:10px!important;padding-right:10px!important}}

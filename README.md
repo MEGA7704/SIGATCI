@@ -532,9 +532,9 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 - Refonte des impressions « REPRESSION DES INFRACTIONS » et « PROCES-VERBAL D’INFRACTION » selon les textes fournis.
 - Synchronisation automatique du P-V avec les données de l’affaire liée ; les parties rédactionnelles du P-V restent modifiables.
 
-## V1.66 — Ordre de mission et P-V lié
-Ajout d’un espace **Ordre de mission** dans Missions, avec page dédiée, numéro automatique, équipe issue du Personnel, impression conforme au modèle et bouton **P-V** lié alimenté automatiquement par l’ordre de mission. Les ordres de mission sont aussi disponibles dans les rapports consolidés.
-
-
-## V1.67 — Boutons et menu horizontal
-Correction de la navigation principale et des boutons Missions, avec cache-busting des assets.
+## V1.68 — Ordre de mission et P-V lié
+- Ajout d'un espace « Ordre de mission » dans Missions, sur la même ligne que les autres boutons.
+- Page dédiée : `/missions/ordre-de-mission/`.
+- Numérotation automatique des ordres de mission et génération d'un P-V lié depuis la colonne Actions.
+- Préremplissage automatique du P-V à partir de l'ordre de mission.
+- Modèles d'impression ORDRE DE MISSION et PROCES-VERBAL DE MISSION.
