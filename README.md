@@ -563,3 +563,9 @@ Corrections :
 - Le P-V de mission reprend exactement le même bloc d’identification de mission avant ses rubriques rédactionnelles.
 - Le P-V récupère désormais aussi les matricules, corps, fonctions, destination et deux moyens de déplacement de l’ordre lié.
 - Version des assets portée à 1.71 pour neutraliser les anciens caches navigateur/Cloudflare.
+
+
+## V1.72 — Ordre de mission / PV de mission
+- Corps des documents ORDRE DE MISSION et PROCES-VERBAL DE MISSION en Arial Narrow 14 pt.
+- Interligne maintenu à 1,5 sur tout le corps, tableaux, blocs et signature associés.
+- Version des ressources passée à 1.72 pour forcer le rechargement après déploiement.
