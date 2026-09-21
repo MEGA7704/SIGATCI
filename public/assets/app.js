@@ -1,6 +1,6 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
 import {MODULE_CONFIG} from './module-config.js';
-let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,pendingSmartSourceRecord=null;
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
 const config=MODULE_CONFIG[moduleKey];
@@ -26,7 +26,7 @@ function fireTypeOf(record){const t=String(record?.data?._fire_type||'').toUpper
 function fireConfig(type=currentFireType){return config?.fireTypes?.[type]||null}
 function faunaTypeOf(record){const t=String(record?.data?._fauna_type||'').toUpperCase();return ['OBSERVATIONS','CONFLITS'].includes(t)?t:'OBSERVATIONS'}
 function faunaConfig(type=currentFaunaType){return config?.faunaTypes?.[type]||null}
-function missionTypeOf(record){const t=String(record?.data?._mission_type||record?.data?._offense_type||'').toUpperCase();return ['DISPOSITION','REALISEE','REPRESSION','PV_INFRACTION'].includes(t)?t:'REALISEE'}
+function missionTypeOf(record){const t=String(record?.data?._mission_type||record?.data?._offense_type||'').toUpperCase();return ['DISPOSITION','REALISEE','ORDRE_MISSION','PV_ORDRE_MISSION','REPRESSION','PV_INFRACTION'].includes(t)?t:'REALISEE'}
 function missionConfig(type=currentMissionType){return config?.missionTypes?.[type]||null}
 function normalizeWoodText(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
 function woodVisibleFields(type=currentWoodType,data={}){
@@ -59,7 +59,9 @@ function activeFields(record=null){
   if(moduleKey==='faune')return faunaConfig(record?faunaTypeOf(record):editorFaunaType)?.fields||[];
   if(moduleKey==='missions'){
     const t=record?missionTypeOf(record):editorMissionType;
-    return t==='PV_INFRACTION'?(config?.offensePvFields||[]):(missionConfig(t)?.fields||[]);
+    if(t==='PV_INFRACTION')return config?.offensePvFields||[];
+    if(t==='PV_ORDRE_MISSION')return config?.orderMissionPvFields||[];
+    return missionConfig(t)?.fields||[];
   }
   return config?.fields||[];
 }
@@ -73,7 +75,9 @@ function activeSingular(record=null){
   if(moduleKey==='faune')return faunaConfig(record?faunaTypeOf(record):editorFaunaType)?.singular||'Enregistrement faune';
   if(moduleKey==='missions'){
     const t=record?missionTypeOf(record):editorMissionType;
-    return t==='PV_INFRACTION'?'Procès-verbal d’infraction':(missionConfig(t)?.singular||'Mission');
+    if(t==='PV_INFRACTION')return 'Procès-verbal d’infraction';
+    if(t==='PV_ORDRE_MISSION')return 'Procès-verbal de mission';
+    return missionConfig(t)?.singular||'Mission';
   }
   return config?.singular||'Document';
 }
@@ -608,17 +612,17 @@ function updateFaunaFilterVisibility(type){const set=(id,on)=>{const el=document
 function setupMissionsModule(){
   document.getElementById('pageTitle').textContent=config.title;document.getElementById('pageSubtitle').textContent=config.subtitle;bindCommonModuleControls();
   document.getElementById('printListBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…'));
-  document.querySelectorAll('[data-mission-tab]').forEach(btn=>btn.addEventListener('click',()=>setMissionView(btn.dataset.missionTab)));
-  const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();setMissionView(['DISPOSITION','REALISEE','REPRESSION'].includes(requested)?requested:'DISPOSITION');
+  document.querySelectorAll('[data-mission-tab]').forEach(btn=>btn.addEventListener('click',()=>{const type=String(btn.dataset.missionTab||'').toUpperCase();const dedicated=location.pathname.includes('/missions/ordre-de-mission');if(type==='ORDRE_MISSION'&&!dedicated){location.href='/missions/ordre-de-mission/';return}if(type!=='ORDRE_MISSION'&&dedicated){location.href=`/missions/?view=${encodeURIComponent(type)}`;return}setMissionView(type)}));
+  const requested=String(new URLSearchParams(location.search).get('view')||document.body.dataset.defaultMissionView||'').toUpperCase();setMissionView(['DISPOSITION','REALISEE','ORDRE_MISSION','REPRESSION'].includes(requested)?requested:'DISPOSITION');
 }
 function setMissionView(type){
-  if(!['DISPOSITION','REALISEE','REPRESSION'].includes(type))type='DISPOSITION';currentMissionType=type;editorMissionType=type;currentPage=1;
+  if(!['DISPOSITION','REALISEE','ORDRE_MISSION','REPRESSION'].includes(type))type='DISPOSITION';currentMissionType=type;editorMissionType=type;currentPage=1;
   document.querySelectorAll('[data-mission-tab]').forEach(btn=>{const on=btn.dataset.missionTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
-  const cfg=missionConfig(type)||{};document.getElementById('missionViewTitle').textContent=cfg.label||'Missions';document.getElementById('missionViewSubtitle').textContent=type==='DISPOSITION'?'Planification des missions de contrôle et de leur fréquence.':type==='REALISEE'?'Enregistrement des missions de contrôle effectivement réalisées.':'Enregistrement des infractions constatées, saisies associées et procès-verbaux.';
+  const cfg=missionConfig(type)||{};document.getElementById('missionViewTitle').textContent=cfg.label||'Missions';document.getElementById('missionViewSubtitle').textContent=type==='DISPOSITION'?'Planification des missions de contrôle et de leur fréquence.':type==='REALISEE'?'Enregistrement des missions de contrôle effectivement réalisées.':type==='ORDRE_MISSION'?'Édition, suivi et impression des ordres de mission avec procès-verbal lié.':'Enregistrement des infractions constatées, saisies associées et procès-verbaux.';
   const addBtn=document.getElementById('addBtn');if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,null,null,null,null,null,type)}
   updateMissionTableHead(type);const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);loadRecords();
 }
-function updateMissionTableHead(type){const head=document.getElementById('missionTableHead');if(!head)return;const cols=type==='DISPOSITION'?['Libellé de la mission','Fréquence dans le temps','Actions']:type==='REALISEE'?['N° mission','Libellé','Chef de mission','Autres participants','Objectif','Résultat','Actions']:['Objet de l’infraction','Personne mise en cause','Contact','Liée à une mission','Saisies','Observations','Actions'];head.innerHTML='<tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>'}
+function updateMissionTableHead(type){const head=document.getElementById('missionTableHead');if(!head)return;const cols=type==='DISPOSITION'?['Libellé de la mission','Fréquence dans le temps','Actions']:type==='REALISEE'?['N° mission','Libellé','Chef de mission','Autres participants','Objectif','Résultat','Actions']:type==='ORDRE_MISSION'?['N° mission','Chef de mission','Agents de la mission','Objectif','Départ','Retour','Actions']:['Objet de l’infraction','Personne mise en cause','Contact','Liée à une mission','Saisies','Observations','Actions'];head.innerHTML='<tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>'}
 
 function setEditorFieldValue(key,value){const el=document.querySelector(`#dynamicFields [data-key="${key}"]`);if(el&&value!==undefined&&value!==null)el.value=String(value)}
 async function manageOffensePv(offense){
@@ -642,6 +646,26 @@ async function manageOffensePv(offense){
   }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le P-V lié à cette affaire.')}
 }
 
+
+async function manageOrderMissionPv(orderMission){
+  try{
+    const scope=new URLSearchParams(location.search).get('scopeOrg');
+    const q=new URLSearchParams({module:'missions',page:'1',limit:'10',search:'',missionType:'PV_ORDRE_MISSION',sourceOrderMissionId:String(orderMission.id)});if(scope)q.set('scopeOrg',scope);
+    const resp=await api(`/api/load?${q.toString()}`);const existing=(resp.items||[])[0]||null;
+    if(existing){const sd=orderMission.data||{};existing.data={...(existing.data||{}),_source_order_mission_id:orderMission.id,ordre_reference:sd.numero_mission||orderMission.reference||'',chef_mission:sd.chef_mission||'',_chef_mission_grade:sd._chef_mission_grade||'',_chef_mission_fonction:sd._chef_mission_fonction||'',agents_mission:[1,2,3,4].map(i=>{const n=sd[`agent_mission_${i}`];if(!n)return '';return [n,sd[`_agent_mission_${i}_grade`],sd[`_agent_mission_${i}_fonction`]].filter(Boolean).join(' – ')}).filter(Boolean).join('\n'),residence_affectation:sd.residence_affectation||'',objectif_mission:sd.objectif_mission||'',date_depart:sd.date_depart||'',date_retour:sd.date_retour||'',moyens_deplacement:[[sd.moyen_deplacement_1,sd.immatriculation_1],[sd.moyen_deplacement_2,sd.immatriculation_2]].filter(x=>x.some(Boolean)).map(x=>x.filter(Boolean).join(' — ')).join('\n')};editorMissionType='PV_ORDRE_MISSION';editorOrderMissionPvRecord=existing;if(existing.owned)openEditor(existing,null,null,null,null,null,null,'PV_ORDRE_MISSION');else openDetails(existing);return}
+    if(!orderMission.owned){await professionalAlert('Procès-verbal','Aucun P-V n’est encore enregistré pour cet ordre de mission.');return}
+    editorOrderMissionPvRecord=null;openEditor(null,null,null,null,null,null,null,'PV_ORDRE_MISSION');
+    const d=orderMission.data||{};setEditorFieldValue('_source_order_mission_id',orderMission.id);
+    const team=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join('
+');
+    const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('
+');
+    const auto={ordre_reference:d.numero_mission||orderMission.reference||'',chef_mission:d.chef_mission||'',agents_mission:team,residence_affectation:d.residence_affectation||'',objectif_mission:d.objectif_mission||'',date_depart:d.date_depart||'',date_retour:d.date_retour||'',moyens_deplacement:means};
+    Object.entries(auto).forEach(([k,v])=>setEditorFieldValue(k,v));
+    const lieu=document.querySelector('#dynamicFields [data-key="lieu_pv"]');if(lieu&&!lieu.value)lieu.value=d.residence_affectation||'';
+  }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le P-V lié à cet ordre de mission.')}
+}
+
 /* V1.59 — Rapports et bilans consolidés.
    La page agrège les registres imprimables du périmètre hiérarchique autorisé
    et compose un seul document pour la période sélectionnée. */
@@ -660,7 +684,7 @@ function reportFaunaType(r){return String(r?.data?._fauna_type||'OBSERVATIONS').
 function reportMissionType(r){return String(r?.data?._mission_type||r?.data?._offense_type||'REALISEE').toUpperCase()}
 function reportRecordDate(r){
   const d=reportData(r);
-  const keys=['date_activite','date_observation','date_constat','date_rencontre','date_presentation','date_debut','date_fin','date_cessation','date_reprise','date_prise_service','date_demande','date_delivrance','note_service_date','lettre_mise_stage_date','decision_date','date_naissance'];
+  const keys=['date_activite','date_observation','date_constat','date_rencontre','date_presentation','date_debut','date_fin','date_depart','date_retour','date_cessation','date_reprise','date_prise_service','date_demande','date_delivrance','note_service_date','lettre_mise_stage_date','decision_date','date_naissance'];
   for(const k of keys){const v=String(d[k]||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v}
   const v=String(r?.event_date||r?.created_at||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(v)?v:'';
 }
@@ -681,6 +705,8 @@ const REPORT_SECTIONS=[
   {module:'activites-minef',label:'Activités du MINEF et activités externes',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Type',r=>reportData(r).type_activite),reportCol('Cadre MINEF',r=>reportData(r).categorie_minef),reportCol('Intitulé',r=>reportData(r).intitule_activite||r.title),reportCol('Organisateur',r=>reportData(r).organisateur),reportCol('Commentaire',r=>reportData(r).commentaire)]},
   {module:'missions',label:'Dispositions des missions de contrôle',match:r=>reportMissionType(r)==='DISPOSITION',columns:[reportCol('Libellé',r=>reportData(r).libelle_mission||r.title),reportCol('Fréquence',r=>reportData(r).frequence)]},
   {module:'missions',label:'Missions de contrôle réalisées',match:r=>reportMissionType(r)==='REALISEE',columns:[reportCol('N° mission',r=>reportData(r).numero_mission||r.reference),reportCol('Libellé',r=>reportData(r).libelle_mission==='Autre'?reportData(r).libelle_mission_autre:reportData(r).libelle_mission),reportCol('Chef de mission',r=>reportData(r).chef_mission),reportCol('Objectif',r=>reportData(r).objectif_mission),reportCol('Résultat',r=>reportData(r).resultat)]},
+  {module:'missions',label:'Ordres de mission',match:r=>reportMissionType(r)==='ORDRE_MISSION',columns:[reportCol('N° mission',r=>reportData(r).numero_mission||r.reference),reportCol('Chef de mission',r=>reportData(r).chef_mission),reportCol('Objectif',r=>reportData(r).objectif_mission),reportCol('Départ',r=>reportDateValue(reportData(r).date_depart)),reportCol('Retour',r=>reportDateValue(reportData(r).date_retour)),reportCol('Résidence',r=>reportData(r).residence_affectation)]},
+  {module:'missions',label:'Procès-verbaux de mission',match:r=>reportMissionType(r)==='PV_ORDRE_MISSION',columns:[reportCol('N° mission',r=>reportData(r).ordre_reference),reportCol('Chef de mission',r=>reportData(r).chef_mission),reportCol('Lieu',r=>reportData(r).lieu_pv),reportCol('Départ',r=>reportDateValue(reportData(r).date_depart)),reportCol('Retour',r=>reportDateValue(reportData(r).date_retour)),reportCol('Conclusion',r=>reportData(r).conclusion)]},
   {module:'controles',label:'Contrôles',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Contrôle',r=>r.title),reportCol('Type',r=>reportData(r).type),reportCol('Lieu',r=>reportData(r).lieu),reportCol('Équipe',r=>reportData(r).equipe),reportCol('Résultat',r=>reportData(r).resultat)]},
   {module:'infractions',label:'Répression des infractions',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Objet',r=>reportData(r).objet_infraction||r.title),reportCol('Personne mise en cause',r=>reportData(r).personne_mise_cause||reportData(r).personne),reportCol('Contact',r=>reportData(r).contact_mis_cause),reportCol('Objets saisis',r=>reportData(r).objets_saisis),reportCol('Observations',r=>reportData(r).observations)]},
   {module:'offense_pv',label:'Procès-verbaux d’infraction',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Affaire',r=>r.title),reportCol('Objet',r=>reportData(r).objet_infraction),reportCol('Mission',r=>reportData(r).mission_reference_affichage||[reportData(r)._mission_numero,reportData(r)._mission_libelle].filter(Boolean).join(' / ')),reportCol('Chef de mission',r=>reportData(r)._mission_chef)]},
@@ -938,8 +964,8 @@ function renderRows(items){
     const a=r=>`<div class="actions compact-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consult.</span>'}</div>`;
     tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentFaunaType==='CONFLITS')return `<tr><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.village))}</td><td>${esc(displayValue(d.type_conflit))}</td><td title="${esc(displayValue(d.degats_recenses))}">${esc(displayValue(d.degats_recenses))}</td><td>H : ${esc(displayValue(d.hommes_impactes))} · F : ${esc(displayValue(d.femmes_impactees))}</td><td title="${esc(displayValue(d.action_menee))}">${esc(displayValue(d.action_menee))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_observation||r.event_date))}</td><td><strong>${esc(displayValue(d.especes_animales))}</strong></td><td>${esc(displayValue(d.zone_observation))}</td><td>${esc(displayValue(d.commentaires_utiles))}</td><td>${ac}</td></tr>`}).join('');
   }else if(isMissionRegister){
-    const a=r=>`<div class="actions compact-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${currentMissionType==='REPRESSION'?`<button class="btn btn-primary btn-sm" data-offense-pv="${r.id}">P-V</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consult.</span>'}</div>`;
-    tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentMissionType==='DISPOSITION')return `<tr><td><strong>${esc(displayValue(d.libelle_mission||r.title))}</strong></td><td>${esc(displayValue(d.frequence))}</td><td>${ac}</td></tr>`;if(currentMissionType==='REALISEE')return `<tr><td><strong>${esc(displayValue(d.numero_mission||r.reference))}</strong></td><td>${esc(displayValue(d.libelle_mission==='Autre'?d.libelle_mission_autre:d.libelle_mission))}</td><td>${esc(displayValue(d.chef_mission))}</td><td>${esc(displayValue(d.autres_agents_participants))}</td><td>${esc(displayValue(d.objectif_mission))}</td><td>${esc(displayValue(d.resultat))}</td><td>${ac}</td></tr>`;return `<tr><td>${esc(displayValue(d.objet_infraction))}</td><td><strong>${esc(displayValue(d.personne_mise_cause))}</strong></td><td>${esc(displayValue(d.contact_mis_cause))}</td><td>${esc(String(d.liee_mission||'').toLowerCase()==='oui'?(d.mission_liee_label||'Oui'):'Non')}</td><td title="${esc([d.objets_saisis,d.produits_saisis,d.materiels_saisis].filter(Boolean).join(' | '))}">${esc(displayValue([d.objets_saisis,d.produits_saisis,d.materiels_saisis].filter(Boolean).join(' · ')))}</td><td>${esc(displayValue(d.observations))}</td><td>${ac}</td></tr>`}).join('');
+    const a=r=>`<div class="actions compact-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${currentMissionType==='REPRESSION'?`<button class="btn btn-primary btn-sm" data-offense-pv="${r.id}">P-V</button>`:''}${currentMissionType==='ORDRE_MISSION'?`<button class="btn btn-primary btn-sm" data-order-pv="${r.id}">P-V</button>`:''}${r.owned?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consult.</span>'}</div>`;
+    tb.innerHTML=items.map(r=>{const d=r.data||{},ac=a(r);if(currentMissionType==='DISPOSITION')return `<tr><td><strong>${esc(displayValue(d.libelle_mission||r.title))}</strong></td><td>${esc(displayValue(d.frequence))}</td><td>${ac}</td></tr>`;if(currentMissionType==='REALISEE')return `<tr><td><strong>${esc(displayValue(d.numero_mission||r.reference))}</strong></td><td>${esc(displayValue(d.libelle_mission==='Autre'?d.libelle_mission_autre:d.libelle_mission))}</td><td>${esc(displayValue(d.chef_mission))}</td><td>${esc(displayValue(d.autres_agents_participants))}</td><td>${esc(displayValue(d.objectif_mission))}</td><td>${esc(displayValue(d.resultat))}</td><td>${ac}</td></tr>`;if(currentMissionType==='ORDRE_MISSION'){const agents=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join(' · ')||'—';return `<tr><td><strong>${esc(displayValue(d.numero_mission||r.reference))}</strong></td><td>${esc(displayValue(d.chef_mission))}</td><td title="${esc(agents)}">${esc(agents)}</td><td title="${esc(displayValue(d.objectif_mission))}">${esc(displayValue(d.objectif_mission))}</td><td>${esc(fmtDate(d.date_depart))}</td><td>${esc(fmtDate(d.date_retour))}</td><td>${ac}</td></tr>`;}return `<tr><td>${esc(displayValue(d.objet_infraction))}</td><td><strong>${esc(displayValue(d.personne_mise_cause))}</strong></td><td>${esc(displayValue(d.contact_mis_cause))}</td><td>${esc(String(d.liee_mission||'').toLowerCase()==='oui'?(d.mission_liee_label||'Oui'):'Non')}</td><td title="${esc([d.objets_saisis,d.produits_saisis,d.materiels_saisis].filter(Boolean).join(' | '))}">${esc(displayValue([d.objets_saisis,d.produits_saisis,d.materiels_saisis].filter(Boolean).join(' · ')))}</td><td>${esc(displayValue(d.observations))}</td><td>${ac}</td></tr>`}).join('');
   }else{
     tb.innerHTML=items.map(r=>`<tr>${genericSpec.map(c=>{const v=genericCellValue(r,c);return `<td title="${esc(v)}">${c.key==='$title'?`<strong>${esc(v)}</strong>`:esc(v)}</td>`}).join('')}<td class="actions-col">${actionsHtml(r)}</td></tr>`).join('');
   }
@@ -948,6 +974,7 @@ function renderRows(items){
     tb.querySelector(`[data-print="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(r),'Préparation…'));
     if(isConvocationRegister)tb.querySelector(`[data-pv="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>manageConvocationPv(r),'Ouverture…'));
     if(isMissionRegister&&currentMissionType==='REPRESSION')tb.querySelector(`[data-offense-pv="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>manageOffensePv(r),'Ouverture…'));
+    if(isMissionRegister&&currentMissionType==='ORDRE_MISSION')tb.querySelector(`[data-order-pv="${r.id}"]`)?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>manageOrderMissionPv(r),'Ouverture…'));
     if(!r.owned)return;
     tb.querySelector(`[data-edit="${r.id}"]`)?.addEventListener('click',()=>openEditor(r,null,moduleKey==='documents'?currentDocumentType:null,null,moduleKey==='exploitation-forestiere'?forestTypeOf(r):null));
     tb.querySelector(`[data-delete="${r.id}"]`)?.addEventListener('click',e=>deleteRecord(r,e.currentTarget));
@@ -1232,6 +1259,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   }
   const area=document.getElementById('dynamicFields');area.innerHTML='';
   if(isMission&&editorMissionType==='PV_INFRACTION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_offense_id';hidden.value=record?.data?._source_offense_id||'';area.appendChild(hidden)}
+  if(isMission&&editorMissionType==='PV_ORDRE_MISSION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_order_mission_id';hidden.value=record?.data?._source_order_mission_id||'';area.appendChild(hidden)}
   for(const [key,label,type,opts] of activeFields(record)){
     if(type==='section'){
       const section=document.createElement('div');section.className='form-section-heading full';section.dataset.sectionKey=key;section.innerHTML=`<strong>${esc(label)}</strong>`;area.appendChild(section);continue;
@@ -1323,7 +1351,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   if(isFormation)mountFormationEditorLogic(record);
   if(isMinefActivity)mountMinefActivityEditorLogic(record);
   const foot=d.querySelector('.dialog-foot');foot?.querySelector('[data-pv-print-dialog]')?.remove();
-  if(isMission&&editorMissionType==='PV_INFRACTION'&&record&&foot){const b=document.createElement('button');b.type='button';b.className='btn btn-secondary';b.dataset.pvPrintDialog='1';b.textContent='Imprimer le P-V';b.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(record),'Préparation…'));foot.insertBefore(b,foot.lastElementChild)}
+  if(isMission&&['PV_INFRACTION','PV_ORDRE_MISSION'].includes(editorMissionType)&&record&&foot){const b=document.createElement('button');b.type='button';b.className='btn btn-secondary';b.dataset.pvPrintDialog='1';b.textContent='Imprimer le P-V';b.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(record),'Préparation…'));foot.insertBefore(b,foot.lastElementChild)}
   d.showModal();
   mountSmartAutofill(record);
   mountHistorySuggestions(record);
@@ -1409,6 +1437,30 @@ async function mountMissionEditorLogic(record=null){
     }catch(e){console.warn('Préremplissage mission',e)}
     const updateOther=()=>setFieldVisibility('libelle_mission_autre',String(mission?.value||'')==='Autre',{clear:String(mission?.value||'')!=='Autre'});
     mission?.addEventListener('change',updateOther);updateOther();
+  }
+  if(editorMissionType==='ORDRE_MISSION'){
+    const numero=q('numero_mission');if(numero&&!record)numero.placeholder='Attribué automatiquement à l’enregistrement';
+    const locality=String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+    const residence=q('residence_affectation');if(residence&&!record&&!residence.value)residence.value=locality||session?.user?.organizationName||'';
+    const ensureHidden=(key,value='')=>{let el=q(key);if(!el){el=document.createElement('input');el.type='hidden';el.dataset.key=key;area.appendChild(el)}el.value=String(value??'');return el};
+    try{
+      const agents=await fetchOwnModuleItems('personnel');
+      for(const key of ['chef_mission','agent_mission_1','agent_mission_2','agent_mission_3','agent_mission_4']){
+        const sel=q(key);if(!sel)continue;const current=String(record?.data?.[key]||sel.value||'');
+        sel.innerHTML='<option value="">— Sélectionner —</option>'+agents.map(r=>`<option value="${esc(r.title||'')}" data-grade="${esc(r.data?.grade||'')}" data-fonction="${esc(r.data?.fonction||'')}">${esc(r.title||'')}${r.data?.matricule?` — ${esc(r.data.matricule)}`:''}</option>`).join('');sel.value=current;
+        const prefix=key==='chef_mission'?'_chef_mission':`_${key}`;const grade=ensureHidden(`${prefix}_grade`,record?.data?.[`${prefix}_grade`]||'');const fonction=ensureHidden(`${prefix}_fonction`,record?.data?.[`${prefix}_fonction`]||'');
+        const sync=()=>{const op=sel.selectedOptions?.[0];grade.value=op?.dataset?.grade||'';fonction.value=op?.dataset?.fonction||''};sel.addEventListener('change',sync);if(!record&&sel.value)sync();
+      }
+    }catch(e){console.warn('Équipe ordre de mission',e)}
+  }
+  if(editorMissionType==='PV_ORDRE_MISSION'){
+    const sourceId=Number(q('_source_order_mission_id')?.value||record?.data?._source_order_mission_id||0);
+    if(sourceId){
+      try{
+        const orders=await fetchOwnModuleItems('missions',{missionType:'ORDRE_MISSION'});const source=orders.find(r=>Number(r.id)===sourceId);
+        if(source){const d=source.data||{};const agents=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join('\n');const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('\n');const auto={ordre_reference:d.numero_mission||source.reference||'',chef_mission:d.chef_mission||'',agents_mission:agents,residence_affectation:d.residence_affectation||'',objectif_mission:d.objectif_mission||'',date_depart:d.date_depart||'',date_retour:d.date_retour||'',moyens_deplacement:means};Object.entries(auto).forEach(([k,v])=>{const el=q(k);if(el)el.value=v??''});const lieu=q('lieu_pv');if(!record&&lieu&&!lieu.value)lieu.value=d.residence_affectation||''}
+      }catch(e){console.warn('Ordre de mission lié au P-V',e)}
+    }
   }
   if(editorMissionType==='REPRESSION'){
     const linked=q('liee_mission'),mission=q('mission_liee_id');
@@ -1543,10 +1595,14 @@ async function saveRecord(e){
       payload.status='ACTIVE';payload.reference=payload.reference||'';
       if(editorMissionType==='PV_INFRACTION'){
         data._mission_type='PV_INFRACTION';payload.eventDate=data.date_controle||payload.eventDate||'';payload.title=payload.title||'Infraction';
+      }else if(editorMissionType==='PV_ORDRE_MISSION'){
+        data._mission_type='PV_ORDRE_MISSION';payload.eventDate=data.date_depart||payload.eventDate||'';payload.title=`Procès-verbal — ${data.ordre_reference||'Ordre de mission'}`;
       }else if(editorMissionType==='DISPOSITION'){
         data._mission_type='DISPOSITION';payload.eventDate='';payload.title=data.libelle_mission||'Disposition de mission de contrôle';
       }else if(editorMissionType==='REALISEE'){
         data._mission_type='REALISEE';if(String(data.libelle_mission||'')!=='Autre')data.libelle_mission_autre='';payload.eventDate='';payload.title=(data.libelle_mission==='Autre'?data.libelle_mission_autre:data.libelle_mission)||'Mission de contrôle réalisée';
+      }else if(editorMissionType==='ORDRE_MISSION'){
+        data._mission_type='ORDRE_MISSION';payload.eventDate=data.date_depart||'';payload.title=`Ordre de mission ${data.numero_mission||''}`.trim();
       }else if(editorMissionType==='REPRESSION'){
         data._offense_type='REPRESSION';data._mission_type='REPRESSION';const linked=String(data.liee_mission||'').toLowerCase()==='oui';
         if(linked){data.agents_arrestation='';const sel=document.querySelector('#dynamicFields [data-key="mission_liee_id"]');data.mission_liee_label=sel?.selectedOptions?.[0]?.textContent||data.mission_liee_label||''}else{data.mission_liee_id='';data.mission_liee_label=''}
@@ -2109,6 +2165,27 @@ function missionChiefSignatureHtml(d={},settings={},date='',time='',showDate=tru
   const gradeFunction=[grade,fn].filter(Boolean).join(' / ');
   return `<div class="official-signature mission-chief-signature">${showDate?`<div class="made-at">${madeAt}</div>`:''}<div class="signer-title">Le Chef de mission</div><div class="mission-signature-space"></div>${chief?`<div class="mission-signature-name">${esc(chief)}</div>`:''}${gradeFunction?`<div class="mission-signature-function">${esc(gradeFunction)}</div>`:''}</div>`;
 }
+function orderMissionTeamHtml(d={}){
+  const rows=[];
+  const line=(name,grade,fn,role)=>{if(!String(name||'').trim())return;const meta=[grade,fn].map(v=>String(v||'').trim()).filter(Boolean).join(' – ');rows.push(`<div class="order-team-line"><span>${esc(String(name).trim())}${meta?` – ${esc(meta)}`:''}</span><strong> : ${esc(role)}</strong></div>`)};
+  line(d.chef_mission,d._chef_mission_grade,d._chef_mission_fonction,'Chef de mission');
+  for(let i=1;i<=4;i++)line(d[`agent_mission_${i}`],d[`_agent_mission_${i}_grade`],d[`_agent_mission_${i}_fonction`],'Agent(s) de la mission');
+  if(!rows.length)rows.push('<div class="order-team-line">—</div>');
+  return `<div class="order-team">${rows.join('')}</div>`;
+}
+function orderMissionPrintBody(record,settings={}){
+  const d=record.data||{};const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+  const n=displayValue(d.numero_mission||record.reference);
+  const pair=(label1,value1,label2,value2)=>`<div class="order-pair"><div><strong>${esc(label1)} :</strong> ${esc(displayValue(value1))}</div><div><strong>${esc(label2)} :</strong> ${esc(displayValue(value2))}</div></div>`;
+  return `<div class="document-title">ORDRE DE MISSION</div><div class="order-mission-body"><div class="order-number">N° de la mission : ${esc(n)}</div><p>Le <strong>Chef de Poste des Eaux et Forêts de ${esc(locality||'—')}</strong> donne l’ordre à :</p>${orderMissionTeamHtml(d)}<p><strong>Résidence d’affectation :</strong> ${esc(displayValue(d.residence_affectation||locality))}</p><p><strong>Objectif de la mission :</strong> ${esc(displayValue(d.objectif_mission)).split('\n').join('<br>')}</p>${pair('Date de départ',fmtDate(d.date_depart),'Date de retour',fmtDate(d.date_retour))}${pair('Moyens de déplacement',d.moyen_deplacement_1,'Immatriculation',d.immatriculation_1)}${pair('Moyens de déplacement',d.moyen_deplacement_2,'Immatriculation',d.immatriculation_2)}</div>`;
+}
+function orderMissionPvPrintBody(record){
+  const d=record.data||{};
+  const info=`<div class="order-auto-grid"><div><strong>N° de la mission :</strong> ${esc(displayValue(d.ordre_reference))}</div><div><strong>Chef de mission :</strong> ${esc(displayValue(d.chef_mission))}</div><div class="wide"><strong>Agent(s) de la mission :</strong><br>${esc(displayValue(d.agents_mission)).split('\n').join('<br>')}</div><div><strong>Résidence d’affectation :</strong> ${esc(displayValue(d.residence_affectation))}</div><div><strong>Lieu :</strong> ${esc(displayValue(d.lieu_pv))}</div><div><strong>Date de départ :</strong> ${esc(fmtDate(d.date_depart))}</div><div><strong>Date de retour :</strong> ${esc(fmtDate(d.date_retour))}</div><div class="wide"><strong>Objectif :</strong> ${esc(displayValue(d.objectif_mission)).split('\n').join('<br>')}</div><div class="wide"><strong>Moyens de déplacement :</strong><br>${esc(displayValue(d.moyens_deplacement)).split('\n').join('<br>')}</div></div>`;
+  const sec=(n,t,v)=>`<section class="report-section"><h2>${n}. ${esc(t)}</h2><p>${esc(displayValue(v)).split('\n').join('<br>')}</p></section>`;
+  return `<div class="document-title">PROCES-VERBAL DE MISSION</div><div class="order-mission-pv-body">${info}${sec(1,'Déroulement de la mission',d.deroulement)}${sec(2,'Constatations',d.constatations)}${sec(3,'Résultats / mesures prises',d.resultats)}${sec(4,'Observations',d.observations)}${sec(5,'Conclusion / suite donnée',d.conclusion)}</div>`;
+}
+
 function reportSection(n,title,html){return `<section class="report-section"><h2>${n}. ${esc(title)}</h2>${html}</section>`}
 function repressionPrintBody(record){
   const d=record.data||{};const linked=String(d.liee_mission||'').toLowerCase()==='oui';const mission=offenseMissionLabel(d);const date=fmtDate(d.date_controle||record.event_date);const lieu=displayValue(d.lieu_controle);const chief=String(d._mission_chef||'').trim();
@@ -2144,7 +2221,12 @@ async function printRecord(record){
   try{
     const s=await ensurePrintSettings();
     let body='';let title='';let customSignatureHtml='';let customDocumentClass='';
-    if(moduleKey==='missions'&&missionTypeOf(record)==='REPRESSION'){
+    if(moduleKey==='missions'&&missionTypeOf(record)==='ORDRE_MISSION'){
+      title='ORDRE DE MISSION';body=orderMissionPrintBody(record,s);customDocumentClass='order-mission-print';
+    }else if(moduleKey==='missions'&&missionTypeOf(record)==='PV_ORDRE_MISSION'){
+      title='PROCES-VERBAL DE MISSION';body=orderMissionPvPrintBody(record);customDocumentClass='order-mission-pv-print';
+      const d=record.data||{};const stamp=String(record.created_at||record.updated_at||d.date_retour||d.date_depart||new Date().toISOString());customSignatureHtml=missionChiefSignatureHtml({_mission_chef:d.chef_mission,_mission_chef_grade:d._chef_mission_grade,_mission_chef_fonction:d._chef_mission_fonction},s,stamp.slice(0,10),'',true);
+    }else if(moduleKey==='missions'&&missionTypeOf(record)==='REPRESSION'){
       title='REPRESSION DES INFRACTIONS';body=repressionPrintBody(record);customDocumentClass='offense-report-print';
       const d=record.data||{};const madeDate=String(record.created_at||record.updated_at||d.date_controle||record.event_date||new Date().toISOString()).slice(0,10);customSignatureHtml=missionChiefSignatureHtml(d,s,madeDate,'');
     }else if(moduleKey==='missions'&&missionTypeOf(record)==='PV_INFRACTION'){
@@ -2384,6 +2466,8 @@ async function printCurrentList(){
         headers=['N°','Libellé de la mission','Fréquence'];rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(displayValue(d.libelle_mission||r.title))}</td><td>${esc(displayValue(d.frequence))}</td></tr>`}).join('');
       }else if(currentMissionType==='REALISEE'){
         headers=['N°','N° mission','Libellé','Chef de mission','Participants','Objectif','Résultat'];rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(displayValue(d.numero_mission||r.reference))}</td><td>${esc(displayValue(d.libelle_mission==='Autre'?d.libelle_mission_autre:d.libelle_mission))}</td><td>${esc(displayValue(d.chef_mission))}</td><td>${esc(displayValue(d.autres_agents_participants))}</td><td>${esc(displayValue(d.objectif_mission))}</td><td>${esc(displayValue(d.resultat))}</td></tr>`}).join('');
+      }else if(currentMissionType==='ORDRE_MISSION'){
+        headers=['N°','N° mission','Chef de mission','Agents','Résidence','Objectif','Départ','Retour'];rows=lastItems.map((r,i)=>{const d=r.data||{},agents=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join(' · ');return `<tr><td>${i+1}</td><td>${esc(displayValue(d.numero_mission||r.reference))}</td><td>${esc(displayValue(d.chef_mission))}</td><td>${esc(displayValue(agents))}</td><td>${esc(displayValue(d.residence_affectation))}</td><td>${esc(displayValue(d.objectif_mission))}</td><td>${esc(fmtDate(d.date_depart))}</td><td>${esc(fmtDate(d.date_retour))}</td></tr>`}).join('');
       }else{
         headers=['N°','Objet infraction','Personne mise en cause','Contact','Mission liée ?','Objets saisis','Observations'];rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(displayValue(d.objet_infraction))}</td><td>${esc(displayValue(d.personne_mise_cause))}</td><td>${esc(displayValue(d.contact_mis_cause))}</td><td>${esc(displayValue(d.liee_mission))}</td><td>${esc(displayValue(d.objets_saisis))}</td><td>${esc(displayValue(d.observations))}</td></tr>`}).join('');
       }

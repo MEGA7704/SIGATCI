@@ -1125,7 +1125,9 @@ async function apiLoad(env, request) {
   }
   if (module === 'missions') {
     const missionType=String(url.searchParams.get('missionType')||'').trim().toUpperCase();
-    if(['DISPOSITION','REALISEE'].includes(missionType)){where+=` AND json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')=?`;params.push(missionType)}
+    if(['DISPOSITION','REALISEE','ORDRE_MISSION','PV_ORDRE_MISSION'].includes(missionType)){where+=` AND json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')=?`;params.push(missionType)}
+    const sourceOrderMissionId=Number(url.searchParams.get('sourceOrderMissionId')||0);
+    if(missionType==='PV_ORDRE_MISSION'&&sourceOrderMissionId>0){where+=` AND CAST(json_extract(COALESCE(r.data_json,'{}'),'$._source_order_mission_id') AS INTEGER)=?`;params.push(sourceOrderMissionId)}
   }
   if (module === 'infractions') {
     const missionType=String(url.searchParams.get('missionType')||'').trim().toUpperCase();
@@ -1274,10 +1276,37 @@ async function offenseHasPv(env,orgId,offenseId){
   const row=await env.SIGAT_DB.prepare(`SELECT id FROM offense_minutes WHERE organization_id=? AND archived_at IS NULL AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_offense_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(offenseId||0)).first();return !!row;
 }
 async function ensureMissionNumber(env,orgId,incomingData){
-  if(String(incomingData?._mission_type||'').toUpperCase()!=='REALISEE'||String(incomingData?.numero_mission||'').trim())return;
-  const year=new Date().getUTCFullYear();
-  const row=await env.SIGAT_DB.prepare(`SELECT MAX(CAST(substr(COALESCE(json_extract(data_json,'$.numero_mission'),''),9) AS INTEGER)) AS n FROM missions WHERE organization_id=? AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='REALISEE' AND json_extract(COALESCE(data_json,'{}'),'$.numero_mission') LIKE ?`).bind(orgId,`MC-${year}-%`).first();
-  incomingData.numero_mission=`MC-${year}-${String(Number(row?.n||0)+1).padStart(4,'0')}`;
+  const type=String(incomingData?._mission_type||'').toUpperCase();
+  if(!['REALISEE','ORDRE_MISSION'].includes(type)||String(incomingData?.numero_mission||'').trim())return;
+  const year=new Date().getUTCFullYear();const prefix=type==='ORDRE_MISSION'?'OM':'MC';
+  const row=await env.SIGAT_DB.prepare(`SELECT MAX(CAST(substr(COALESCE(json_extract(data_json,'$.numero_mission'),''),9) AS INTEGER)) AS n FROM missions WHERE organization_id=? AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')=? AND json_extract(COALESCE(data_json,'{}'),'$.numero_mission') LIKE ?`).bind(orgId,type,`${prefix}-${year}-%`).first();
+  incomingData.numero_mission=`${prefix}-${year}-${String(Number(row?.n||0)+1).padStart(4,'0')}`;
+}
+async function validateOrderMissionPvSource(env,orgId,sourceId,ignorePvId=0){
+  sourceId=Number(sourceId||0);if(!sourceId)throw new Error('L’ordre de mission d’origine est obligatoire pour établir le P-V.');
+  const source=await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,data_json FROM missions WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(sourceId,orgId).first();
+  if(!source)throw new Error('L’ordre de mission sélectionné est introuvable dans votre structure.');
+  const sd=safeJson(source.data_json);if(String(sd._mission_type||'').toUpperCase()!=='ORDRE_MISSION')throw new Error('La source sélectionnée n’est pas un ordre de mission.');
+  const dup=await env.SIGAT_DB.prepare(`SELECT id FROM missions WHERE organization_id=? AND archived_at IS NULL AND id<>? AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='PV_ORDRE_MISSION' AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_order_mission_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(ignorePvId||0),sourceId).first();
+  if(dup)throw new Error('Un P-V est déjà enregistré pour cet ordre de mission. Modifiez le P-V existant.');
+  return source;
+}
+async function orderMissionHasPv(env,orgId,orderId){
+  const row=await env.SIGAT_DB.prepare(`SELECT id FROM missions WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='PV_ORDRE_MISSION' AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_order_mission_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(orderId||0)).first();return !!row;
+}
+function syncPvFromOrderMission(incomingData,source,sourceData){
+  incomingData._source_order_mission_id=Number(source.id);incomingData._mission_type='PV_ORDRE_MISSION';
+  incomingData.ordre_reference=String(sourceData.numero_mission||source.reference||'');incomingData.chef_mission=String(sourceData.chef_mission||'');
+  incomingData._chef_mission_grade=String(sourceData._chef_mission_grade||'');incomingData._chef_mission_fonction=String(sourceData._chef_mission_fonction||'');
+  const agents=[];for(let i=1;i<=4;i++){const n=String(sourceData[`agent_mission_${i}`]||'').trim();if(!n)continue;const g=String(sourceData[`_agent_mission_${i}_grade`]||'').trim();const f=String(sourceData[`_agent_mission_${i}_fonction`]||'').trim();agents.push([n,g,f].filter(Boolean).join(' – '))}
+  incomingData.agents_mission=agents.join('\n');incomingData.residence_affectation=String(sourceData.residence_affectation||'');incomingData.objectif_mission=String(sourceData.objectif_mission||'');incomingData.date_depart=String(sourceData.date_depart||'');incomingData.date_retour=String(sourceData.date_retour||'');
+  incomingData.moyens_deplacement=[[sourceData.moyen_deplacement_1,sourceData.immatriculation_1],[sourceData.moyen_deplacement_2,sourceData.immatriculation_2]].filter(x=>x.some(v=>String(v||'').trim())).map(x=>x.filter(v=>String(v||'').trim()).join(' — ')).join('\n');
+}
+async function refreshLinkedOrderMissionPvs(env,orgId,orderId){
+  const source=await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,data_json FROM missions WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(Number(orderId||0),orgId).first();
+  if(!source)return;const sourceData=safeJson(source.data_json);if(String(sourceData._mission_type||'').toUpperCase()!=='ORDRE_MISSION')return;
+  const rows=await env.SIGAT_DB.prepare(`SELECT id,data_json FROM missions WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='PV_ORDRE_MISSION' AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_order_mission_id') AS INTEGER)=?`).bind(orgId,Number(orderId||0)).all();
+  for(const row of rows.results||[]){const d=safeJson(row.data_json);syncPvFromOrderMission(d,source,sourceData);await env.SIGAT_DB.prepare(`UPDATE missions SET title=?,event_date=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(`Procès-verbal — ${d.ordre_reference||'Ordre de mission'}`,d.date_depart||null,JSON.stringify(d),row.id,orgId).run()}
 }
 async function hydrateRepressionMissionContext(env,orgId,incomingData){
   if(String(incomingData?._mission_type||incomingData?._offense_type||'').toUpperCase()!=='REPRESSION')return;
@@ -1324,6 +1353,8 @@ async function apiSave(env, request) {
   const incomingSourceStageId = incomingStageType === 'FIN_STAGE' ? Number(incomingData._source_stage_id || 0) : 0;
   const incomingSourceConvocationId = module === 'convocation_pv' ? Number(incomingData._source_convocation_id || 0) : 0;
   const incomingSourceOffenseId = module === 'offense_pv' ? Number(incomingData._source_offense_id || 0) : 0;
+  const incomingMissionType = module === 'missions' ? String(incomingData._mission_type || '').toUpperCase() : '';
+  const incomingSourceOrderMissionId = module === 'missions' && incomingMissionType === 'PV_ORDRE_MISSION' ? Number(incomingData._source_order_mission_id || 0) : 0;
   if(module==='missions') await ensureMissionNumber(env,orgId,incomingData);
   if(module==='infractions'){
     try{await hydrateRepressionMissionContext(env,orgId,incomingData)}catch(e){return bad(String(e?.message||e))}
@@ -1331,6 +1362,7 @@ async function apiSave(env, request) {
 
   if (action === 'create') {
     let title = String(payload.title || '').trim();
+    if(module==='missions'&&incomingMissionType==='ORDRE_MISSION')title=`Ordre de mission ${String(incomingData.numero_mission||'').trim()}`.trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
       try { await validateStageSource(env, orgId, incomingSourceStageId, 0); }
@@ -1347,6 +1379,10 @@ async function apiSave(env, request) {
         payload.title=incomingData.personne_mise_cause||source.title||'Infraction';title=String(payload.title||'Infraction').trim();
       } catch (e) { return bad(String(e?.message || e)); }
     }
+    if (module === 'missions' && incomingMissionType === 'PV_ORDRE_MISSION') {
+      try { const source=await validateOrderMissionPvSource(env,orgId,incomingSourceOrderMissionId,0);const sourceData=safeJson(source.data_json);syncPvFromOrderMission(incomingData,source,sourceData);title=`Procès-verbal — ${incomingData.ordre_reference||'Ordre de mission'}`;payload.title=title;payload.eventDate=incomingData.date_depart||payload.eventDate||null; }
+      catch(e){ return bad(String(e?.message||e)); }
+    }
     const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
       .bind(orgId, payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), auth.user.id).run();
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);
@@ -1358,12 +1394,13 @@ async function apiSave(env, request) {
   if (!id) return bad('Identifiant manquant.');
   const owned = await env.SIGAT_DB.prepare(`SELECT id,status,data_json FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).first();
   if (!owned) return bad('Cette donnée ne peut pas être modifiée par votre structure.', 403, 'NOT_OWNER');
-  const previousData = module === 'stages' ? safeJson(owned.data_json) : {};
+  const previousData = ['stages','missions'].includes(module) ? safeJson(owned.data_json) : {};
   const previousStageType = module === 'stages' ? String(previousData._stage_type || '').toUpperCase() : '';
   const previousSourceStageId = previousStageType === 'FIN_STAGE' ? Number(previousData._source_stage_id || 0) : 0;
 
   if (action === 'update') {
     let title = String(payload.title || '').trim();
+    if(module==='missions'&&incomingMissionType==='ORDRE_MISSION')title=`Ordre de mission ${String(incomingData.numero_mission||'').trim()}`.trim();
     if (!title) return bad('Le titre ou nom principal est obligatoire.');
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) {
       try { await validateStageSource(env, orgId, incomingSourceStageId, id); }
@@ -1380,8 +1417,13 @@ async function apiSave(env, request) {
         payload.title=incomingData.personne_mise_cause||source.title||'Infraction';title=String(payload.title||'Infraction').trim();
       } catch (e) { return bad(String(e?.message || e)); }
     }
+    if (module === 'missions' && incomingMissionType === 'PV_ORDRE_MISSION') {
+      try { const source=await validateOrderMissionPvSource(env,orgId,incomingSourceOrderMissionId,id);const sourceData=safeJson(source.data_json);syncPvFromOrderMission(incomingData,source,sourceData);title=`Procès-verbal — ${incomingData.ordre_reference||'Ordre de mission'}`;payload.title=title;payload.eventDate=incomingData.date_depart||payload.eventDate||null; }
+      catch(e){ return bad(String(e?.message||e)); }
+    }
     await env.SIGAT_DB.prepare(`UPDATE ${table} SET reference=?,title=?,event_date=?,status=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`)
       .bind(payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), id, orgId).run();
+    if(module==='missions'&&incomingMissionType==='ORDRE_MISSION')await refreshLinkedOrderMissionPvs(env,orgId,id);
 
   if (module === 'stages') {
       if (previousSourceStageId && previousSourceStageId !== incomingSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
@@ -1394,6 +1436,7 @@ async function apiSave(env, request) {
   if (action === 'delete') {
     if (module === 'convocations' && await convocationHasPv(env, orgId, id)) return bad('Cette convocation possède un procès-verbal. Supprimez d’abord le procès-verbal lié avant de supprimer la convocation.');
     if (module === 'infractions' && await offenseHasPv(env, orgId, id)) return bad('Cette affaire possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’affaire.');
+    if (module === 'missions' && String(previousData._mission_type||'').toUpperCase()==='ORDRE_MISSION' && await orderMissionHasPv(env,orgId,id)) return bad('Cet ordre de mission possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’ordre de mission.');
     await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
     if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
     await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });

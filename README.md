@@ -531,3 +531,6 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 - Affichage intelligent du chef de mission et des agents lorsque l’affaire est liée à une mission réalisée.
 - Refonte des impressions « REPRESSION DES INFRACTIONS » et « PROCES-VERBAL D’INFRACTION » selon les textes fournis.
 - Synchronisation automatique du P-V avec les données de l’affaire liée ; les parties rédactionnelles du P-V restent modifiables.
+
+## V1.66 — Ordre de mission et P-V lié
+Ajout d’un espace **Ordre de mission** dans Missions, avec page dédiée, numéro automatique, équipe issue du Personnel, impression conforme au modèle et bouton **P-V** lié alimenté automatiquement par l’ordre de mission. Les ordres de mission sont aussi disponibles dans les rapports consolidés.

@@ -101,6 +101,17 @@ export const MODULE_CONFIG={
       ['libelle_mission','Libellé de la mission','mission-select'],['libelle_mission_autre','Préciser « autre » mission','text'],['numero_mission','N° de la mission','computed-text'],['chef_mission','Chef de mission','agent-select'],['autres_agents_participants','Autres agents participants','textarea'],['objectif_mission','Objectif de la mission','textarea'],
       ['__section_moyens','Moyens mis à disposition','section'],['moyens_deplacement','Moyens de déplacement','text'],['immatriculation','Immatriculation','text'],['materiels_equipements','Matériels / équipements','textarea'],['resultat','Résultat','textarea'],['observations_particulieres','Observations particulières','textarea']
     ]},
+    ORDRE_MISSION:{label:'Ordre de mission',singular:'Ordre de mission',addLabel:'Ajouter ordre de mission',backendModule:'missions',fields:[
+      ['numero_mission','N° de la mission','computed-text'],
+      ['__section_equipe','Équipe de mission','section'],
+      ['chef_mission','Chef de mission','agent-select'],
+      ['agent_mission_1','Agent de la mission 1','agent-select'],['agent_mission_2','Agent de la mission 2','agent-select'],['agent_mission_3','Agent de la mission 3','agent-select'],['agent_mission_4','Agent de la mission 4','agent-select'],
+      ['residence_affectation','Résidence d’affectation','text'],['objectif_mission','Objectif de la mission','textarea'],
+      ['date_depart','Date de départ','date'],['date_retour','Date de retour','date'],
+      ['__section_moyens_ordre','Moyens de déplacement','section'],
+      ['moyen_deplacement_1','Moyen de déplacement 1','text'],['immatriculation_1','Immatriculation 1','text'],
+      ['moyen_deplacement_2','Moyen de déplacement 2','text'],['immatriculation_2','Immatriculation 2','text']
+    ]},
     REPRESSION:{label:'Répression des infractions',singular:'Répression d’infraction',addLabel:'Ajouter répression',backendModule:'infractions',fields:[
       ['__section_liaison','Liée à une mission ?','section'],['liee_mission','Choix','select','oui|non'],['mission_liee_id','N° / intitulé de la mission','mission-realisee-select'],['_mission_chef','Chef de mission','computed-text'],['_mission_agents','Agent(s) de la mission','computed-textarea'],['agents_arrestation','Agent(s) ayant procédé à l’intervention','textarea'],
       ['__section_controle','Identification de la mission / opération de contrôle','section'],['date_controle','Date du contrôle','date'],['heure_controle','Heure du contrôle','time'],['lieu_controle','Lieu précis du contrôle','text'],['arrestation','Issue de l’intervention','select','une arrestation|aucune arrestation'],['objet_infraction','Objet / nature de l’infraction','textarea'],
@@ -112,7 +123,14 @@ export const MODULE_CONFIG={
       ['__section_observations','Observations','section'],['observations','Observations complémentaires','textarea'],
       ['__section_suite','Conclusion et suite donnée','section'],['resume_infraction','Résumé de la nature de l’infraction','textarea'],['mesures_prises','Mesures prises / suite donnée','textarea'],['autorite_transmission','Service ou autorité compétente destinataire','text']
     ]}
-  },offensePvFields:[
+  },orderMissionPvFields:[
+    ['__section_order_auto','Informations automatiques de l’ordre de mission','section'],
+    ['ordre_reference','N° de la mission','computed-text'],['chef_mission','Chef de mission','computed-text'],['agents_mission','Agent(s) de la mission','computed-textarea'],
+    ['residence_affectation','Résidence d’affectation','computed-text'],['objectif_mission','Objectif de la mission','computed-textarea'],
+    ['date_depart','Date de départ','computed-text'],['date_retour','Date de retour','computed-text'],['moyens_deplacement','Moyens de déplacement / immatriculations','computed-textarea'],
+    ['__section_order_pv','Rédaction du procès-verbal','section'],
+    ['lieu_pv','Lieu de la mission / rédaction','text'],['deroulement','Déroulement de la mission','textarea'],['constatations','Constatations','textarea'],['resultats','Résultats / mesures prises','textarea'],['observations','Observations','textarea'],['conclusion','Conclusion / suite donnée','textarea']
+  ],offensePvFields:[
     ['__section_affaire','Informations automatiques reprises de l’affaire liée','section'],['mission_reference_affichage','N° / intitulé de la mission','computed-text'],['date_controle','Date du contrôle','computed-text'],['heure_controle','Heure du contrôle','computed-text'],['lieu_controle','Lieu précis du contrôle','computed-text'],['_mission_chef','Chef de mission','computed-text'],['_mission_agents','Agent(s) de la mission / intervention','computed-textarea'],['arrestation','Issue de l’intervention','computed-text'],
     ['__section_personne','Identification de la personne mise en cause','section'],['contact_mis_cause','Contact','computed-text'],['type_piece_identite','Type de pièce d’identité','computed-text'],['numero_piece_identite','Numéro de la pièce','computed-text'],['domicile_mis_cause','Domicile / Localité','computed-text'],
     ['__section_objet','Objet de l’infraction','section'],['objet_infraction','Objet / nature de l’infraction','computed-textarea'],
