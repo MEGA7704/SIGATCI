@@ -538,3 +538,13 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 - Numérotation automatique des ordres de mission et génération d'un P-V lié depuis la colonne Actions.
 - Préremplissage automatique du P-V à partir de l'ordre de mission.
 - Modèles d'impression ORDRE DE MISSION et PROCES-VERBAL DE MISSION.
+
+## V1.69 — correction critique boutons et menu horizontal
+
+Cette version corrige une erreur de syntaxe JavaScript introduite dans la gestion du P-V lié à l’ordre de mission. Cette erreur empêchait entièrement `app.js` de se charger : le menu horizontal n’était donc pas injecté et les boutons métier restaient inactifs.
+
+Corrections :
+- chaînes `agents_mission` et `moyens_deplacement` réparées dans `manageOrderMissionPv()` ;
+- validation de tous les fichiers JavaScript en mode ES Module ;
+- références `app.js` et `styles.css` passées à `v=1.69` sur toutes les pages afin de forcer le rechargement du navigateur/CDN ;
+- fonctions Ordre de mission / P-V conservées.

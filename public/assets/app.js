@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.68';
-import {MODULE_CONFIG} from './module-config.js?v=1.68';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.69';
+import {MODULE_CONFIG} from './module-config.js?v=1.69';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -665,10 +665,8 @@ async function manageOrderMissionPv(orderMission){
     if(!orderMission.owned){await professionalAlert('Procès-verbal','Aucun P-V n’est encore enregistré pour cet ordre de mission.');return}
     editorOrderMissionPvRecord=null;openEditor(null,null,null,null,null,null,null,'PV_ORDRE_MISSION');
     const d=orderMission.data||{};setEditorFieldValue('_source_order_mission_id',orderMission.id);
-    const team=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join('
-');
-    const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('
-');
+    const team=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join('\n');
+    const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('\n');
     const auto={ordre_reference:d.numero_mission||orderMission.reference||'',chef_mission:d.chef_mission||'',agents_mission:team,residence_affectation:d.residence_affectation||'',objectif_mission:d.objectif_mission||'',date_depart:d.date_depart||'',date_retour:d.date_retour||'',moyens_deplacement:means};
     Object.entries(auto).forEach(([k,v])=>setEditorFieldValue(k,v));
     const lieu=document.querySelector('#dynamicFields [data-key="lieu_pv"]');if(lieu&&!lieu.value)lieu.value=d.residence_affectation||'';
