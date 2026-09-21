@@ -524,3 +524,10 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 ## V1.64 — Menu Activités techniques
 - Suppression dans le menu principal « Activités techniques » des rubriques visibles : Contrôles, Infractions et Saisies.
 - Les modules, données et routes techniques correspondants ne sont pas supprimés afin de préserver l’historique et les fonctions qui peuvent les référencer.
+
+## V1.65 — Répression des infractions / Procès-verbal d’infraction
+- Adaptation complète du formulaire « Répression des infractions » au nouveau canevas administratif.
+- Séparation des objets, produits et matériels saisis.
+- Affichage intelligent du chef de mission et des agents lorsque l’affaire est liée à une mission réalisée.
+- Refonte des impressions « REPRESSION DES INFRACTIONS » et « PROCES-VERBAL D’INFRACTION » selon les textes fournis.
+- Synchronisation automatique du P-V avec les données de l’affaire liée ; les parties rédactionnelles du P-V restent modifiables.

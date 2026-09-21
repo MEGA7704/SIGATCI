@@ -1296,11 +1296,12 @@ async function hydrateRepressionMissionContext(env,orgId,incomingData){
   incomingData.mission_liee_label=[incomingData._mission_numero,incomingData._mission_libelle].filter(Boolean).join(' — ');
 }
 function syncPvFromOffense(incomingData,source,sourceData){
-  const direct=['personne_mise_cause','objet_infraction','objets_saisis','date_controle','heure_controle','lieu_controle','date_naissance_mis_cause','lieu_naissance_mis_cause','profession_mis_cause','domicile_mis_cause','contact_mis_cause','type_piece_identite','numero_piece_identite','arrestation','sort_biens','lieu_conservation','liee_mission','mission_liee_id','mission_liee_label','agents_arrestation','_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'];
+  const direct=['personne_mise_cause','objet_infraction','objets_saisis','produits_saisis','materiels_saisis','date_controle','heure_controle','lieu_controle','domicile_mis_cause','contact_mis_cause','type_piece_identite','numero_piece_identite','arrestation','sort_biens','lieu_conservation','liee_mission','mission_liee_id','mission_liee_label','agents_arrestation','_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'];
   for(const key of direct)incomingData[key]=sourceData[key]??'';
   if(!incomingData.type_piece_identite&&sourceData.type_numero_piece){const parts=String(sourceData.type_numero_piece).split(/[-–—]/);incomingData.type_piece_identite=String(parts.shift()||'').trim();incomingData.numero_piece_identite=String(parts.join('-')||'').trim()}
-  if(!String(incomingData.agents_redacteurs||'').trim())incomingData.agents_redacteurs=String(sourceData.agents_arrestation||sourceData._mission_agents||'').trim();
   incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
+  incomingData._mission_agents=String(sourceData._mission_agents||sourceData.agents_arrestation||'').trim();
+  incomingData.mission_reference_affichage=[sourceData._mission_numero,sourceData._mission_libelle].filter(v=>String(v||'').trim()).join(' / ')||String(sourceData.mission_liee_label||'').trim()||'—';
 }
 
 async function apiSave(env, request) {
