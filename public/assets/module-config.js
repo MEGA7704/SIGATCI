@@ -126,7 +126,7 @@ export const MODULE_CONFIG={
   },orderMissionPvFields:[
     ['__section_order_auto','Informations automatiques de l’ordre de mission','section'],
     ['ordre_reference','N° de la mission','computed-text'],['chef_mission','Chef de mission','computed-text'],['agents_mission','Agent(s) de la mission','computed-textarea'],
-    ['residence_affectation','Résidence d’affectation','computed-text'],['objectif_mission','Objectif de la mission','computed-textarea'],
+    ['residence_affectation','Résidence d’affectation','computed-text'],['lieu_mission','Lieu de la mission','computed-text'],['objectif_mission','Objectif de la mission','computed-textarea'],
     ['date_depart','Date de départ','computed-text'],['date_retour','Date de retour','computed-text'],['moyens_deplacement','Moyens de déplacement / immatriculations','computed-textarea'],
     ['__section_order_pv','Rédaction du procès-verbal','section'],
     ['lieu_pv','Lieu de la mission / rédaction','text'],['deroulement','Déroulement de la mission','textarea'],['constatations','Constatations','textarea'],['resultats','Résultats / mesures prises','textarea'],['observations','Observations','textarea'],['conclusion','Conclusion / suite donnée','textarea']

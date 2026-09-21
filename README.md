@@ -555,3 +555,11 @@ Corrections :
 - Ajout d’un aperçu automatique de l’équipe avec Nom et prénoms, Matricule, Corps et Fonction.
 - Le PDF présente désormais l’équipe sous forme de tableau professionnel à 4 colonnes et reprend la localité de mission séparément de l’objectif.
 - Les informations Matricule / Corps / Fonction des agents sont synchronisées automatiquement depuis le module Personnel et restent attachées à l’ordre de mission.
+
+
+## V1.71 — Mise en forme stricte Ordre de mission / P-V de mission
+- Corps des deux documents en Arial Narrow 13 pt, interligne 1,5.
+- Ordre de mission reproduit la disposition fournie : N° centré, tableau équipe, résidence, destination, objectif encadré, dates et moyens de déplacement en deux colonnes.
+- Le P-V de mission reprend exactement le même bloc d’identification de mission avant ses rubriques rédactionnelles.
+- Le P-V récupère désormais aussi les matricules, corps, fonctions, destination et deux moyens de déplacement de l’ordre lié.
+- Version des assets portée à 1.71 pour neutraliser les anciens caches navigateur/Cloudflare.
