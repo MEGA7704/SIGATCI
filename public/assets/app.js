@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.69';
-import {MODULE_CONFIG} from './module-config.js?v=1.69';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.70';
+import {MODULE_CONFIG} from './module-config.js?v=1.70';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -669,7 +669,7 @@ async function manageOrderMissionPv(orderMission){
     const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('\n');
     const auto={ordre_reference:d.numero_mission||orderMission.reference||'',chef_mission:d.chef_mission||'',agents_mission:team,residence_affectation:d.residence_affectation||'',objectif_mission:d.objectif_mission||'',date_depart:d.date_depart||'',date_retour:d.date_retour||'',moyens_deplacement:means};
     Object.entries(auto).forEach(([k,v])=>setEditorFieldValue(k,v));
-    const lieu=document.querySelector('#dynamicFields [data-key="lieu_pv"]');if(lieu&&!lieu.value)lieu.value=d.residence_affectation||'';
+    const lieu=document.querySelector('#dynamicFields [data-key="lieu_pv"]');if(lieu&&!lieu.value)lieu.value=d.lieu_mission||d.residence_affectation||'';
   }catch(e){await professionalAlert('Procès-verbal',e.message||'Impossible d’ouvrir le P-V lié à cet ordre de mission.')}
 }
 
@@ -1450,14 +1450,34 @@ async function mountMissionEditorLogic(record=null){
     const locality=String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
     const residence=q('residence_affectation');if(residence&&!record&&!residence.value)residence.value=locality||session?.user?.organizationName||'';
     const ensureHidden=(key,value='')=>{let el=q(key);if(!el){el=document.createElement('input');el.type='hidden';el.dataset.key=key;area.appendChild(el)}el.value=String(value??'');return el};
+    const teamKeys=['chef_mission','agent_mission_1','agent_mission_2','agent_mission_3','agent_mission_4'];
+    let preview=null;
+    const renderPreview=()=>{
+      if(!preview)return;
+      const rows=teamKeys.map((key,index)=>{
+        const sel=q(key);const prefix=key==='chef_mission'?'_chef_mission':`_${key}`;
+        const name=String(sel?.value||'').trim();const matricule=String(q(`${prefix}_matricule`)?.value||'').trim();const corps=String(q(`${prefix}_corps`)?.value||'').trim();const fonction=String(q(`${prefix}_fonction`)?.value||'').trim();
+        const role=index===0?'Chef de mission':`Agent ${index}`;
+        return `<tr><td><span class="order-team-role">${esc(role)}</span>${name?`<strong>${esc(name)}</strong>`:'—'}</td><td>${esc(matricule||'—')}</td><td>${esc(corps||'—')}</td><td>${esc(fonction||'—')}</td></tr>`;
+      }).join('');
+      preview.innerHTML=`<label>Aperçu de l’équipe</label><div class="order-team-preview-wrap"><table class="order-team-preview-table"><thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Corps</th><th>Fonction</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    };
     try{
       const agents=await fetchOwnModuleItems('personnel');
-      for(const key of ['chef_mission','agent_mission_1','agent_mission_2','agent_mission_3','agent_mission_4']){
+      for(const key of teamKeys){
         const sel=q(key);if(!sel)continue;const current=String(record?.data?.[key]||sel.value||'');
-        sel.innerHTML='<option value="">— Sélectionner —</option>'+agents.map(r=>`<option value="${esc(r.title||'')}" data-grade="${esc(r.data?.grade||'')}" data-fonction="${esc(r.data?.fonction||'')}">${esc(r.title||'')}${r.data?.matricule?` — ${esc(r.data.matricule)}`:''}</option>`).join('');sel.value=current;
-        const prefix=key==='chef_mission'?'_chef_mission':`_${key}`;const grade=ensureHidden(`${prefix}_grade`,record?.data?.[`${prefix}_grade`]||'');const fonction=ensureHidden(`${prefix}_fonction`,record?.data?.[`${prefix}_fonction`]||'');
-        const sync=()=>{const op=sel.selectedOptions?.[0];grade.value=op?.dataset?.grade||'';fonction.value=op?.dataset?.fonction||''};sel.addEventListener('change',sync);if(!record&&sel.value)sync();
+        sel.innerHTML='<option value="">— Sélectionner —</option>'+agents.map(r=>`<option value="${esc(r.title||'')}" data-matricule="${esc(r.data?.matricule||'')}" data-corps="${esc(r.data?.emploi||r.data?.corps||'')}" data-grade="${esc(r.data?.grade||'')}" data-fonction="${esc(r.data?.fonction||'')}">${esc(r.title||'')}${r.data?.matricule?` — ${esc(r.data.matricule)}`:''}</option>`).join('');sel.value=current;
+        const prefix=key==='chef_mission'?'_chef_mission':`_${key}`;
+        const matricule=ensureHidden(`${prefix}_matricule`,record?.data?.[`${prefix}_matricule`]||'');
+        const corps=ensureHidden(`${prefix}_corps`,record?.data?.[`${prefix}_corps`]||'');
+        const grade=ensureHidden(`${prefix}_grade`,record?.data?.[`${prefix}_grade`]||'');
+        const fonction=ensureHidden(`${prefix}_fonction`,record?.data?.[`${prefix}_fonction`]||'');
+        const sync=()=>{const op=sel.selectedOptions?.[0];matricule.value=op?.dataset?.matricule||'';corps.value=op?.dataset?.corps||'';grade.value=op?.dataset?.grade||'';fonction.value=op?.dataset?.fonction||'';renderPreview()};
+        sel.addEventListener('change',sync);
+        if(sel.value&&(!record||!matricule.value||!corps.value||!fonction.value))sync();
       }
+      preview=document.createElement('div');preview.className='field full order-team-preview';
+      const residenceWrap=editorFieldWrap('residence_affectation');area.insertBefore(preview,residenceWrap||null);renderPreview();
     }catch(e){console.warn('Équipe ordre de mission',e)}
   }
   if(editorMissionType==='PV_ORDRE_MISSION'){
@@ -1465,7 +1485,7 @@ async function mountMissionEditorLogic(record=null){
     if(sourceId){
       try{
         const orders=await fetchOwnModuleItems('missions',{missionType:'ORDRE_MISSION'});const source=orders.find(r=>Number(r.id)===sourceId);
-        if(source){const d=source.data||{};const agents=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join('\n');const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('\n');const auto={ordre_reference:d.numero_mission||source.reference||'',chef_mission:d.chef_mission||'',agents_mission:agents,residence_affectation:d.residence_affectation||'',objectif_mission:d.objectif_mission||'',date_depart:d.date_depart||'',date_retour:d.date_retour||'',moyens_deplacement:means};Object.entries(auto).forEach(([k,v])=>{const el=q(k);if(el)el.value=v??''});const lieu=q('lieu_pv');if(!record&&lieu&&!lieu.value)lieu.value=d.residence_affectation||''}
+        if(source){const d=source.data||{};const agents=[d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].filter(Boolean).join('\n');const means=[[d.moyen_deplacement_1,d.immatriculation_1],[d.moyen_deplacement_2,d.immatriculation_2]].filter(x=>x.some(Boolean)).map(([m,i])=>[m,i].filter(Boolean).join(' — ')).join('\n');const auto={ordre_reference:d.numero_mission||source.reference||'',chef_mission:d.chef_mission||'',agents_mission:agents,residence_affectation:d.residence_affectation||'',objectif_mission:d.objectif_mission||'',date_depart:d.date_depart||'',date_retour:d.date_retour||'',moyens_deplacement:means};Object.entries(auto).forEach(([k,v])=>{const el=q(k);if(el)el.value=v??''});const lieu=q('lieu_pv');if(!record&&lieu&&!lieu.value)lieu.value=d.lieu_mission||d.residence_affectation||''}
       }catch(e){console.warn('Ordre de mission lié au P-V',e)}
     }
   }
@@ -2174,17 +2194,20 @@ function missionChiefSignatureHtml(d={},settings={},date='',time='',showDate=tru
 }
 function orderMissionTeamHtml(d={}){
   const rows=[];
-  const line=(name,grade,fn,role)=>{if(!String(name||'').trim())return;const meta=[grade,fn].map(v=>String(v||'').trim()).filter(Boolean).join(' – ');rows.push(`<div class="order-team-line"><span>${esc(String(name).trim())}${meta?` – ${esc(meta)}`:''}</span><strong> : ${esc(role)}</strong></div>`)};
-  line(d.chef_mission,d._chef_mission_grade,d._chef_mission_fonction,'Chef de mission');
-  for(let i=1;i<=4;i++)line(d[`agent_mission_${i}`],d[`_agent_mission_${i}_grade`],d[`_agent_mission_${i}_fonction`],'Agent(s) de la mission');
-  if(!rows.length)rows.push('<div class="order-team-line">—</div>');
-  return `<div class="order-team">${rows.join('')}</div>`;
+  const add=(name,matricule,corps,fn,isChief=false)=>{
+    if(!String(name||'').trim())return;
+    rows.push(`<tr${isChief?' class="order-team-chief"':''}><td>${esc(String(name).trim())}</td><td>${esc(displayValue(matricule))}</td><td>${esc(displayValue(corps))}</td><td>${esc(displayValue(fn))}</td></tr>`);
+  };
+  add(d.chef_mission,d._chef_mission_matricule,d._chef_mission_corps||d._chef_mission_grade,d._chef_mission_fonction,true);
+  for(let i=1;i<=4;i++)add(d[`agent_mission_${i}`],d[`_agent_mission_${i}_matricule`],d[`_agent_mission_${i}_corps`]||d[`_agent_mission_${i}_grade`],d[`_agent_mission_${i}_fonction`],false);
+  while(rows.length<5)rows.push('<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>');
+  return `<table class="order-team-table"><thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Corps</th><th>Fonction</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
 }
 function orderMissionPrintBody(record,settings={}){
   const d=record.data||{};const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
   const n=displayValue(d.numero_mission||record.reference);
-  const pair=(label1,value1,label2,value2)=>`<div class="order-pair"><div><strong>${esc(label1)} :</strong> ${esc(displayValue(value1))}</div><div><strong>${esc(label2)} :</strong> ${esc(displayValue(value2))}</div></div>`;
-  return `<div class="document-title">ORDRE DE MISSION</div><div class="order-mission-body"><div class="order-number">N° de la mission : ${esc(n)}</div><p>Le <strong>Chef de Poste des Eaux et Forêts de ${esc(locality||'—')}</strong> donne l’ordre à :</p>${orderMissionTeamHtml(d)}<p><strong>Résidence d’affectation :</strong> ${esc(displayValue(d.residence_affectation||locality))}</p><p><strong>Objectif de la mission :</strong> ${esc(displayValue(d.objectif_mission)).split('\n').join('<br>')}</p>${pair('Date de départ',fmtDate(d.date_depart),'Date de retour',fmtDate(d.date_retour))}${pair('Moyens de déplacement',d.moyen_deplacement_1,'Immatriculation',d.immatriculation_1)}${pair('Moyens de déplacement',d.moyen_deplacement_2,'Immatriculation',d.immatriculation_2)}</div>`;
+  const pair=(label1,value1,label2,value2)=>`<div class="order-pair"><div><strong>${esc(label1)} :</strong><span>${esc(displayValue(value1))}</span></div><div><strong>${esc(label2)} :</strong><span>${esc(displayValue(value2))}</span></div></div>`;
+  return `<div class="document-title">ORDRE DE MISSION</div><div class="order-mission-body"><div class="order-number">N° de la mission : <strong>${esc(n)}</strong></div><p class="order-intro">Le <strong>Chef de Poste des Eaux et Forêts de ${esc(locality||'—')}</strong> donne l’ordre à :</p>${orderMissionTeamHtml(d)}<div class="order-box-row"><strong>Résidence d’affectation :</strong><span>${esc(displayValue(d.residence_affectation||locality))}</span></div><div class="order-box-row"><strong>De se rendre en mission :</strong><span>${esc(displayValue(d.lieu_mission))}</span></div><div class="order-objective"><strong>Objectif de la mission :</strong><div>${esc(displayValue(d.objectif_mission)).split('\n').join('<br>')}</div></div>${pair('Date de départ',fmtDate(d.date_depart),'Date de retour',fmtDate(d.date_retour))}${pair('Moyens de déplacement',d.moyen_deplacement_1,'Immatriculation',d.immatriculation_1)}${pair('Moyens de déplacement',d.moyen_deplacement_2,'Immatriculation',d.immatriculation_2)}</div>`;
 }
 function orderMissionPvPrintBody(record){
   const d=record.data||{};

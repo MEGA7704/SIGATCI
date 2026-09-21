@@ -106,7 +106,7 @@ export const MODULE_CONFIG={
       ['__section_equipe','Équipe de mission','section'],
       ['chef_mission','Chef de mission','agent-select'],
       ['agent_mission_1','Agent de la mission 1','agent-select'],['agent_mission_2','Agent de la mission 2','agent-select'],['agent_mission_3','Agent de la mission 3','agent-select'],['agent_mission_4','Agent de la mission 4','agent-select'],
-      ['residence_affectation','Résidence d’affectation','text'],['objectif_mission','Objectif de la mission','textarea'],
+      ['residence_affectation','Résidence d’affectation','text'],['lieu_mission','Se rendre en mission à (localité)','text'],['objectif_mission','Objectif de la mission','textarea'],
       ['date_depart','Date de départ','date'],['date_retour','Date de retour','date'],
       ['__section_moyens_ordre','Moyens de déplacement','section'],
       ['moyen_deplacement_1','Moyen de déplacement 1','text'],['immatriculation_1','Immatriculation 1','text'],

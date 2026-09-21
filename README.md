@@ -548,3 +548,10 @@ Corrections :
 - validation de tous les fichiers JavaScript en mode ES Module ;
 - références `app.js` et `styles.css` passées à `v=1.69` sur toutes les pages afin de forcer le rechargement du navigateur/CDN ;
 - fonctions Ordre de mission / P-V conservées.
+
+## V1.70 — Ordre de mission : formulaire et impression adaptés
+- Corps de l'ORDRE DE MISSION fixé à 13 pt avec interligne 1,5.
+- Formulaire Ajouter / Modifier adapté au modèle fourni : équipe issue du Personnel, résidence d’affectation, localité de mission, objectif, dates de départ/retour et deux moyens de déplacement avec immatriculation.
+- Ajout d’un aperçu automatique de l’équipe avec Nom et prénoms, Matricule, Corps et Fonction.
+- Le PDF présente désormais l’équipe sous forme de tableau professionnel à 4 colonnes et reprend la localité de mission séparément de l’objectif.
+- Les informations Matricule / Corps / Fonction des agents sont synchronisées automatiquement depuis le module Personnel et restent attachées à l’ordre de mission.
