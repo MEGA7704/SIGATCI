@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js';
-import {MODULE_CONFIG} from './module-config.js';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.67';
+import {MODULE_CONFIG} from './module-config.js?v=1.67';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -279,16 +279,25 @@ function bindResponsiveNav(){
   const toggle=document.getElementById('mobileMenuBtn');
   const nav=document.getElementById('mainNav');
   if(!toggle||!nav)return;
-  const close=()=>{nav.classList.remove('is-open');toggle.setAttribute('aria-expanded','false');nav.querySelectorAll('.nav-group.is-open').forEach(g=>g.classList.remove('is-open'))};
-  toggle.addEventListener('click',()=>{const open=!nav.classList.contains('is-open');nav.classList.toggle('is-open',open);toggle.setAttribute('aria-expanded',open?'true':'false')});
-  nav.querySelectorAll('.nav-group>button').forEach(btn=>btn.addEventListener('click',e=>{if(matchMedia('(max-width:1100px)').matches){e.preventDefault();const group=btn.closest('.nav-group');const willOpen=!group.classList.contains('is-open');nav.querySelectorAll('.nav-group.is-open').forEach(g=>g!==group&&g.classList.remove('is-open'));group.classList.toggle('is-open',willOpen)}}));
-  nav.querySelectorAll('a').forEach(a=>a.addEventListener('click',close));
-  addEventListener('resize',()=>{if(innerWidth>1100)close()});
+  const mobile=()=>matchMedia('(max-width:760px)').matches;
+  const closeGroups=(except=null)=>nav.querySelectorAll('.nav-group.is-open').forEach(g=>{if(g!==except)g.classList.remove('is-open')});
+  const closeMobile=()=>{nav.classList.remove('is-open');toggle.setAttribute('aria-expanded','false')};
+  const closeAll=()=>{closeMobile();closeGroups()};
+  toggle.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const open=!nav.classList.contains('is-open');nav.classList.toggle('is-open',open);toggle.setAttribute('aria-expanded',open?'true':'false');if(!open)closeGroups()});
+  nav.querySelectorAll('.nav-group>button').forEach(btn=>btn.addEventListener('click',e=>{
+    e.preventDefault();e.stopPropagation();
+    const group=btn.closest('.nav-group');if(!group)return;
+    const willOpen=!group.classList.contains('is-open');closeGroups(group);group.classList.toggle('is-open',willOpen);
+  }));
+  nav.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{if(mobile())closeAll();else closeGroups()}));
+  document.addEventListener('click',e=>{if(!e.target.closest('.nav-group')&&!e.target.closest('#mobileMenuBtn'))closeGroups();if(mobile()&&!e.target.closest('#mainNav')&&!e.target.closest('#mobileMenuBtn'))closeMobile()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+  addEventListener('resize',()=>{if(!mobile())closeMobile();else closeGroups()});
 }
 
 
 async function boot(){
-  try{session=await loadSession()}catch{return}
+  try{session=await loadSession()}catch(e){console.error('SIGAT session init',e);if(location.pathname!=='/')location.replace('/');return}
   if(session.user.role==='SUPER_ADMIN'){location.href='/superadmin/dashboard/';return}
   document.body.insertAdjacentHTML('afterbegin',navHTML(session.user));
   bindResponsiveNav();
@@ -612,7 +621,7 @@ function updateFaunaFilterVisibility(type){const set=(id,on)=>{const el=document
 function setupMissionsModule(){
   document.getElementById('pageTitle').textContent=config.title;document.getElementById('pageSubtitle').textContent=config.subtitle;bindCommonModuleControls();
   document.getElementById('printListBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…'));
-  document.querySelectorAll('[data-mission-tab]').forEach(btn=>btn.addEventListener('click',()=>{const type=String(btn.dataset.missionTab||'').toUpperCase();const dedicated=location.pathname.includes('/missions/ordre-de-mission');if(type==='ORDRE_MISSION'&&!dedicated){location.href='/missions/ordre-de-mission/';return}if(type!=='ORDRE_MISSION'&&dedicated){location.href=`/missions/?view=${encodeURIComponent(type)}`;return}setMissionView(type)}));
+  document.querySelectorAll('button[data-mission-tab]').forEach(btn=>btn.addEventListener('click',()=>setMissionView(String(btn.dataset.missionTab||'').toUpperCase())));
   const requested=String(new URLSearchParams(location.search).get('view')||document.body.dataset.defaultMissionView||'').toUpperCase();setMissionView(['DISPOSITION','REALISEE','ORDRE_MISSION','REPRESSION'].includes(requested)?requested:'DISPOSITION');
 }
 function setMissionView(type){

@@ -534,3 +534,7 @@ La section Rapports et bilans consolide désormais les registres et travaux du s
 
 ## V1.66 — Ordre de mission et P-V lié
 Ajout d’un espace **Ordre de mission** dans Missions, avec page dédiée, numéro automatique, équipe issue du Personnel, impression conforme au modèle et bouton **P-V** lié alimenté automatiquement par l’ordre de mission. Les ordres de mission sont aussi disponibles dans les rapports consolidés.
+
+
+## V1.67 — Boutons et menu horizontal
+Correction de la navigation principale et des boutons Missions, avec cache-busting des assets.
