@@ -569,3 +569,7 @@ Corrections :
 - Corps des documents ORDRE DE MISSION et PROCES-VERBAL DE MISSION en Arial Narrow 14 pt.
 - Interligne maintenu à 1,5 sur tout le corps, tableaux, blocs et signature associés.
 - Version des ressources passée à 1.72 pour forcer le rechargement après déploiement.
+
+
+## V1.73 — Ordre de mission et P-V
+Correction effective du CSS embarqué d’impression : Arial Narrow 14 pt, interligne 1,5, mise en page structurée conforme au modèle fourni.

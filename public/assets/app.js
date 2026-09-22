@@ -1146,6 +1146,8 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   d.classList.toggle('fire-editor',isFire);
   d.classList.toggle('fauna-editor',isFauna);
   d.classList.toggle('mission-editor',isMission);
+  d.classList.toggle('order-mission-editor',isMission&&editorMissionType==='ORDRE_MISSION');
+  d.classList.toggle('order-mission-pv-editor',isMission&&editorMissionType==='PV_ORDRE_MISSION');
   d.classList.toggle('formation-editor',isFormation);
   const singular=activeSingular(record);
   document.getElementById('editorTitle').textContent=record?`Modifier — ${singular}`:`Ajouter — ${singular}`;
@@ -2098,13 +2100,207 @@ function officialAmpliationsHtml(s){
 }
 function officialFooterHtml(){return ''}
 
+function orderMissionPrintStyles(){return `
+/* V1.73 — Mise en page effective intégrée au document d’impression : Ordre de mission + P-V */
+.record-print.order-mission-print .document-title,
+.record-print.order-mission-pv-print .document-title{
+  font-family:"Cooper Black",Cooper,"Arial Black",serif!important;
+  font-size:20pt!important;
+  line-height:1.05!important;
+  font-weight:900!important;
+  text-align:center!important;
+  text-decoration:underline!important;
+  text-decoration-thickness:1.2px!important;
+  text-underline-offset:3px!important;
+  margin:7mm 0 8mm!important;
+  letter-spacing:0!important;
+}
+.order-mission-body,
+.order-mission-pv-body{
+  width:100%!important;
+  margin:0 auto!important;
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+  color:#111!important;
+  text-align:justify!important;
+}
+.order-mission-body *,
+.order-mission-pv-body *{
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  box-sizing:border-box!important;
+}
+.order-mission-body p,
+.order-mission-pv-body p{
+  font-size:14pt!important;
+  line-height:1.5!important;
+  margin:0 0 5mm!important;
+  text-align:justify!important;
+}
+.order-mission-body .order-intro,
+.order-mission-pv-body .order-intro{
+  text-align:left!important;
+  margin:0 0 5mm!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-number{
+  width:max-content!important;
+  min-width:74mm!important;
+  max-width:100%!important;
+  margin:0 auto 7mm!important;
+  padding:1.2mm 6mm!important;
+  border:1px solid #c9c9c9!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-number strong{font-size:14pt!important;line-height:1.5!important;font-weight:800!important}
+.order-team-table{
+  width:100%!important;
+  border-collapse:collapse!important;
+  table-layout:fixed!important;
+  margin:0 0 5mm!important;
+  background:#fff!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-team-table th,
+.order-team-table td{
+  border:1px solid #c8c8c8!important;
+  background:#fff!important;
+  color:#111!important;
+  padding:1mm 1.6mm!important;
+  height:8mm!important;
+  min-height:8mm!important;
+  vertical-align:middle!important;
+  text-align:center!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+  overflow-wrap:normal!important;
+  word-break:normal!important;
+}
+.order-team-table th{font-weight:800!important}
+.order-team-table th:first-child,.order-team-table td:first-child{width:40%!important}
+.order-team-table th:nth-child(2),.order-team-table td:nth-child(2){width:19%!important}
+.order-team-table th:nth-child(3),.order-team-table td:nth-child(3){width:18%!important}
+.order-team-table th:nth-child(4),.order-team-table td:nth-child(4){width:23%!important}
+.order-team-table .order-team-chief td:first-child{font-weight:800!important}
+.order-box-row{
+  display:grid!important;
+  grid-template-columns:max-content 7mm minmax(0,1fr)!important;
+  align-items:center!important;
+  border:1px solid #d0d0d0!important;
+  min-height:9mm!important;
+  margin:0 0 4mm!important;
+  padding:1mm 2mm!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-box-row strong{font-size:14pt!important;line-height:1.5!important;white-space:nowrap!important}
+.order-colon{font-size:14pt!important;line-height:1.5!important;text-align:center!important;font-weight:700!important}
+.order-box-row>span:last-child{font-size:14pt!important;line-height:1.5!important;min-width:0!important}
+.order-objective-label{
+  margin:0 0 1.5mm!important;
+  padding-left:2mm!important;
+  text-align:left!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+  font-weight:800!important;
+}
+.order-objective-label strong{font-size:14pt!important;line-height:1.5!important}
+.order-objective-box{
+  border:1px solid #d0d0d0!important;
+  min-height:28mm!important;
+  padding:3mm 2mm!important;
+  margin:0 0 5mm!important;
+  text-align:justify!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-pair{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:10mm!important;
+  margin:0 0 2mm!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-pair-cell{
+  display:grid!important;
+  grid-template-columns:max-content 7mm minmax(0,1fr)!important;
+  align-items:center!important;
+  min-width:0!important;
+  min-height:8.5mm!important;
+  padding:1mm 2mm!important;
+  border-bottom:1px solid #d0d0d0!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.order-pair-cell strong,
+.order-pair-cell>span{font-size:14pt!important;line-height:1.5!important}
+.order-pair-cell strong{white-space:nowrap!important}
+.order-pair-cell>span:last-child{min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important}
+.order-pv-sections{margin-top:7mm!important}
+.order-pv-section{
+  margin:0 0 6mm!important;
+  break-inside:auto!important;
+  page-break-inside:auto!important;
+}
+.order-pv-section h2{
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+  margin:0 0 1.5mm!important;
+  padding:0!important;
+  font-weight:800!important;
+  text-align:left!important;
+  text-decoration:none!important;
+}
+.order-pv-text{
+  width:100%!important;
+  min-height:18mm!important;
+  border:1px solid #d0d0d0!important;
+  padding:3mm!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+  text-align:justify!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
+.record-print.order-mission-print .official-bottom-row,
+.record-print.order-mission-pv-print .official-bottom-row{
+  margin-top:8mm!important;
+  padding-top:4mm!important;
+}
+.record-print.order-mission-print .official-signature,
+.record-print.order-mission-pv-print .official-signature,
+.record-print.order-mission-print .official-signature *,
+.record-print.order-mission-pv-print .official-signature *{
+  font-family:"Arial Narrow",Arial,sans-serif!important;
+  font-size:14pt!important;
+  line-height:1.5!important;
+}
+.record-print.order-mission-print .official-signature .signature-media,
+.record-print.order-mission-pv-print .official-signature .signature-media{height:22mm!important}
+.record-print.order-mission-print .official-signature .signer-position,
+.record-print.order-mission-pv-print .official-signature .signer-position{font-size:14pt!important}
+@media print{
+  .order-number,.order-team-table,.order-box-row,.order-pair,.order-pv-section h2{break-inside:avoid!important;page-break-inside:avoid!important}
+  .order-mission-body,.order-mission-pv-body{font-size:14pt!important;line-height:1.5!important}
+}
+`}
+
 function buildPrintDocument({title,body,reference='',date='',settings,signature=true,hideReference=false,documentClass='',showAmpliations=false,signatureHtml=''}){
   const bodyClass=(signature?'record-print':'list-print')+(documentClass?` ${documentClass}`:'');
   const sig=signatureHtml||officialSignatureHtml(settings,date);
   const bottom=signature?`<div class="official-bottom-row">${showAmpliations&&settingsLine(settings.ampliations)?officialAmpliationsHtml(settings):'<div class="official-ampliations-placeholder"></div>'}${sig}</div>`:'';
-  const orientationStyle=(documentClass.includes('personnel-list-print')||documentClass.includes('report-bundle-print'))?'@page{size:A4 landscape;margin:1.5cm 1.2cm 1.2cm 1.2cm}':'';
+  const orientationStyle=(documentClass.includes('personnel-list-print')||documentClass.includes('report-bundle-print'))?'@page{size:A4 landscape;margin:1.5cm 1.2cm 1.2cm 1.2cm}':((documentClass.includes('order-mission-print')||documentClass.includes('order-mission-pv-print'))?'@page{size:A4 portrait;margin:1.5cm 1.2cm 1.2cm 1.2cm}':'');
   const offenseStyles=`.offense-report-body{width:94%;margin:0 auto;font-family:"Arial Narrow",Arial,sans-serif;font-size:13pt;line-height:1.35;text-align:justify}.offense-report-body .report-section{margin:0 0 7mm;break-inside:auto}.offense-report-body .report-section h2{font-family:"Arial Narrow",Arial,sans-serif;font-size:14pt;line-height:1.2;margin:0 0 3mm;font-weight:800;text-align:left;text-decoration:none}.offense-report-body p{margin:0 0 3.5mm;line-height:1.35;text-align:justify}.offense-report-body .identity-lines{display:grid;grid-template-columns:1fr 1fr;gap:2mm 6mm;margin:2mm 0 3mm}.offense-report-body .identity-lines div{min-width:0}.offense-report-body .identity-lines .wide{grid-column:1 / -1}.offense-team{margin:2mm 0 4mm}.offense-team-line{margin:0 0 1.8mm;padding-left:4mm}.offense-seizure-item{margin:2.5mm 0 4mm}.offense-seizure-label{font-weight:400;margin-bottom:1mm}.offense-seizure-value{padding-left:8mm;min-height:4mm}.offense-report-body .evidence-photos{display:flex;gap:5mm;flex-wrap:wrap;margin:3mm 0}.offense-report-body .evidence-photos figure{margin:0;width:42mm}.offense-report-body .evidence-photos img{width:42mm;height:32mm;object-fit:contain;border:1px solid #b8c1bd}.offense-report-body .evidence-photos figcaption{font-size:9pt;text-align:center;margin-top:1mm}.mission-chief-signature .mission-signature-space{height:16mm}.mission-chief-signature .mission-agents{margin-top:4mm;font-size:11pt;line-height:1.25;text-align:left}.mission-chief-signature .mission-agents strong{display:block;text-align:center;margin-bottom:1.5mm}.mission-chief-signature .mission-signature-name{font-weight:800;text-decoration:underline}.mission-chief-signature .mission-signature-function{margin-top:1mm}.record-print.offense-report-print .document-title,.record-print.offense-pv-print .document-title{margin-top:18mm;margin-bottom:12mm}`;
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}${orientationStyle}${offenseStyles}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title||'Document')}</title><style>${printBaseStyles()}${orientationStyle}${offenseStyles}${orderMissionPrintStyles()}</style></head><body class="${bodyClass}"><main class="print-main">${officialHeaderHtml(settings,{reference,hideReference})}${body}</main>${bottom}</body></html>`;
 }
 
 async function launchPrint(html){
