@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.80';
-import {MODULE_CONFIG} from './module-config.js?v=1.80';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.82';
+import {MODULE_CONFIG} from './module-config.js?v=1.82';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -94,14 +94,13 @@ function activeSingular(record=null){
    Les valeurs injectées restent toujours modifiables par l'utilisateur. */
 const SMART_AUTOFILL={
   documents:{
-    CESSATION_SERVICE:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son identité et sa situation administrative. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade',matricule:'data.matricule',emploi:'data.emploi',classe:'data.classe',echelon:'data.echelon',ancien_service:'$source_organization'}},
+    CESSATION_SERVICE:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez l’agent concerné pour reprendre automatiquement son identité et sa situation administrative. Les autres champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade',matricule:'data.matricule',emploi:'data.emploi',classe:'data.classe',echelon:'data.echelon',ancien_service:'$source_organization'}},
     CESSATION_CONGE:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son identité et sa situation administrative. Les informations du congé restent à compléter et tous les champs sont modifiables.",copyTitle:true,map:{grade_appellation:'data.grade',matricule:'data.matricule',emploi:'data.emploi',classe:'data.classe',echelon:'data.echelon'}},
     REPRISE_SERVICE:{sourceModule:'documents',sourceDocumentType:'CESSATION_CONGE',label:'Cessation de service / congé existante',help:"Sélectionnez une cessation de service / congé déjà enregistrée : SIGAT reprend automatiquement l’agent, la période, la décision et la date prévue de reprise. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade_appellation',matricule:'data.matricule',emploi:'data.emploi',option_emploi:'data.option_emploi',classe:'data.classe',echelon:'data.echelon',service_reprise:'$source_organization',date_cessation:'data.date_cessation',certificat_cessation_numero:'$reference',certificat_cessation_date:'$event_date',certificat_cessation_origine:'$source_responsible',duree_conge_jours:'data.duree_conge_jours',type_conge:'data.type_conge',decision_numero:'data.decision_numero',decision_date:'data.decision_date',decision_autorite:'data.decision_autorite',date_reprise:'data.date_reprise_prevue',heure_reprise:'data.heure_reprise_prevue'}},
-    PRISE_SERVICE_MUTATION:{sourceModule:'documents',sourceDocumentType:'CESSATION_SERVICE',label:'Cessation de service / mutation existante',help:"Sélectionnez une cessation de service / mutation déjà enregistrée pour reprendre automatiquement l’identité de l’agent, l’ancienne affectation et la décision de mutation. Tous les champs restent modifiables.",copyTitle:true,map:{grade_appellation:'data.grade_appellation',matricule:'data.matricule',emploi:'data.emploi',option_emploi:'data.option_emploi',classe:'data.classe',echelon:'data.echelon',ancien_service:'data.ancien_service',nouvelle_affectation:'data.nouvelle_affectation',decision_numero:'data.decision_numero',decision_date:'data.decision_date',decision_objet:'data.decision_objet'}},
-    DEMANDE_EXPLICATION:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi / qualité et son service. Tous les champs restent modifiables pour cette demande.",copyTitle:true,map:{matricule:'data.matricule',emploi_qualite:'data.emploi',service_affectation:'$source_organization'}},
-    ABSENCE:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}}
+    DEMANDE_EXPLICATION:{sourceModule:'personnel',label:'Agent concerné',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi / qualité et son service. Les autres champs de la demande restent modifiables.",copyTitle:true,map:{matricule:'data.matricule',emploi_qualite:'data.emploi',service_affectation:'$source_organization'}},
+    ABSENCE:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade. Les autres champs de l’autorisation restent modifiables.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}}
   },
-  absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
+  absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade. Les autres champs de l’autorisation restent modifiables.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
   convocations:{
     CONVOCATIONS:{sourceModule:'personnel',label:'Personne déjà enregistrée dans le personnel',help:"Le nom et la profession sont proposés automatiquement, puis restent modifiables.",copyTitle:true,map:{profession:'data.emploi'}},
     PV:{sourceModule:'convocations',label:'Convocation à l’origine de la rencontre',help:"Sélectionnez la convocation concernée : la personne, la date, l’heure, l’objet et le responsable sont préremplis. Tous les champs restent modifiables.",copyTitle:true,map:{convocation_reference:'$reference',profession:'data.profession',domicile:'data.domicile',date_rencontre:'data.date_presentation',heure_debut:'data.heure',objet_rencontre:'data.objet_convocation',personne_a_voir:'data.personne_a_voir'},sourceIdKey:'_source_convocation_id'}
@@ -227,7 +226,10 @@ async function mountSmartAutofill(record=null){
   wrap.append(label,select,help,sourceId,sourceModule);area.prepend(wrap);
   try{
     const candidates=await loadSmartCandidates(profile,record);
-    select.innerHTML='<option value="">— Saisie manuelle / ne pas préremplir —</option>';
+    const cessationMutation=moduleKey==='documents'&&editorDocumentType==='CESSATION_SERVICE';
+    const smartAgentRequired=!record&&(cessationMutation||isExplanationDocument||isAbsence||(moduleKey==='stages'&&editorStageType==='FIN_STAGE'));
+    select.innerHTML=smartAgentRequired?'<option value="">— Sélectionner un agent —</option>':'<option value="">— Saisie manuelle / ne pas préremplir —</option>';
+    if(smartAgentRequired)select.required=true;
     for(const r of candidates){const op=document.createElement('option');op.value=String(r.id);op.textContent=smartCandidateLabel(profile,r);select.appendChild(op)}
     const current=String(sourceId.value||'');if(current&&candidates.some(r=>String(r.id)===current))select.value=current;
     select.disabled=false;
@@ -1244,10 +1246,16 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     titleField.querySelector('label').textContent='Affaire / personne mise en cause *';titleField.classList.remove('full');titleInput.readOnly=true;titleInput.classList.add('computed-field');
     statusField.classList.add('personnel-status-hidden');statusField.hidden=true;statusInput.value=record?.status||'ACTIVE';
   }else if(isAbsence){
-    refField.querySelector('label').textContent='Référence / N°';
+    // V1.87 — Autorisation d’absence : la Référence administrative remplace
+    // l’ancien champ « Référence / N° » et le nom de l’agent provient du champ intelligent.
+    refField.querySelector('label').textContent='Référence administrative';
+    refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    refInput.placeholder='Ex. 00125';
     dateField.querySelector('label').textContent='Date d’établissement';
     titleField.querySelector('label').textContent='Nom et Prénoms de l’agent *';
     titleField.classList.remove('full');
+    titleField.classList.add('personnel-base-hidden');
+    titleInput.required=false;
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="AUTORISÉ">AUTORISÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'AUTORISÉ';
@@ -1268,10 +1276,20 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉTABLI">ÉTABLI</option><option value="VALIDÉ">VALIDÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'ÉTABLI';
   }else if(isStage){
-    refField.querySelector('label').textContent='Référence / N° attestation';
+    // V1.88 — Mise en stage / Fin de stage : la Référence administrative
+    // remplace l’ancien champ « Référence / N° attestation » au même emplacement.
+    refField.querySelector('label').textContent='Référence administrative';
+    refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    refInput.placeholder='Ex. 00125';
     dateField.querySelector('label').textContent="Date d’établissement";
     titleField.querySelector('label').textContent='Nom et Prénoms du stagiaire *';
     titleField.classList.remove('full');
+    // Pour une fin de stage, l’identité du stagiaire provient exclusivement
+    // du champ intelligent « Stage en cours à clôturer ».
+    if(editorStageType==='FIN_STAGE'){
+      titleField.classList.add('personnel-base-hidden');
+      titleInput.required=false;
+    }
     statusField.classList.remove('personnel-status-hidden');
     if(editorStageType==='MISE_STAGE'){
       statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="EN COURS">EN COURS</option><option value="ÉMISE">ÉMISE</option><option value="TERMINÉ">TERMINÉ</option><option value="ANNULÉE">ANNULÉE</option>';
@@ -1281,10 +1299,16 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
       statusInput.value=record?.status||'ÉMISE';
     }
   }else if(isExplanationDocument){
-    refField.querySelector('label').textContent='Référence / N°';
+    // V1.87 — La demande d’explication utilise directement la Référence administrative
+    // et le nom de l’agent est fourni uniquement par le champ intelligent « Agent concerné ».
+    refField.querySelector('label').textContent='Référence administrative';
+    refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    refInput.placeholder='Ex. 00125';
     dateField.querySelector('label').textContent="Date d’établissement";
     titleField.querySelector('label').textContent='Nom et Prénoms de l’agent *';
     titleField.classList.remove('full');
+    titleField.classList.add('personnel-base-hidden');
+    titleInput.required=false;
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="RÉPONDUE">RÉPONDUE</option><option value="ANNULÉE">ANNULÉE</option>';
     statusInput.value=record?.status||'ÉMISE';
@@ -1293,6 +1317,21 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     dateField.querySelector('label').textContent="Date d’établissement";
     titleField.querySelector('label').textContent='Nom et Prénoms de l’agent *';
     titleField.classList.remove('full');
+    // V1.85 — Ajustements ciblés des documents de service.
+    // Cessation / mutation, cessation / congé et reprise / congé :
+    // le numéro de certificat et le nom ne sont plus saisis manuellement.
+    if(['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE'].includes(editorDocumentType)){
+      refField.classList.add('personnel-base-hidden');
+      titleField.classList.add('personnel-base-hidden');
+      titleInput.required=false;
+    }
+    // Prise de service / mutation : supprimer uniquement la saisie de la référence.
+    // Le champ manuel « Nom et Prénoms de l’agent » reste visible et obligatoire.
+    if(editorDocumentType==='PRISE_SERVICE_MUTATION'){
+      refField.classList.add('personnel-base-hidden');
+      titleField.classList.remove('personnel-base-hidden');
+      titleInput.required=true;
+    }
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMIS">ÉMIS</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'ÉMIS';
@@ -1308,7 +1347,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
 
   // V1.74 — Référence administrative sur tous les formulaires de création, y compris les P-V.
   // Sur une modification, la valeur est conservée en champ caché afin qu'elle ne soit pas effacée.
-  if(!isPersonnel){
+  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage){
     const administrativeReference=String(record?.data?.reference_administrative||'');
     if(record){
       const hidden=document.createElement('input');
@@ -1578,6 +1617,22 @@ async function saveRecord(e){
       payload.reference=data.reference_administrative;
       payload.eventDate=data.date_prise_service_gbeke||data.date_prise_service_minef||'';
       payload.status='ACTIVE';
+    }
+    if(moduleKey==='stages'){
+      // V1.88 — Une seule Référence administrative pour les attestations de stage.
+      data.reference_administrative=String(payload.reference||'').trim();
+      payload.reference=data.reference_administrative;
+    }
+    if(moduleKey==='documents'&&editorDocumentType==='DEMANDE_EXPLICATION'){
+      // V1.87 — Le champ principal porte la référence administrative.
+      data.reference_administrative=String(payload.reference||'').trim();
+      payload.reference=data.reference_administrative;
+    }
+    if(isAbsence){
+      // V1.87 — Autorisation d’absence : une seule Référence administrative,
+      // enregistrée à la fois comme référence principale et dans les données du document.
+      data.reference_administrative=String(payload.reference||'').trim();
+      payload.reference=data.reference_administrative;
     }
     if(moduleKey==='activites-minef'){
       if(normalizeWoodText(data.type_activite)!=='activites du minef')data.categorie_minef='';
@@ -2068,7 +2123,7 @@ function formattedReference(reference,s){
   return `<span class="reference-prefix">N°</span>${numberHtml}${suffix?`/<span class="reference-suffix">${esc(suffix)}</span>`:''}`;
 }
 function officialHeaderHtml(s,{reference='',hideReference=false}={}){
-  const left=[s.ministry,s.cabinet,s.cantonment,s.post].map(adminLineHtml).join('');
+  const left=[s.ministry,s.cabinet,s.regionalDirection,s.departmentalDirection,s.cantonment,s.post].map(adminLineHtml).join('');
   const emblem=s.emblemData?`<img class="official-emblem" src="${esc(s.emblemData)}" alt="Emblème">`:'';
   return `<div class="official-header"><div class="official-left">${left}</div><div class="official-center">${emblem}</div><div class="official-right"><div>${esc(settingsLine(s.republic)||'REPUBLIQUE DE COTE D’IVOIRE')}</div><div class="motto">${esc(settingsLine(s.motto)||'Union – Discipline – Travail')}</div><div class="admin-separator">- - - - - -</div></div></div>${hideReference?'':`<div class="official-reference">${formattedReference(reference,s)}</div>`}`;
 }

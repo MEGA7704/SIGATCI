@@ -1,4 +1,30 @@
-# SIGAT V1.79 — Deux types de service, sans rattachement
+# SIGAT V1.88
+
+Correction ciblée des formulaires **Mise en stage** et **Fin de stage** : remplacement de « Référence / N° attestation » par **Référence administrative** au même emplacement et sans doublon. Pour **Fin de stage**, le champ manuel « Nom et Prénoms du stagiaire » est supprimé tandis que le champ intelligent **Stage en cours à clôturer** est conservé et utilisé pour reprendre l’identité du stagiaire.
+
+---
+
+# SIGAT V1.87
+
+Correction ciblée des formulaires **Demande d’explication** et **Autorisation d’absence** : suppression des champs manuels de nom d’agent au profit des sélecteurs intelligents, et remplacement de « Référence / N° » par « Référence administrative » pour les autorisations d’absence, sans doublon.
+
+# SIGAT V1.86 — Demande d’explication / Référence administrative
+
+## Correction V1.86 — Demande d’explication
+
+Dans le popup **Ajouter — Demande d’explication**, l’ancien champ **Référence / N°** est remplacé, à la même position, par **Référence administrative**. Le champ administratif dynamique qui était ajouté séparément est désactivé pour ce seul formulaire afin d’éviter tout doublon. La même logique est conservée en modification et la valeur continue d’être utilisée dans les listes et les impressions. Aucun autre champ du formulaire n’est modifié.
+
+---
+
+# SIGAT V1.84 — Correction Reprise de service / congé
+
+## Correction V1.84 — Reprise de service / congé
+
+Dans le popup **Ajouter — Reprise de service / congé**, les champs de saisie manuelle **Référence / N° certificat** et **Nom et Prénoms de l’agent** ne sont plus affichés. Le champ intelligent **Cessation de service / congé existante** est conservé sans modification et continue à préremplir automatiquement l’identité de l’agent ainsi que les informations du congé. Les autres champs et traitements restent inchangés.
+
+---
+
+# SIGAT V1.83 — Correction Cessation de service / congé
 
 SIGAT fonctionne désormais avec **deux types de service seulement** :
 
@@ -6,6 +32,16 @@ SIGAT fonctionne désormais avec **deux types de service seulement** :
 - **Cantonnement**.
 
 Chaque structure est totalement indépendante. Il n’existe plus de relation parent/enfant entre structures, plus de service supérieur à sélectionner, plus de remontée automatique des données d’une structure vers une autre et plus de vue consolidée entre services.
+
+
+
+## Correction V1.83 — Cessation de service / congé
+
+Dans le popup **Ajouter — Cessation de service / congé**, les champs de saisie manuelle **Référence / N° certificat** et **Nom et Prénoms de l’agent** ne sont plus affichés. Le champ intelligent **Agent concerné** est conservé sans modification et continue à préremplir l’identité et la situation administrative de l’agent sélectionné. Les autres champs et traitements du formulaire restent inchangés.
+
+## Correction V1.82 — Cessation de service / mutation
+
+Dans le popup **Ajouter — Cessation de service / mutation**, les champs de saisie manuelle **Référence / N° certificat** et **Nom et Prénoms de l’agent** ne sont plus affichés. Le champ intelligent **Agent concerné** est conservé et sert à sélectionner l’agent puis à préremplir son identité et sa situation administrative. Les autres champs du formulaire restent inchangés.
 
 ## Architecture actuelle
 
@@ -121,3 +157,11 @@ Au démarrage, SIGAT neutralise les anciens liens parent/enfant lorsque l’anci
 
 ## Correctif V1.80 — Personnel
 Le formulaire d’ajout/modification des agents a été aligné sur les informations administratives demandées : référence administrative, identité, naissance, photo, matricule, emploi, fonction, catégorie, grade, classe, échelon, prises de service, handicap, situation matrimoniale et téléphone.
+
+
+## Correctif V1.81 — Mentions administratives des imprimés
+
+La section Paramètres > En-tête des imprimés intègre désormais les champs Direction régionale et Direction départementale. Ils sont affichés dans l’ordre administratif entre le Cabinet du Ministre et le Cantonnement, puis repris automatiquement sur les imprimés. Ces champs ne modifient pas les types de service autorisés, qui restent uniquement PEF et Cantonnement.
+
+## Correctif V1.85 — Prise de service / mutation
+Dans le popup Ajouter / Modifier « Prise de service / mutation », le champ manuel « Référence / N° certificat » et le sélecteur intelligent « Cessation de service / mutation existante » ont été supprimés. Le champ manuel « Nom et Prénoms de l’agent » est conservé et reste obligatoire. Les autres champs et traitements restent inchangés.

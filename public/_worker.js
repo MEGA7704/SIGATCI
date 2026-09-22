@@ -1560,7 +1560,7 @@ async function superUserAction(env, request, kind) {
 
 
 const PRINT_SETTING_KEYS = Object.freeze([
-  'ministry','cabinet','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations','ampliationNumbers'
+  'ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations','ampliationNumbers'
 ]);
 
 function defaultSignerTitle(type) {
@@ -1574,6 +1574,8 @@ async function organizationPrintDefaults(env, organizationId) {
   return {
     ministry: 'MINISTERE DES EAUX ET FORETS',
     cabinet: 'CABINET DU MINISTRE',
+    regionalDirection: '',
+    departmentalDirection: '',
     cantonment: own.organization_type === 'CANTONNEMENT' ? (own.name || '') : '',
     post: own.organization_type === 'PEF' ? (own.name || '') : '',
     structureName: own.name || '',
@@ -1699,7 +1701,7 @@ async function guardStaticRequest(env,request,url){
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.79-no-hierarchy-two-services', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.81-print-header-administrative-levels', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);

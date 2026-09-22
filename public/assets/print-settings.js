@@ -1,7 +1,7 @@
-import {api,esc,loadSession,withButtonLock,professionalAlert,professionalDialog} from './common.js?v=1.79';
+import {api,esc,loadSession,withButtonLock,professionalAlert,professionalDialog} from './common.js?v=1.82';
 
 let session=null;
-const keys=['ministry','cabinet','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations','ampliationNumbers'];
+const keys=['ministry','cabinet','regionalDirection','departmentalDirection','cantonment','post','structureName','locality','referencePrefix','republic','motto','signerTitle','signerName','signerPosition','emblemData','signatureData','stampData','ampliations','ampliationNumbers'];
 
 function navHTML(user){
   const userAdminLink=user.role==='ORGANIZATION_ADMIN'?'<a href="/mon-compte/#gestion-utilisateurs">Utilisateurs</a>':'';
@@ -63,7 +63,7 @@ function ampliationRowsHtml(destinationsValue,numbersValue){
 
 function preview(){
   const f=document.getElementById('printSettingsForm'),v=k=>f.elements[k]?.value||'';
-  const left=[v('ministry'),v('cabinet'),v('cantonment'),v('post')].filter(Boolean).map(x=>`<div style="margin:0 0 3px;font-size:10pt;line-height:1;font-weight:500">${esc(x)}</div><div style="font-size:8px;line-height:1;letter-spacing:3px">- - - - -</div>`).join('');
+  const left=[v('ministry'),v('cabinet'),v('regionalDirection'),v('departmentalDirection'),v('cantonment'),v('post')].filter(Boolean).map(x=>`<div style="margin:0 0 3px;font-size:10pt;line-height:1;font-weight:500">${esc(x)}</div><div style="font-size:8px;line-height:1;letter-spacing:3px">- - - - -</div>`).join('');
   const emblem=v('emblemData')?`<img src="${esc(v('emblemData'))}" style="max-width:75px;max-height:75px">`:'';
   const ampliations=String(v('ampliations')||'').trim();
   const ampliationRows=ampliationRowsHtml(ampliations,v('ampliationNumbers'));
