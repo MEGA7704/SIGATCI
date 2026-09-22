@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.82';
-import {MODULE_CONFIG} from './module-config.js?v=1.82';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.93';
+import {MODULE_CONFIG} from './module-config.js?v=1.93';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -67,7 +67,13 @@ function activeFields(record=null){
     const t=record?missionTypeOf(record):editorMissionType;
     if(t==='PV_INFRACTION')return config?.offensePvFields||[];
     if(t==='PV_ORDRE_MISSION')return config?.orderMissionPvFields||[];
-    return missionConfig(t)?.fields||[];
+    const fields=missionConfig(t)?.fields||[];
+    // V1.92 — Répression d’infraction : à la création, le chef de mission
+    // est choisi uniquement avec le champ intelligent « Chef de mission ».
+    // Le sélecteur simple historique est retiré sans affecter la modification
+    // des anciens enregistrements ni les impressions.
+    if(t==='REPRESSION'&&!record)return fields.filter(([key,,type])=>!(key==='chef_mission'&&type==='agent-select'));
+    return fields;
   }
   return config?.fields||[];
 }
@@ -120,8 +126,10 @@ function smartProfile(){
   if(moduleKey==='stages')return entry[editorStageType]||null;
   if(moduleKey==='documents')return entry[editorDocumentType]||null;
   if(moduleKey==='convocations')return entry[editorConvocationView]||null;
-  // Les formulaires Missions gèrent déjà leurs sélecteurs dédiés dans leurs champs métier.
-  if(moduleKey==='missions'&&editorMissionType==='PV_INFRACTION')return null;
+  // Les P-V de mission et d’infraction sont déjà liés à leur enregistrement source.
+  // V1.91 — Ne pas ajouter un second sélecteur intelligent « Chef de mission »
+  // dans le P-V de mission : le chef est repris automatiquement de la mission liée.
+  if(moduleKey==='missions'&&['PV_INFRACTION','PV_ORDRE_MISSION'].includes(editorMissionType))return null;
   return entry;
 }
 function ownLoadUrl(module,{stageType='',documentType='',limit=100}={}){
@@ -230,7 +238,8 @@ async function mountSmartAutofill(record=null){
     const cessationMutation=moduleKey==='documents'&&editorDocumentType==='CESSATION_SERVICE';
     const smartAgentRequired=!record&&(cessationMutation||(moduleKey==='documents'&&editorDocumentType==='DEMANDE_EXPLICATION')||(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE'))||(moduleKey==='convocations'&&editorConvocationView==='PV')||(moduleKey==='stages'&&editorStageType==='FIN_STAGE'));
     const requiredSmartPlaceholder=(moduleKey==='convocations'&&editorConvocationView==='PV')?'— Sélectionner une convocation —':'— Sélectionner un agent —';
-    select.innerHTML=smartAgentRequired?`<option value="">${requiredSmartPlaceholder}</option>`:'<option value="">— Saisie manuelle / ne pas préremplir —</option>';
+    const repressionChiefOnly=moduleKey==='missions'&&editorMissionType==='REPRESSION'&&!record;
+    select.innerHTML=smartAgentRequired?`<option value="">${requiredSmartPlaceholder}</option>`:(repressionChiefOnly?'<option value="">— Sélectionner un chef de mission —</option>':'<option value="">— Saisie manuelle / ne pas préremplir —</option>');
     if(smartAgentRequired)select.required=true;
     for(const r of candidates){const op=document.createElement('option');op.value=String(r.id);op.textContent=smartCandidateLabel(profile,r);select.appendChild(op)}
     const current=String(sourceId.value||'');if(current&&candidates.some(r=>String(r.id)===current))select.value=current;
@@ -394,7 +403,13 @@ async function loadDashboardRecentActivities(){
 
 function bindCommonModuleControls(){
   document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(window.__s);window.__s=setTimeout(()=>{currentSearch=e.target.value;currentPage=1;loadRecords()},300)});
-  document.getElementById('recordForm').addEventListener('submit',saveRecord);
+  const recordForm=document.getElementById('recordForm');
+  if(recordForm)recordForm.addEventListener('submit',e=>{
+    Promise.resolve(saveRecord(e)).catch(async err=>{
+      console.error('SIGAT — erreur inattendue pendant l’enregistrement',err);
+      try{await professionalAlert('Enregistrement impossible',err?.message||"Une erreur inattendue a empêché l’enregistrement. Rechargez la page et réessayez.")}catch{}
+    });
+  });
   document.querySelectorAll('[data-close-editor]').forEach(b=>b.onclick=()=>document.getElementById('editorDialog').close());
   document.getElementById('prevBtn').onclick=()=>{if(currentPage>1){currentPage--;loadRecords()}};
   document.getElementById('nextBtn').onclick=()=>{currentPage++;loadRecords()};
@@ -1355,14 +1370,22 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     statusField.classList.remove('personnel-status-hidden');
   }
   const area=document.getElementById('dynamicFields');area.innerHTML='';
+  // V1.92 — Dans « Ajouter — Répression d’infraction », le champ simple
+  // « Chef de mission » n’est plus affiché. Ce champ caché reçoit la valeur
+  // choisie par le sélecteur intelligent afin de conserver l’enregistrement,
+  // les rapports et les impressions existants sans changer leur logique.
+  if(isMission&&editorMissionType==='REPRESSION'&&!record){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='chef_mission';hidden.value='';area.appendChild(hidden)}
   if(isMission&&editorMissionType==='PV_INFRACTION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_offense_id';hidden.value=record?.data?._source_offense_id||'';area.appendChild(hidden)}
   if(isMission&&editorMissionType==='PV_ORDRE_MISSION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_order_mission_id';hidden.value=record?.data?._source_order_mission_id||'';area.appendChild(hidden)}
 
   // V1.74 — Référence administrative sur tous les formulaires de création, y compris les P-V.
-  // Sur une modification, la valeur est conservée en champ caché afin qu'elle ne soit pas effacée.
+  // V1.91 — Pour le Procès-verbal de mission, la Référence administrative reste visible
+  // et modifiable même en modification. Elle occupe la première place visible du formulaire,
+  // à la place de l’ancien sélecteur intelligent « Chef de mission ».
   if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv){
-    const administrativeReference=String(record?.data?.reference_administrative||'');
-    if(record){
+    const isOrderMissionPv=isMission&&editorMissionType==='PV_ORDRE_MISSION';
+    const administrativeReference=String(record?.data?.reference_administrative||record?.reference||'');
+    if(record&&!isOrderMissionPv){
       const hidden=document.createElement('input');
       hidden.type='hidden';hidden.dataset.key='reference_administrative';hidden.value=administrativeReference;area.appendChild(hidden);
     }else{
@@ -1617,7 +1640,11 @@ function mountFormationEditorLogic(record=null){
 
 async function saveRecord(e){
   e.preventDefault();
-  if(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE'))updateAbsenceDays();
+  // V1.93 — Définir le contexte d'absence dans la portée de l'enregistrement.
+  // Auparavant, cette variable n'existait que dans openEditor(), ce qui faisait
+  // échouer silencieusement TOUS les boutons « Enregistrer » des popups.
+  const isAbsence=moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE');
+  if(isAbsence)updateAbsenceDays();
   const submit=e.submitter||document.querySelector('#recordForm button[type="submit"]');
   return withButtonLock(submit,async()=>{
     const id=document.getElementById('recordId').value;const data={};

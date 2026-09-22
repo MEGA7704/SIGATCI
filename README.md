@@ -1,3 +1,9 @@
+# SIGAT V1.92 — Répression d’infraction / Chef de mission
+
+Dans le popup **Ajouter — Répression d’infraction**, le sélecteur simple **Chef de mission** est supprimé. Le champ intelligent **Chef de mission** est conservé et reste la seule sélection du chef à la création. La valeur choisie continue d’être enregistrée pour les rapports et impressions. Aucun autre champ n’est modifié.
+
+---
+
 # SIGAT V1.89 — Convocation / Référence administrative
 
 Correction ciblée du popup **Ajouter — Convocation** : remplacement de « Référence / N° » par **Référence administrative** au même emplacement, sans doublon. Le champ intelligent **Personne déjà enregistrée dans le personnel** est supprimé, tandis que le champ manuel **Nom et Prénoms de la personne convoquée** est conservé et reste obligatoire.
