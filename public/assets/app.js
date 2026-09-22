@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.70';
-import {MODULE_CONFIG} from './module-config.js?v=1.70';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.74';
+import {MODULE_CONFIG} from './module-config.js?v=1.74';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='DISPOSITION',editorMissionType='DISPOSITION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -1269,6 +1269,23 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   const area=document.getElementById('dynamicFields');area.innerHTML='';
   if(isMission&&editorMissionType==='PV_INFRACTION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_offense_id';hidden.value=record?.data?._source_offense_id||'';area.appendChild(hidden)}
   if(isMission&&editorMissionType==='PV_ORDRE_MISSION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_order_mission_id';hidden.value=record?.data?._source_order_mission_id||'';area.appendChild(hidden)}
+
+  // V1.74 — Référence administrative sur tous les formulaires de création, y compris les P-V.
+  // Sur une modification, la valeur est conservée en champ caché afin qu'elle ne soit pas effacée.
+  {
+    const administrativeReference=String(record?.data?.reference_administrative||'');
+    if(record){
+      const hidden=document.createElement('input');
+      hidden.type='hidden';hidden.dataset.key='reference_administrative';hidden.value=administrativeReference;area.appendChild(hidden);
+    }else{
+      const wrap=document.createElement('div');wrap.className='field administrative-reference-field';wrap.dataset.fieldKey='reference_administrative';
+      const lab=document.createElement('label');lab.textContent='Référence administrative';
+      const input=document.createElement('input');input.type='text';input.dataset.key='reference_administrative';input.autocomplete='off';input.placeholder='Ex. 00125';input.value=administrativeReference;
+      const help=document.createElement('small');help.className='muted';help.textContent='Référence propre au document. Elle sera utilisée dans l’en-tête de l’impression.';
+      wrap.append(lab,input,help);area.appendChild(wrap);
+    }
+  }
+
   for(const [key,label,type,opts] of activeFields(record)){
     if(type==='section'){
       const section=document.createElement('div');section.className='form-section-heading full';section.dataset.sectionKey=key;section.innerHTML=`<strong>${esc(label)}</strong>`;area.appendChild(section);continue;
@@ -2616,7 +2633,8 @@ async function printRecord(record){
     if(hasOwn(record.data,'_ampliations'))documentSettings.ampliations=String(record.data?._ampliations||'');
     if(hasOwn(record.data,'_ampliation_numbers'))documentSettings.ampliationNumbers=String(record.data?._ampliation_numbers||'');
     const documentClass=customDocumentClass||(moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':moduleKey==='personnel'?'personnel-sheet-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'');
-    const html=buildPrintDocument({title,body,reference:record.reference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
+    const printReference=String(record.data?.reference_administrative||record.reference||'');
+    const html=buildPrintDocument({title,body,reference:printReference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }

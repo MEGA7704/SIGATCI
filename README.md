@@ -573,3 +573,7 @@ Corrections :
 
 ## V1.73 — Ordre de mission et P-V
 Correction effective du CSS embarqué d’impression : Arial Narrow 14 pt, interligne 1,5, mise en page structurée conforme au modèle fourni.
+
+
+## V1.74 — Référence administrative
+Ajout du champ « Référence administrative » sur tous les popups de création et de création de P-V. La valeur est propre à chaque document et alimente l'en-tête de l'impression.
