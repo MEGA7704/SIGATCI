@@ -1,1 +1,116 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIGAT — Mon compte</title><link rel="stylesheet" href="/assets/styles.css?v=1.74"></head><body><main class="container" style="max-width:800px"><div class="page-head"><div><h1>Mon compte</h1><p>Modifiez votre mot de passe en toute sécurité.</p></div></div><div class="card"><form id="pwdForm"><div class="field"><label>Ancien mot de passe</label><input id="oldPwd" type="password" required></div><div class="field"><label>Nouveau mot de passe</label><input id="newPwd" type="password" required></div><div class="field"><label>Confirmer le nouveau mot de passe</label><input id="newPwd2" type="password" required></div><div id="pwdMsg" class="notice hidden"></div><button class="btn btn-primary" type="submit">MODIFIER LE MOT DE PASSE</button></form></div></main><dialog id="freePlanDialog" class="dialog"><div class="dialog-head"><strong>Passez à une formule SIGAT payante</strong></div><div class="dialog-body">Choisissez STANDARD ou BUSINESS pour poursuivre après votre période Free.</div><div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary">COMPRIS</button></form><a class="btn btn-primary" href="/parametres/abonnement/">ACHETER MON PLAN</a></div></dialog><script type="module" src="/assets/app.js?v=1.74"></script><script type="module" src="/assets/account.js"></script></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIGAT — Mon compte</title>
+  <link rel="stylesheet" href="/assets/styles.css?v=1.76">
+</head>
+<body>
+<main class="container account-page">
+  <div class="page-head">
+    <div>
+      <h1>Mon compte</h1>
+      <p>Gérez votre sécurité et, pour l’Administrateur, les comptes membres et l’abonnement SIGAT.</p>
+    </div>
+  </div>
+
+  <div id="memberSubscriptionNotice" class="notice warn hidden"></div>
+
+  <section class="card account-section" id="securite-compte">
+    <div class="account-section-head">
+      <div>
+        <div class="account-kicker">Sécurité</div>
+        <h2>Modifier votre mot de passe</h2>
+        <p class="muted">Modifiez votre mot de passe en toute sécurité.</p>
+      </div>
+    </div>
+    <form id="pwdForm" class="account-password-form">
+      <div class="form-grid">
+        <div class="field"><label>Ancien mot de passe</label><input id="oldPwd" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label>Nouveau mot de passe</label><input id="newPwd" type="password" autocomplete="new-password" required></div>
+        <div class="field"><label>Confirmer le nouveau mot de passe</label><input id="newPwd2" type="password" autocomplete="new-password" required></div>
+      </div>
+      <div id="pwdMsg" class="notice hidden"></div>
+      <button class="btn btn-primary" type="submit">MODIFIER LE MOT DE PASSE</button>
+    </form>
+  </section>
+
+  <div id="adminAccountSections" data-admin-only>
+    <section class="card account-section" id="gestion-utilisateurs">
+      <div class="account-section-head">
+        <div>
+          <div class="account-kicker">Administration des accès</div>
+          <h2>Gestion des utilisateurs / membres</h2>
+          <p class="muted">L’Administrateur gère les comptes membres de sa structure et définit, page par page, ce qu’ils peuvent voir ou modifier.</p>
+        </div>
+        <button id="addUserBtn" class="btn btn-primary" type="button">Ajouter un utilisateur</button>
+      </div>
+      <div class="notice account-admin-lock-note">Le compte Administrateur n’est pas réinitialisable, désactivable ou supprimable depuis cet espace. Ces opérations relèvent exclusivement du Super Admin.</div>
+      <div id="userMsg"></div>
+      <div class="table-wrap account-users-table-wrap">
+        <table class="table">
+          <thead><tr><th>Nom</th><th>Identifiant</th><th>Rôle</th><th>Statut</th><th>Accès accordés</th><th>Dernière connexion</th><th>Actions</th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+      <div class="card account-subcard">
+        <h3>Demandes « mot de passe oublié » des utilisateurs</h3>
+        <div id="requestsBox" class="muted">Chargement…</div>
+      </div>
+    </section>
+
+    <section class="card account-section" id="abonnement">
+      <div class="account-section-head">
+        <div>
+          <div class="account-kicker">Abonnement</div>
+          <h2>Abonnement SIGAT</h2>
+          <p class="muted">Consultez votre formule et choisissez un plan payant.</p>
+        </div>
+      </div>
+      <div id="subscriptionSummary"></div>
+      <div class="plans account-plans">
+        <div class="card plan"><h3>FREE</h3><div class="price">0 FCFA</div><p>20 jours — accès complet</p><button class="btn btn-secondary" disabled>Plan d’essai</button></div>
+        <div class="card plan"><h3>STANDARD</h3><div class="price">20 600 FCFA</div><p>30 jours — accès complet</p><a class="btn btn-primary" target="_blank" rel="noopener" href="https://pay.wave.com/m/M_ci_Enx-2JNAklk-/c/ci/?amount=20600">ACHETER STANDARD</a></div>
+        <div class="card plan featured"><h3>BUSINESS</h3><div class="price">181 000 FCFA</div><p>365 jours — accès complet</p><a class="btn btn-gold" target="_blank" rel="noopener" href="https://pay.wave.com/m/M_ci_Enx-2JNAklk-/c/ci/?amount=181000">ACHETER BUSINESS</a></div>
+      </div>
+      <div class="notice warn account-subscription-note">Le paiement Wave n’active pas automatiquement le plan. L’activation est réalisée après validation par le Super Admin SIGAT.</div>
+    </section>
+  </div>
+</main>
+
+<dialog id="userDialog" data-admin-only class="dialog account-user-dialog">
+  <div class="dialog-head"><div><strong>Nouvel utilisateur / membre</strong><div class="muted">Définissez son identité, son rôle et ses accès.</div></div><button class="close-x" data-close-user type="button">×</button></div>
+  <form id="userForm">
+    <div class="dialog-body">
+      <div class="form-grid">
+        <div class="field full"><label>Nom et prénoms *</label><input id="uName" required></div>
+        <div class="field"><label>Identifiant *</label><input id="uUsername" required autocomplete="off"></div>
+        <div class="field"><label>E-mail</label><input id="uEmail" type="email"></div>
+        <div class="field"><label>Téléphone</label><input id="uPhone"></div>
+        <div class="field"><label>Rôle</label><select id="uRole"><option value="MEMBER">Membre</option><option value="READ_ONLY">Consultation</option></select></div>
+        <div class="field"><label>Mot de passe temporaire *</label><input id="uPassword" type="password" required autocomplete="new-password"><div class="small-note">Au moins 10 caractères, une majuscule, une minuscule et un chiffre.</div></div>
+      </div>
+      <div class="permission-editor-block">
+        <div class="permission-editor-head"><div><strong>Pages autorisées</strong><div class="small-note">Cochez « Voir » et, si nécessaire, « Modifier ». Le droit Modifier active automatiquement Voir.</div></div><div class="permission-quick-actions"><button type="button" class="btn btn-secondary btn-sm" id="permissionViewAll">Tout voir</button><button type="button" class="btn btn-secondary btn-sm" id="permissionClearAll">Tout décocher</button></div></div>
+        <div id="createPermissionsGrid" class="permission-grid"></div>
+      </div>
+    </div>
+    <div class="dialog-foot"><button class="btn btn-secondary" type="button" data-close-user>Annuler</button><button class="btn btn-primary" type="submit">Créer le compte</button></div>
+  </form>
+</dialog>
+
+<dialog id="permissionsDialog" data-admin-only class="dialog account-user-dialog">
+  <div class="dialog-head"><div><strong>Modifier les accès</strong><div id="permissionsUserLabel" class="muted"></div></div><button class="close-x" data-close-permissions type="button">×</button></div>
+  <form id="permissionsForm">
+    <div class="dialog-body"><input type="hidden" id="permissionsUserId"><input type="hidden" id="permissionsUserRole"><div id="editPermissionsGrid" class="permission-grid"></div></div>
+    <div class="dialog-foot"><button class="btn btn-secondary" type="button" data-close-permissions>Annuler</button><button class="btn btn-primary" type="submit">Enregistrer les accès</button></div>
+  </form>
+</dialog>
+
+<dialog id="freePlanDialog" data-admin-only class="dialog"><div class="dialog-head"><strong>Passez à une formule SIGAT payante</strong></div><div class="dialog-body">STANDARD : 20 600 FCFA / 30 jours<br>BUSINESS : 181 000 FCFA / 365 jours</div><div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary">COMPRIS</button></form><a class="btn btn-primary" href="/mon-compte/#abonnement">VOIR MON ABONNEMENT</a></div></dialog>
+<footer class="footer">SIGAT — Système Intégré de Gestion Administrative et Technique</footer>
+<script type="module" src="/assets/app.js?v=1.76"></script>
+<script type="module" src="/assets/account.js?v=1.76"></script>
+</body>
+</html>

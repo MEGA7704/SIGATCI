@@ -14,6 +14,52 @@ const PARENT_TYPE = Object.freeze({
 function legacyStoredType(type){return type==='DIRECTION_DEPARTEMENTALE'?'DIRECTION_REGIONALE':type;}
 function canonicalType(row){return row?.service_type||row?.organization_type||null;}
 
+const USER_PERMISSION_PAGES = Object.freeze([
+  { key:'structures-rattachees', label:'Structures rattachées', editable:false },
+  { key:'personnel', label:'Personnel', editable:true },
+  { key:'documents', label:'Documents administratifs', editable:true },
+  { key:'stages', label:'Stages', editable:true },
+  { key:'convocations', label:'Convocations', editable:true },
+  { key:'activites-minef', label:'Activités du MINEF', editable:true },
+  { key:'missions', label:'Missions', editable:true },
+  { key:'exploitation-forestiere', label:'Exploitation forestière', editable:true },
+  { key:'produits-secondaires', label:'Produits secondaires', editable:true },
+  { key:'transformation-bois', label:'Transformation du bois', editable:true },
+  { key:'sensibilisations', label:'Sensibilisations', editable:true },
+  { key:'ressources-naturelles', label:'Ressources naturelles', editable:true },
+  { key:'feux-brousse', label:'Feux de brousse', editable:true },
+  { key:'faune', label:'Faune', editable:true },
+  { key:'formations', label:'Formations', editable:true },
+  { key:'materiel', label:'Matériel', editable:true },
+  { key:'rapports', label:'Rapports et bilans', editable:false }
+]);
+const USER_PERMISSION_PAGE_BY_KEY = Object.freeze(Object.fromEntries(USER_PERMISSION_PAGES.map(x=>[x.key,x])));
+const MODULE_PERMISSION_PAGE = Object.freeze({
+  personnel:'personnel', documents:'documents', absences:'documents', stages:'stages',
+  convocations:'convocations', convocation_pv:'convocations', 'activites-minef':'activites-minef',
+  missions:'missions', offense_pv:'missions', 'exploitation-forestiere':'exploitation-forestiere',
+  'produits-secondaires':'produits-secondaires', 'transformation-bois':'transformation-bois',
+  sensibilisations:'sensibilisations', 'ressources-naturelles':'ressources-naturelles',
+  'feux-brousse':'feux-brousse', faune:'faune', conflits:'faune', formations:'formations',
+  materiel:'materiel', rapports:'rapports'
+});
+function permissionCode(pageKey, action){ return `page.${pageKey}.${action}`; }
+function allUserPermissionCodes(){
+  const out=[];
+  for(const page of USER_PERMISSION_PAGES){out.push(permissionCode(page.key,'view'));if(page.editable)out.push(permissionCode(page.key,'edit'));}
+  return out;
+}
+function normalizeUserPermissionCodes(input, role='MEMBER'){
+  const allowed=new Set(allUserPermissionCodes());
+  const requested=new Set((Array.isArray(input)?input:[]).map(String).filter(x=>allowed.has(x)));
+  for(const page of USER_PERMISSION_PAGES){
+    const edit=permissionCode(page.key,'edit'), view=permissionCode(page.key,'view');
+    if(role==='READ_ONLY') requested.delete(edit);
+    if(requested.has(edit)) requested.add(view);
+  }
+  return [...requested];
+}
+
 const SERVICE_CODE_PREFIX = Object.freeze({
   PEF:'PEF',
   CANTONNEMENT:'CEF',
@@ -119,10 +165,20 @@ async function ensureRuntime(env) {
       status TEXT NOT NULL DEFAULT 'ACTIVE',
       force_password_change INTEGER NOT NULL DEFAULT 0,
       session_version INTEGER NOT NULL DEFAULT 1,
+      permissions_configured INTEGER NOT NULL DEFAULT 0,
       last_login_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS permissions (
+      code TEXT PRIMARY KEY,
+      label TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_permissions (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      permission_code TEXT NOT NULL,
+      PRIMARY KEY (user_id, permission_code)
     )`,
     `CREATE TABLE IF NOT EXISTS subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,6 +243,10 @@ async function ensureRuntime(env) {
   await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('ORGANIZATION_ADMIN','Administrateur de structure')").run();
   await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('MEMBER','Membre')").run();
   await env.SIGAT_DB.prepare("INSERT OR IGNORE INTO roles(code,label) VALUES('READ_ONLY','Consultation')").run();
+  for (const page of USER_PERMISSION_PAGES) {
+    await env.SIGAT_DB.prepare('INSERT OR IGNORE INTO permissions(code,label) VALUES(?,?)').bind(permissionCode(page.key,'view'), `Voir — ${page.label}`).run();
+    if (page.editable) await env.SIGAT_DB.prepare('INSERT OR IGNORE INTO permissions(code,label) VALUES(?,?)').bind(permissionCode(page.key,'edit'), `Modifier — ${page.label}`).run();
+  }
 
   // Réparation douce des bases des versions précédentes.
   const orgCols = await columnsOf(env, 'organizations');
@@ -240,6 +300,7 @@ async function ensureRuntime(env) {
   await addColumnIfMissing(env, 'users', userCols, 'status', "TEXT DEFAULT 'ACTIVE'");
   await addColumnIfMissing(env, 'users', userCols, 'force_password_change', 'INTEGER DEFAULT 0');
   await addColumnIfMissing(env, 'users', userCols, 'session_version', 'INTEGER DEFAULT 1');
+  await addColumnIfMissing(env, 'users', userCols, 'permissions_configured', 'INTEGER DEFAULT 0');
   await addColumnIfMissing(env, 'users', userCols, 'last_login_at', 'TEXT');
   await addColumnIfMissing(env, 'users', userCols, 'created_at', 'TEXT');
   await addColumnIfMissing(env, 'users', userCols, 'updated_at', 'TEXT');
@@ -282,7 +343,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.51-activites-minef',
+    version: '1.76-account-permissions-security',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -363,24 +424,18 @@ const MODULES = Object.freeze({
   convocation_pv: 'convocation_minutes',
   offense_pv: 'offense_minutes',
   missions: 'missions',
-  controles: 'controls',
-  infractions: 'offenses',
-  saisies: 'seizures',
   'exploitation-forestiere': 'forest_perimeters',
   'produits-secondaires': 'secondary_operators',
   'transformation-bois': 'wood_processing_units',
   sensibilisations: 'awareness_actions',
   'activites-minef': 'minef_activities',
-  reboisement: 'plantations',
   'ressources-naturelles': 'natural_resources',
   'feux-brousse': 'fire_incidents',
   faune: 'wildlife_observations',
   conflits: 'human_wildlife_conflicts',
   formations: 'training_sessions',
   materiel: 'equipment',
-  finances: 'budgets',
-  rapports: 'reports',
-  archives: 'archives'
+  rapports: 'reports'
 });
 
 const json = (data, status = 200, extraHeaders = {}) => new Response(JSON.stringify(data), {
@@ -597,7 +652,7 @@ async function getSession(env, request, { allowExpired = true } = {}) {
   let s;
   try { s = JSON.parse(raw); } catch { return null; }
   const user = await env.SIGAT_DB.prepare(`
-    SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.session_version,
+    SELECT u.id,u.organization_id,u.username,u.email,u.display_name,u.phone,u.role_code,u.status,u.force_password_change,u.session_version,u.permissions_configured,
            o.name AS organization_name,o.code AS organization_code,COALESCE(o.service_type,o.organization_type) AS organization_type,o.status AS organization_status,o.parent_id
     FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
     WHERE u.id=? AND u.deleted_at IS NULL
@@ -605,8 +660,42 @@ async function getSession(env, request, { allowExpired = true } = {}) {
   if (!user || user.status !== 'ACTIVE' || Number(user.session_version) !== Number(s.sessionVersion)) return null;
   if (user.role_code !== 'SUPER_ADMIN' && user.organization_status !== 'ACTIVE') return null;
   const subscription = user.role_code === 'SUPER_ADMIN' ? null : await currentSubscription(env, user.organization_id);
+  user.permissions = await effectiveUserPermissions(env, user);
   if (!allowExpired && subscription?.expired) return { denied: 'SUBSCRIPTION_EXPIRED', token, session: s, user, subscription };
   return { token, session: s, user, subscription };
+}
+
+async function effectiveUserPermissions(env, user){
+  if (!user) return [];
+  if (['SUPER_ADMIN','ORGANIZATION_ADMIN'].includes(user.role_code)) return allUserPermissionCodes();
+  if (!['MEMBER','READ_ONLY'].includes(user.role_code)) return [];
+  if (!Number(user.permissions_configured || 0)) {
+    const out=[];
+    for(const page of USER_PERMISSION_PAGES){
+      out.push(permissionCode(page.key,'view'));
+      if(page.editable && user.role_code==='MEMBER') out.push(permissionCode(page.key,'edit'));
+    }
+    return out;
+  }
+  const rows=await env.SIGAT_DB.prepare('SELECT permission_code FROM user_permissions WHERE user_id=? ORDER BY permission_code').bind(user.id).all();
+  const allowed=new Set(allUserPermissionCodes());
+  const codes=(rows.results||[]).map(r=>String(r.permission_code||'')).filter(c=>allowed.has(c));
+  return user.role_code==='READ_ONLY'?codes.filter(c=>!c.endsWith('.edit')):codes;
+}
+function hasPagePermission(user, pageKey, action='view'){
+  if (!user) return false;
+  if (['SUPER_ADMIN','ORGANIZATION_ADMIN'].includes(user.role_code)) return true;
+  const page=USER_PERMISSION_PAGE_BY_KEY[pageKey];
+  if (!page) return false;
+  if (action==='edit' && !page.editable) return false;
+  return Array.isArray(user.permissions) && user.permissions.includes(permissionCode(pageKey,action));
+}
+async function replaceUserPermissions(env, userId, role, permissions){
+  const normalized=normalizeUserPermissionCodes(permissions, role);
+  await env.SIGAT_DB.prepare('DELETE FROM user_permissions WHERE user_id=?').bind(userId).run();
+  for(const code of normalized) await env.SIGAT_DB.prepare('INSERT OR IGNORE INTO user_permissions(user_id,permission_code) VALUES(?,?)').bind(userId,code).run();
+  await env.SIGAT_DB.prepare('UPDATE users SET permissions_configured=1,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(userId).run();
+  return normalized;
 }
 
 function requireCsrf(request, auth) {
@@ -745,7 +834,8 @@ async function apiSession(env, request) {
       id: u.id, username: u.username, email: u.email, displayName: u.display_name,
       role: u.role_code, organizationId: u.organization_id, organizationName: u.organization_name,
       organizationCode: u.organization_code, organizationType: u.organization_type,
-      forcePasswordChange: !!u.force_password_change
+      forcePasswordChange: !!u.force_password_change,
+      permissions: Array.isArray(u.permissions) ? u.permissions : []
     },
     subscription: auth.subscription
   });
@@ -819,17 +909,14 @@ async function apiRegister(env, request) {
 async function apiPasswordResetRequest(env, request) {
   const body = await parseJson(request);
   const ident = normalizeIdentifier(body?.identifier);
-  const requestType = String(body?.requestType || '').toUpperCase();
-  if (!ident || !['ADMINISTRATOR','USER'].includes(requestType)) return bad('Informations incomplètes.');
+  if (!ident) return bad('Identifiant ou adresse e-mail requis.');
   const user = await env.SIGAT_DB.prepare(`SELECT id,organization_id,role_code FROM users WHERE (lower(username)=? OR lower(email)=?) AND deleted_at IS NULL LIMIT 1`).bind(ident, ident).first();
-  if (user) {
-    const typeOk = requestType === 'ADMINISTRATOR' ? user.role_code === 'ORGANIZATION_ADMIN' : ['MEMBER','READ_ONLY'].includes(user.role_code);
-    if (typeOk) {
-      await env.SIGAT_DB.prepare(`INSERT INTO password_reset_requests(organization_id,user_id,username_or_email,request_type) VALUES(?,?,?,?)`).bind(user.organization_id, user.id, ident, requestType).run();
-      await audit(env, request, { action: 'PASSWORD_RESET_REQUESTED', organization_id: user.organization_id, user_id: user.id, target_type: 'user', target_id: user.id });
-    }
+  if (user && ['ORGANIZATION_ADMIN','MEMBER','READ_ONLY'].includes(user.role_code)) {
+    const requestType = user.role_code === 'ORGANIZATION_ADMIN' ? 'ADMINISTRATOR' : 'USER';
+    await env.SIGAT_DB.prepare(`INSERT INTO password_reset_requests(organization_id,user_id,username_or_email,request_type) VALUES(?,?,?,?)`).bind(user.organization_id, user.id, ident, requestType).run();
+    await audit(env, request, { action: 'PASSWORD_RESET_REQUESTED', organization_id: user.organization_id, user_id: user.id, target_type: 'user', target_id: user.id });
   }
-  return ok({ message: 'Votre demande a été prise en compte. Si les informations correspondent à un compte SIGAT, elle sera traitée par l’administrateur compétent.' });
+  return ok({ message: 'Votre demande a été prise en compte. Si les informations correspondent à un compte SIGAT, elle sera transmise au responsable habilité.' });
 }
 
 async function apiChangePassword(env, request) {
@@ -860,8 +947,12 @@ async function apiDashboard(env, request) {
   if (!ids.length) return bad('Structure hors de votre périmètre hiérarchique.', 403, 'OUT_OF_SCOPE');
   const { sql, binds } = makeInClause(ids);
   const summary = {};
-  const wanted = ['agents','missions','controls','offenses','seizures','awareness_actions','plantations','fire_incidents','training_sessions'];
-  for (const table of wanted) {
+  const wanted = [
+    ['agents','personnel'],['missions','missions'],['awareness_actions','sensibilisations'],
+    ['fire_incidents','feux-brousse'],['training_sessions','formations']
+  ];
+  for (const [table,pageKey] of wanted) {
+    if (!hasPagePermission(auth.user,pageKey,'view')) continue;
     if (!await tableExists(env, table)) { summary[table] = 0; continue; }
     const r = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE organization_id IN (${sql}) AND archived_at IS NULL`).bind(...binds).first();
     summary[table] = Number(r?.c || 0);
@@ -878,6 +969,7 @@ async function apiHierarchy(env, request) {
   const auth = await getSession(env, request, { allowExpired: false });
   if (!auth) return bad('Session invalide.', 401);
   if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
+  if (!hasPagePermission(auth.user,'structures-rattachees','view')) return bad('Accès non autorisé à cette page.',403,'PAGE_FORBIDDEN');
   if (auth.user.role_code === 'SUPER_ADMIN') return bad('Route réservée aux structures métier.', 403);
   const url = new URL(request.url);
   const scopeOrg = url.searchParams.get('scopeOrg') ? Number(url.searchParams.get('scopeOrg')) : Number(auth.user.organization_id);
@@ -972,6 +1064,8 @@ async function apiLoad(env, request) {
   const module = url.searchParams.get('module') || '';
   const table = MODULES[module];
   if (!table) return bad('Module non autorisé.');
+  const permissionPage = MODULE_PERMISSION_PAGE[module];
+  if (permissionPage && !hasPagePermission(auth.user, permissionPage, 'view')) return bad('Vous n’êtes pas autorisé à consulter cette page.',403,'PAGE_FORBIDDEN');
   await ensureModuleTable(env, table);
   const page = Math.max(1, Number(url.searchParams.get('page') || 1));
   const limit = Math.min(100, Math.max(5, Number(url.searchParams.get('limit') || 25)));
@@ -990,7 +1084,7 @@ async function apiLoad(env, request) {
       if (module === 'sensibilisations') {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.type_sensibilisation') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.theme') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.lieu') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.cible') LIKE ? OR json_extract(COALESCE(r.data_json,'{}'), '$.agent_charge') LIKE ?)`;
       params.push(q,q,q,q,q,q,q,q);
-    } else if (['exploitation-forestiere','transformation-bois','feux-brousse','faune','missions','infractions','formations','offense_pv','activites-minef'].includes(module)) {
+    } else if (['exploitation-forestiere','transformation-bois','feux-brousse','faune','missions','formations','offense_pv','activites-minef'].includes(module)) {
       where += ` AND (r.title LIKE ? OR r.reference LIKE ? OR r.status LIKE ? OR COALESCE(r.data_json,'{}') LIKE ?)`;
       params.push(q,q,q,q);
     } else {
@@ -1048,7 +1142,7 @@ async function apiLoad(env, request) {
     if (forestType === 'RECHERCHE_PARCELLAIRE') {
       where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IS NULL)`;
       params.push('RECHERCHE_PARCELLAIRE');
-    } else if (['PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
+    } else if (['PEPINIERE','PLANTATION_CREEE'].includes(forestType)) {
       where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ?`;
       params.push(forestType);
     }
@@ -1057,7 +1151,6 @@ async function apiLoad(env, request) {
     const sousPrefecture = String(url.searchParams.get('sousPrefecture') || '').trim();
     const localite = String(url.searchParams.get('localite') || '').trim();
     const essence = String(url.searchParams.get('essence') || '').trim();
-    const reboisementType = String(url.searchParams.get('reboisementType') || '').trim();
     if (/^\d{4}$/.test(year)) {
       where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
       params.push(year);
@@ -1068,10 +1161,6 @@ async function apiLoad(env, request) {
     }
     for (const [key,value] of [['sous_prefecture',sousPrefecture],['localite',localite],['essence',essence]]) {
       if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
-    }
-    if (reboisementType) {
-      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`;
-      params.push(reboisementType);
     }
   }
   if (module === 'transformation-bois') {
@@ -1125,13 +1214,9 @@ async function apiLoad(env, request) {
   }
   if (module === 'missions') {
     const missionType=String(url.searchParams.get('missionType')||'').trim().toUpperCase();
-    if(['DISPOSITION','REALISEE','ORDRE_MISSION','PV_ORDRE_MISSION'].includes(missionType)){where+=` AND json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')=?`;params.push(missionType)}
+    if(['ORDRE_MISSION','PV_ORDRE_MISSION','REPRESSION'].includes(missionType)){where+=` AND json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')=?`;params.push(missionType)}
     const sourceOrderMissionId=Number(url.searchParams.get('sourceOrderMissionId')||0);
     if(missionType==='PV_ORDRE_MISSION'&&sourceOrderMissionId>0){where+=` AND CAST(json_extract(COALESCE(r.data_json,'{}'),'$._source_order_mission_id') AS INTEGER)=?`;params.push(sourceOrderMissionId)}
-  }
-  if (module === 'infractions') {
-    const missionType=String(url.searchParams.get('missionType')||'').trim().toUpperCase();
-    if(missionType==='REPRESSION'){where+=` AND (json_extract(COALESCE(r.data_json,'{}'),'$._offense_type')='REPRESSION' OR json_extract(COALESCE(r.data_json,'{}'),'$._mission_type')='REPRESSION')`}
   }
   if (module === 'offense_pv') {
     const sourceOffenseId=Number(url.searchParams.get('sourceOffenseId')||0);
@@ -1180,18 +1265,6 @@ async function apiLoad(env, request) {
     ORDER BY COALESCE(r.event_date,r.created_at) DESC,r.id DESC LIMIT ? OFFSET ?
   `).bind(...params, limit, (page - 1) * limit).all();
   let items = rows.results.map(r => { const path=[r.great_grandparent_name,r.grandparent_name,r.parent_name,r.source_organization].filter(Boolean).join(' › '); return { ...r, source_path:path, data: safeJson(r.data_json), owned: Number(r.organization_id) === Number(auth.user.organization_id), data_json: undefined }; });
-  if (module === 'exploitation-forestiere' && forestType === 'PEPINIERE' && items.length) {
-    const distRows = await env.SIGAT_DB.prepare(`
-      SELECT organization_id, LOWER(TRIM(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.essence'),''))) AS essence_key,
-             SUM(CAST(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.nombre_total_plants'),0) AS REAL)) AS distributed
-      FROM forest_perimeters
-      WHERE organization_id IN (${sql}) AND archived_at IS NULL
-        AND json_extract(COALESCE(data_json,'{}'),'$._forest_type')='REBOISEMENT'
-      GROUP BY organization_id, essence_key
-    `).bind(...binds).all();
-    const distMap = new Map((distRows.results||[]).map(x=>[`${Number(x.organization_id)}|${String(x.essence_key||'')}`, Number(x.distributed||0)]));
-    items = items.map(item=>{const d={...(item.data||{})};const key=`${Number(item.organization_id)}|${String(d.essence||'').trim().toLowerCase()}`;const distributed=Math.max(0,Math.round(distMap.get(key)||0));const produced=Math.max(0,Number(d.nbr_plants_produits||0)||0);d.nbr_plants_distribues=distributed;d.nbr_plants_disponibles=Math.max(0,Math.round(produced-distributed));return {...item,data:d};});
-  }
   return ok({ module, items, page, limit, total: Number(count?.c || 0), totalPages: Math.max(1, Math.ceil(Number(count?.c || 0) / limit)) });
 }
 
@@ -1265,8 +1338,8 @@ async function convocationHasPv(env, orgId, convocationId) {
 
 async function validateOffensePvSource(env, orgId, sourceId, ignorePvId=0){
   sourceId=Number(sourceId||0);if(!sourceId)throw new Error('L’affaire d’origine est obligatoire pour établir le P-V.');
-  const source=await env.SIGAT_DB.prepare(`SELECT id,title,event_date,data_json FROM offenses WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(sourceId,orgId).first();
-  if(!source)throw new Error('L’affaire sélectionnée est introuvable dans votre structure.');
+  const source=await env.SIGAT_DB.prepare(`SELECT id,title,event_date,data_json FROM missions WHERE id=? AND organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='REPRESSION'`).bind(sourceId,orgId).first();
+  if(!source)throw new Error('La répression sélectionnée est introuvable dans votre structure.');
   await ensureModuleTable(env,'offense_minutes');
   const dup=await env.SIGAT_DB.prepare(`SELECT id FROM offense_minutes WHERE organization_id=? AND archived_at IS NULL AND id<>? AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_offense_id') AS INTEGER)=? LIMIT 1`).bind(orgId,Number(ignorePvId||0),sourceId).first();
   if(dup)throw new Error('Un P-V est déjà enregistré pour cette affaire. Modifiez le P-V existant.');return source;
@@ -1277,8 +1350,8 @@ async function offenseHasPv(env,orgId,offenseId){
 }
 async function ensureMissionNumber(env,orgId,incomingData){
   const type=String(incomingData?._mission_type||'').toUpperCase();
-  if(!['REALISEE','ORDRE_MISSION'].includes(type)||String(incomingData?.numero_mission||'').trim())return;
-  const year=new Date().getUTCFullYear();const prefix=type==='ORDRE_MISSION'?'OM':'MC';
+  if(type!=='ORDRE_MISSION'||String(incomingData?.numero_mission||'').trim())return;
+  const year=new Date().getUTCFullYear();const prefix='OM';
   const row=await env.SIGAT_DB.prepare(`SELECT MAX(CAST(substr(COALESCE(json_extract(data_json,'$.numero_mission'),''),9) AS INTEGER)) AS n FROM missions WHERE organization_id=? AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')=? AND json_extract(COALESCE(data_json,'{}'),'$.numero_mission') LIKE ?`).bind(orgId,type,`${prefix}-${year}-%`).first();
   incomingData.numero_mission=`${prefix}-${year}-${String(Number(row?.n||0)+1).padStart(4,'0')}`;
 }
@@ -1308,29 +1381,11 @@ async function refreshLinkedOrderMissionPvs(env,orgId,orderId){
   const rows=await env.SIGAT_DB.prepare(`SELECT id,data_json FROM missions WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='PV_ORDRE_MISSION' AND CAST(json_extract(COALESCE(data_json,'{}'),'$._source_order_mission_id') AS INTEGER)=?`).bind(orgId,Number(orderId||0)).all();
   for(const row of rows.results||[]){const d=safeJson(row.data_json);syncPvFromOrderMission(d,source,sourceData);await env.SIGAT_DB.prepare(`UPDATE missions SET title=?,event_date=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(`Procès-verbal — ${d.ordre_reference||'Ordre de mission'}`,d.date_depart||null,JSON.stringify(d),row.id,orgId).run()}
 }
-async function hydrateRepressionMissionContext(env,orgId,incomingData){
-  if(String(incomingData?._mission_type||incomingData?._offense_type||'').toUpperCase()!=='REPRESSION')return;
-  const linked=String(incomingData?.liee_mission||'').toLowerCase()==='oui';
-  const missionId=Number(incomingData?.mission_liee_id||0);
-  const clear=()=>{for(const k of ['_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'])incomingData[k]=''};
-  if(!linked||!missionId){clear();return}
-  const row=await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,data_json FROM missions WHERE id=? AND organization_id=? AND archived_at IS NULL LIMIT 1`).bind(missionId,orgId).first();
-  if(!row)throw new Error('La mission liée est introuvable dans votre structure.');
-  const d=safeJson(row.data_json);if(String(d._mission_type||'').toUpperCase()!=='REALISEE')throw new Error('La mission liée doit être une mission de contrôle réalisée.');
-  const libelle=String(d.libelle_mission||'')==='Autre'?String(d.libelle_mission_autre||''):String(d.libelle_mission||row.title||'');
-  incomingData._mission_numero=String(d.numero_mission||row.reference||'');incomingData._mission_libelle=libelle;
-  incomingData._mission_chef=String(d.chef_mission||'');incomingData._mission_chef_grade=String(d._chef_mission_grade||'');incomingData._mission_chef_fonction=String(d._chef_mission_fonction||'');incomingData._mission_agents=String(d.autres_agents_participants||'');
-  incomingData._mission_objectif=String(d.objectif_mission||'');incomingData._mission_resultat=String(d.resultat||'');
-  incomingData._mission_immatriculation=String(d.immatriculation||'');incomingData._mission_materiels=String(d.materiels_equipements||'');
-  incomingData.mission_liee_label=[incomingData._mission_numero,incomingData._mission_libelle].filter(Boolean).join(' — ');
-}
 function syncPvFromOffense(incomingData,source,sourceData){
-  const direct=['personne_mise_cause','objet_infraction','objets_saisis','produits_saisis','materiels_saisis','date_controle','heure_controle','lieu_controle','domicile_mis_cause','contact_mis_cause','type_piece_identite','numero_piece_identite','arrestation','sort_biens','lieu_conservation','liee_mission','mission_liee_id','mission_liee_label','agents_arrestation','_mission_numero','_mission_libelle','_mission_chef','_mission_chef_grade','_mission_chef_fonction','_mission_agents','_mission_objectif','_mission_resultat','_mission_immatriculation','_mission_materiels'];
+  const direct=['personne_mise_cause','objet_infraction','objets_saisis','produits_saisis','materiels_saisis','date_controle','heure_controle','lieu_controle','domicile_mis_cause','contact_mis_cause','type_piece_identite','numero_piece_identite','arrestation','sort_biens','lieu_conservation','chef_mission','agents_arrestation'];
   for(const key of direct)incomingData[key]=sourceData[key]??'';
   if(!incomingData.type_piece_identite&&sourceData.type_numero_piece){const parts=String(sourceData.type_numero_piece).split(/[-–—]/);incomingData.type_piece_identite=String(parts.shift()||'').trim();incomingData.numero_piece_identite=String(parts.join('-')||'').trim()}
   incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
-  incomingData._mission_agents=String(sourceData._mission_agents||sourceData.agents_arrestation||'').trim();
-  incomingData.mission_reference_affichage=[sourceData._mission_numero,sourceData._mission_libelle].filter(v=>String(v||'').trim()).join(' / ')||String(sourceData.mission_liee_label||'').trim()||'—';
 }
 
 async function apiSave(env, request) {
@@ -1345,6 +1400,8 @@ async function apiSave(env, request) {
   const action = String(body?.action || '');
   const table = MODULES[module];
   if (!table || !['create','update','archive','delete'].includes(action)) return bad('Opération invalide.');
+  const permissionPage = MODULE_PERMISSION_PAGE[module];
+  if (permissionPage && !hasPagePermission(auth.user, permissionPage, 'edit')) return bad('Vous n’êtes pas autorisé à modifier cette page.',403,'PAGE_READ_ONLY');
   await ensureModuleTable(env, table);
   const orgId = Number(auth.user.organization_id);
   const payload = body?.payload || {};
@@ -1356,9 +1413,6 @@ async function apiSave(env, request) {
   const incomingMissionType = module === 'missions' ? String(incomingData._mission_type || '').toUpperCase() : '';
   const incomingSourceOrderMissionId = module === 'missions' && incomingMissionType === 'PV_ORDRE_MISSION' ? Number(incomingData._source_order_mission_id || 0) : 0;
   if(module==='missions') await ensureMissionNumber(env,orgId,incomingData);
-  if(module==='infractions'){
-    try{await hydrateRepressionMissionContext(env,orgId,incomingData)}catch(e){return bad(String(e?.message||e))}
-  }
 
   if (action === 'create') {
     let title = String(payload.title || '').trim();
@@ -1435,7 +1489,7 @@ async function apiSave(env, request) {
 
   if (action === 'delete') {
     if (module === 'convocations' && await convocationHasPv(env, orgId, id)) return bad('Cette convocation possède un procès-verbal. Supprimez d’abord le procès-verbal lié avant de supprimer la convocation.');
-    if (module === 'infractions' && await offenseHasPv(env, orgId, id)) return bad('Cette affaire possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’affaire.');
+    if (module === 'missions' && String(previousData._mission_type||'').toUpperCase()==='REPRESSION' && await offenseHasPv(env, orgId, id)) return bad('Cette répression possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’enregistrement.');
     if (module === 'missions' && String(previousData._mission_type||'').toUpperCase()==='ORDRE_MISSION' && await orderMissionHasPv(env,orgId,id)) return bad('Cet ordre de mission possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’ordre de mission.');
     await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
     if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
@@ -1453,8 +1507,13 @@ async function apiOrgUsers(env, request) {
   const auth = await getSession(env, request, { allowExpired: true });
   if (!auth) return bad('Session invalide.', 401);
   if (auth.user.role_code !== 'ORGANIZATION_ADMIN') return bad('Droits insuffisants.', 403);
-  const rows = await env.SIGAT_DB.prepare(`SELECT id,username,email,display_name,phone,role_code,status,last_login_at,created_at FROM users WHERE organization_id=? AND deleted_at IS NULL ORDER BY display_name`).bind(auth.user.organization_id).all();
-  return ok({ items: rows.results });
+  const rows = await env.SIGAT_DB.prepare(`SELECT id,username,email,display_name,phone,role_code,status,last_login_at,created_at,permissions_configured FROM users WHERE organization_id=? AND role_code IN ('MEMBER','READ_ONLY') AND deleted_at IS NULL ORDER BY display_name`).bind(auth.user.organization_id).all();
+  const items=[];
+  for(const u of rows.results||[]){
+    u.permissions=await effectiveUserPermissions(env,u);
+    items.push(u);
+  }
+  return ok({ items, permissionPages: USER_PERMISSION_PAGES });
 }
 
 async function apiOrgUserCreate(env, request) {
@@ -1470,13 +1529,14 @@ async function apiOrgUserCreate(env, request) {
   const displayName = String(b?.displayName || '').trim();
   const password = String(b?.password || '');
   if (!username || !displayName || !validPassword(password)) return bad('Informations invalides ou mot de passe trop faible.');
-  const dup = await env.SIGAT_DB.prepare('SELECT id FROM users WHERE lower(username)=? OR (?<>\'\' AND lower(email)=?)').bind(username.toLowerCase(), email, email).first();
+  const dup = await env.SIGAT_DB.prepare(`SELECT id FROM users WHERE lower(username)=? OR (?<>'' AND lower(email)=?)`).bind(username.toLowerCase(), email, email).first();
   if (dup) return bad('Identifiant ou e-mail déjà utilisé.');
   const hp = await hashPassword(password);
-  const r = await env.SIGAT_DB.prepare(`INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status,force_password_change) VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',1)`)
+  const r = await env.SIGAT_DB.prepare(`INSERT INTO users(organization_id,username,email,display_name,phone,role_code,password_hash,password_salt,password_iterations,status,force_password_change,permissions_configured) VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',1,1)`)
     .bind(auth.user.organization_id, username, email || null, displayName, b?.phone || null, role, hp.hash, hp.salt, hp.iterations).run();
-  await audit(env, request, { action: 'USER_CREATED', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: r.meta.last_row_id, description: displayName });
-  return ok({ id: r.meta.last_row_id });
+  const permissions=await replaceUserPermissions(env, r.meta.last_row_id, role, b?.permissions);
+  await audit(env, request, { action: 'USER_CREATED', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: r.meta.last_row_id, description: `${displayName} — ${permissions.length} droit(s)` });
+  return ok({ id: r.meta.last_row_id, permissions });
 }
 
 async function apiOrgUserAction(env, request, kind) {
@@ -1486,6 +1546,12 @@ async function apiOrgUserAction(env, request, kind) {
   const b = await parseJson(request);
   const target = await env.SIGAT_DB.prepare(`SELECT id,role_code,status FROM users WHERE id=? AND organization_id=? AND deleted_at IS NULL`).bind(Number(b?.userId), auth.user.organization_id).first();
   if (!target || !['MEMBER','READ_ONLY'].includes(target.role_code)) return bad('Utilisateur non gérable par cet administrateur.', 403);
+  if (kind === 'permissions') {
+    const permissions=await replaceUserPermissions(env,target.id,target.role_code,b?.permissions);
+    await env.SIGAT_DB.prepare('UPDATE users SET session_version=session_version+1 WHERE id=?').bind(target.id).run();
+    await audit(env, request, { action: 'USER_PERMISSIONS_CHANGED', organization_id: auth.user.organization_id, actor_user_id: auth.user.id, target_type: 'user', target_id: target.id, description: `${permissions.length} droit(s)` });
+    return ok({ permissions });
+  }
   if (kind === 'status') {
     const status = String(b?.status || '').toUpperCase();
     if (!['ACTIVE','DISABLED','SUSPENDED'].includes(status)) return bad('Statut invalide.');
@@ -1765,10 +1831,39 @@ async function superAuditLogs(env, request) {
   return ok({ items: rows.results });
 }
 
+function staticPagePermissionKey(pathname){
+  const p=String(pathname||'').replace(/\/+$/,'')||'/';
+  if(p==='/structures-rattachees') return 'structures-rattachees';
+  if(p==='/absences') return 'documents';
+  if(p.startsWith('/missions/ordre-de-mission')) return 'missions';
+  for(const page of USER_PERMISSION_PAGES){if(p===`/${page.key}`||p.startsWith(`/${page.key}/`))return page.key;}
+  return null;
+}
+async function guardStaticRequest(env,request,url){
+  if(!['GET','HEAD'].includes(request.method.toUpperCase())) return null;
+  const p=url.pathname;
+  if(p==='/'||p==='/index.html'||p.startsWith('/assets/')||p.startsWith('/register/')||p==='/favicon.ico') return null;
+  if(p.startsWith('/server/')) return new Response('Introuvable',{status:404});
+  if(p==='/reboisement'||p.startsWith('/reboisement/')) return new Response('Introuvable',{status:404});
+  await ensureRuntime(env);
+  const auth=await getSession(env,request,{allowExpired:true});
+  if(!auth) return Response.redirect(new URL('/',url),302);
+  if(p==='/utilisateurs'||p.startsWith('/utilisateurs/')) return Response.redirect(new URL('/mon-compte/#gestion-utilisateurs',url),302);
+  if(p==='/parametres/abonnement'||p.startsWith('/parametres/abonnement/')) return Response.redirect(new URL('/mon-compte/#abonnement',url),302);
+  if(p.startsWith('/superadmin/')) return auth.user.role_code==='SUPER_ADMIN'?null:Response.redirect(new URL('/dashboard/',url),302);
+  if(auth.user.role_code==='SUPER_ADMIN') return Response.redirect(new URL('/superadmin/dashboard/',url),302);
+  if(p==='/mon-compte'||p.startsWith('/mon-compte/')) return null;
+  if(p==='/dashboard'||p.startsWith('/dashboard/')) return null;
+  if(p==='/parametres'||p.startsWith('/parametres/')) return auth.user.role_code==='ORGANIZATION_ADMIN'?null:Response.redirect(new URL('/dashboard/',url),302);
+  const pageKey=staticPagePermissionKey(p);
+  if(pageKey&&!hasPagePermission(auth.user,pageKey,'view')) return Response.redirect(new URL('/dashboard/',url),302);
+  return null;
+}
+
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.28-smart-autofill-system', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.76-account-permissions-security', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
@@ -1786,6 +1881,7 @@ async function routeApi(env, request, url) {
   if (p === '/api/save' && m === 'POST') return apiSave(env, request);
   if (p === '/api/users' && m === 'GET') return apiOrgUsers(env, request);
   if (p === '/api/users/create' && m === 'POST') return apiOrgUserCreate(env, request);
+  if (p === '/api/users/permissions' && m === 'POST') return apiOrgUserAction(env, request, 'permissions');
   if (p === '/api/users/status' && m === 'POST') return apiOrgUserAction(env, request, 'status');
   if (p === '/api/users/reset-password' && m === 'POST') return apiOrgUserAction(env, request, 'reset');
   if (p === '/api/users/delete' && m === 'POST') return apiOrgUserAction(env, request, 'delete');
@@ -1815,6 +1911,8 @@ export default {
         if (!['/api/health','/api/ping'].includes(url.pathname)) await ensureRuntime(env);
         return securityHeaders(await routeApi(env, request, url));
       }
+      const guard = await guardStaticRequest(env, request, url);
+      if (guard) return securityHeaders(guard);
       const response = await env.ASSETS.fetch(request);
       return securityHeaders(response);
     } catch (e) {

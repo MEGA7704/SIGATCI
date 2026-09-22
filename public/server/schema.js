@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS users (
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED','SUSPENDED','ARCHIVED')),
   force_password_change INTEGER NOT NULL DEFAULT 0,
   session_version INTEGER NOT NULL DEFAULT 1,
+  permissions_configured INTEGER NOT NULL DEFAULT 0,
   last_login_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -226,53 +227,8 @@ CREATE TABLE IF NOT EXISTS missions (
 CREATE INDEX IF NOT EXISTS idx_missions_org ON missions(organization_id);
 CREATE INDEX IF NOT EXISTS idx_missions_date ON missions(event_date);
 
-CREATE TABLE IF NOT EXISTS controls (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference TEXT,
-  title TEXT NOT NULL,
-  event_date TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  data_json TEXT NOT NULL DEFAULT '{}',
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  archived_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_controls_org ON controls(organization_id);
-CREATE INDEX IF NOT EXISTS idx_controls_date ON controls(event_date);
 
-CREATE TABLE IF NOT EXISTS offenses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference TEXT,
-  title TEXT NOT NULL,
-  event_date TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  data_json TEXT NOT NULL DEFAULT '{}',
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  archived_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_offenses_org ON offenses(organization_id);
-CREATE INDEX IF NOT EXISTS idx_offenses_date ON offenses(event_date);
 
-CREATE TABLE IF NOT EXISTS seizures (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference TEXT,
-  title TEXT NOT NULL,
-  event_date TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  data_json TEXT NOT NULL DEFAULT '{}',
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  archived_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_seizures_org ON seizures(organization_id);
-CREATE INDEX IF NOT EXISTS idx_seizures_date ON seizures(event_date);
 
 CREATE TABLE IF NOT EXISTS forest_perimeters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -338,21 +294,6 @@ CREATE TABLE IF NOT EXISTS awareness_actions (
 CREATE INDEX IF NOT EXISTS idx_awareness_actions_org ON awareness_actions(organization_id);
 CREATE INDEX IF NOT EXISTS idx_awareness_actions_date ON awareness_actions(event_date);
 
-CREATE TABLE IF NOT EXISTS plantations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference TEXT,
-  title TEXT NOT NULL,
-  event_date TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  data_json TEXT NOT NULL DEFAULT '{}',
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  archived_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_plantations_org ON plantations(organization_id);
-CREATE INDEX IF NOT EXISTS idx_plantations_date ON plantations(event_date);
 
 CREATE TABLE IF NOT EXISTS natural_resources (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -450,21 +391,6 @@ CREATE TABLE IF NOT EXISTS equipment (
 CREATE INDEX IF NOT EXISTS idx_equipment_org ON equipment(organization_id);
 CREATE INDEX IF NOT EXISTS idx_equipment_date ON equipment(event_date);
 
-CREATE TABLE IF NOT EXISTS budgets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference TEXT,
-  title TEXT NOT NULL,
-  event_date TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  data_json TEXT NOT NULL DEFAULT '{}',
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  archived_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_budgets_org ON budgets(organization_id);
-CREATE INDEX IF NOT EXISTS idx_budgets_date ON budgets(event_date);
 
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -482,37 +408,7 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS idx_reports_org ON reports(organization_id);
 CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(event_date);
 
-CREATE TABLE IF NOT EXISTS archives (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference TEXT,
-  title TEXT NOT NULL,
-  event_date TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  data_json TEXT NOT NULL DEFAULT '{}',
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  archived_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_archives_org ON archives(organization_id);
-CREATE INDEX IF NOT EXISTS idx_archives_date ON archives(event_date);
 
-CREATE TABLE IF NOT EXISTS seizure_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  seizure_id INTEGER NOT NULL REFERENCES seizures(id) ON DELETE CASCADE,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  designation TEXT NOT NULL,
-  species TEXT,
-  scientific_name TEXT,
-  quantity REAL NOT NULL DEFAULT 1,
-  unit TEXT,
-  state TEXT,
-  storage_location TEXT,
-  notes TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_seizure_items_org ON seizure_items(organization_id);
 
 CREATE TABLE IF NOT EXISTS offense_minutes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

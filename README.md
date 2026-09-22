@@ -577,3 +577,23 @@ Correction effective du CSS embarqué d’impression : Arial Narrow 14 pt, inter
 
 ## V1.74 — Référence administrative
 Ajout du champ « Référence administrative » sur tous les popups de création et de création de P-V. La valeur est propre à chaque document et alimente l'en-tête de l'impression.
+
+
+## V1.75 — Suppression des rubriques obsolètes
+- Missions : retrait de « Disposition des missions de contrôle » et « Missions de contrôle réalisées » avec leur logique associée.
+- Missions : conservation de « Ordre de mission » et « Répression des infractions » ; la répression est désormais autonome dans le module Missions.
+- Activités techniques : retrait définitif de Contrôles, Infractions et Saisies.
+- Gestion : retrait définitif de Finances et Archives.
+- Suppression des pages, routes API, configurations, rapports, compteurs de tableau de bord et schémas de création correspondants.
+- Les bases D1 déjà déployées ne sont pas purgées automatiquement afin d’éviter toute perte de données historiques ; les anciennes tables ne sont plus exposées par l’application.
+
+## V1.76 — Mon compte, permissions et suppression du Reboisement
+- Environnement : suppression définitive de la rubrique Reboisement, de sa page, de ses filtres, rapports, traitements et dépendances applicatives.
+- Exploitation forestière : retrait de l’ancien sous-module Reboisement ; la pépinière ne dépend plus de ce module et calcule les plants disponibles à partir des quantités produites et distribuées saisies.
+- Mon compte : intégration de la Gestion des utilisateurs / membres et de l’Abonnement SIGAT.
+- Sécurité Administrateur : l’Administrateur ne peut ni réinitialiser, ni désactiver, ni supprimer son propre compte ; ces actions restent réservées au Super Admin.
+- Gestion des membres : l’Administrateur peut créer, réinitialiser, activer/désactiver et supprimer les comptes Membre/Consultation de sa structure.
+- Permissions : lors de la création et ensuite depuis « Accès », l’Administrateur choisit page par page les droits Voir / Modifier. Les droits sont contrôlés dans l’interface et sur les API serveur.
+- Connexion : suppression des informations internes sur les rôles dans « Mot de passe oublié » et détection automatique du responsable de réinitialisation.
+- Connexion : verrouillage du bouton pendant l’authentification afin d’empêcher les doubles clics et requêtes répétées.
+- Compatibilité D1 : les éventuelles anciennes données Reboisement déjà stockées ne sont pas supprimées automatiquement, mais elles ne sont plus exposées par l’application.
