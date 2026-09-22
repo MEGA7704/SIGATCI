@@ -117,3 +117,7 @@ Puis vérifier que D1, KV et le runtime sont opérationnels. Tester ensuite :
 ## Compatibilité avec une ancienne base D1
 
 Au démarrage, SIGAT neutralise les anciens liens parent/enfant lorsque l’ancienne colonne correspondante existe. Cette opération ne supprime pas les données métier. Les anciens comptes rattachés à un type de service qui n’est plus autorisé ne sont plus acceptés à la connexion.
+
+
+## Correctif V1.80 — Personnel
+Le formulaire d’ajout/modification des agents a été aligné sur les informations administratives demandées : référence administrative, identité, naissance, photo, matricule, emploi, fonction, catégorie, grade, classe, échelon, prises de service, handicap, situation matrimoniale et téléphone.

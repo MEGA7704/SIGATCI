@@ -370,15 +370,16 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 .personnel-table th{font-size:10px;letter-spacing:.01em;text-align:left}
 .personnel-table td{font-size:12.5px}
 .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:4%;text-align:center}
-.personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:17%}
-.personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:4%;text-align:center}
-.personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:8%}
-.personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:10%}
-.personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:11%}
-.personnel-table th:nth-child(7),.personnel-table td:nth-child(7){width:9%;text-align:center}
-.personnel-table th:nth-child(8),.personnel-table td:nth-child(8){width:10%}
-.personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:12%;text-align:center}
-.personnel-table th:nth-child(10),.personnel-table td:nth-child(10){width:15%;text-align:right}
+.personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:10%}
+.personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:15%}
+.personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:7%}
+.personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:9%}
+.personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:9%}
+.personnel-table th:nth-child(7),.personnel-table td:nth-child(7){width:7%}
+.personnel-table th:nth-child(8),.personnel-table td:nth-child(8){width:8%}
+.personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:9%}
+.personnel-table th:nth-child(10),.personnel-table td:nth-child(10){width:10%;text-align:center}
+.personnel-table th:nth-child(11),.personnel-table td:nth-child(11){width:12%;text-align:right}
 .personnel-table .personnel-actions{
   display:flex;
   flex-wrap:nowrap!important;
@@ -403,15 +404,16 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .personnel-table th{font-size:8.8px}
   .personnel-table td{font-size:11px}
   .personnel-table th:nth-child(1),.personnel-table td:nth-child(1){width:4%}
-  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:16%}
-  .personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:4%}
-  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:8%}
-  .personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:9%}
-  .personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:10%}
-  .personnel-table th:nth-child(7),.personnel-table td:nth-child(7){width:9%}
-  .personnel-table th:nth-child(8),.personnel-table td:nth-child(8){width:10%}
-  .personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:13%}
-  .personnel-table th:nth-child(10),.personnel-table td:nth-child(10){width:17%}
+  .personnel-table th:nth-child(2),.personnel-table td:nth-child(2){width:10%}
+  .personnel-table th:nth-child(3),.personnel-table td:nth-child(3){width:15%}
+  .personnel-table th:nth-child(4),.personnel-table td:nth-child(4){width:7%}
+  .personnel-table th:nth-child(5),.personnel-table td:nth-child(5){width:8%}
+  .personnel-table th:nth-child(6),.personnel-table td:nth-child(6){width:8%}
+  .personnel-table th:nth-child(7),.personnel-table td:nth-child(7){width:7%}
+  .personnel-table th:nth-child(8),.personnel-table td:nth-child(8){width:8%}
+  .personnel-table th:nth-child(9),.personnel-table td:nth-child(9){width:9%}
+  .personnel-table th:nth-child(10),.personnel-table td:nth-child(10){width:10%}
+  .personnel-table th:nth-child(11),.personnel-table td:nth-child(11){width:14%}
   .personnel-table .personnel-actions{gap:2px}
   .personnel-table .personnel-actions .btn-sm{min-width:23px;min-height:25px;padding:4px 5px;font-size:9px}
 }
@@ -990,3 +992,17 @@ body[data-module="exploitation-forestiere"] .forest-filters.reboisement-filters 
 @media(max-width:1400px){.dashboard-container{padding-left:24px;padding-right:24px}.dashboard-hero{margin-left:-24px;margin-right:-24px;padding-left:34px;padding-right:34px}.dashboard-metrics{grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px}.dashboard-metric{grid-template-columns:50px 1fr 24px;padding:14px}.dashboard-metric-icon{width:44px;height:44px}.dashboard-metric-copy .s{white-space:normal}.dashboard-grid{grid-template-columns:1fr 1fr}.dashboard-territory{grid-column:1/-1}.territory-content{grid-template-columns:1fr 1.3fr}}
 @media(max-width:980px){.dashboard-hero{grid-template-columns:1fr}.dashboard-hero-quote,.dashboard-hero-motto{display:none}.dashboard-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid{grid-template-columns:1fr}.dashboard-territory{grid-column:auto}.dashboard-principle{grid-template-columns:50px 1fr}.principle-quote{grid-column:1/-1;border-left:0}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){body:not(.login-page){background-attachment:scroll}.dashboard-container{padding:0 10px 12px}.dashboard-hero{margin:0 -10px;padding:24px 18px;min-height:126px}.dashboard-hero h1{font-size:28px}.dashboard-hero p{font-size:13px}.dashboard-metrics{grid-template-columns:1fr;gap:9px}.dashboard-metric{min-height:94px}.dashboard-grid{gap:10px;margin-top:10px}.quick-grid{grid-template-columns:1fr 1fr}.territory-content{grid-template-columns:1fr}.territory-picture{min-height:160px}.dashboard-principle{grid-template-columns:1fr;text-align:left}.principle-icon{display:none}.dashboard-footer{padding:10px;display:grid;gap:4px;text-align:center}}
+
+
+/* V1.80 — Personnel : formulaire administratif complet et liste alignée */
+#editorDialog.personnel-editor #recordReference{font-weight:700}
+#editorDialog.personnel-editor .photo-field{min-height:96px}
+.list-print.personnel-list-print .personnel-print-table{font-size:6.2pt!important}
+.list-print.personnel-list-print .personnel-print-table th,
+.list-print.personnel-list-print .personnel-print-table td{font-size:6.2pt!important;padding:1.2mm .55mm!important}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(n),
+.list-print.personnel-list-print .personnel-print-table td:nth-child(n){width:auto!important}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(1){width:3.5%!important}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(2){width:7%!important}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(3){width:11%!important}
+.list-print.personnel-list-print .personnel-print-table th:nth-child(17){width:7%!important}
