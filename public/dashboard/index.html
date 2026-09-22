@@ -1,1 +1,81 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIGAT — Tableau de bord</title><link rel="stylesheet" href="/assets/styles.css?v=1.77"></head><body data-module="dashboard"><main class="container"><div class="page-head"><div><h1 id="dashboardTitle">Tableau de bord</h1><p id="orgScope">Chargement du périmètre…</p></div></div><div id="metricCards" class="cards"></div><div class="card" style="margin-top:16px"><strong>Principe SIGAT</strong><p class="muted"><span id="principleText">Chaque service travaille dans son espace privé et les données remontent automatiquement selon la hiérarchie SIGAT.</span></p></div></main><dialog id="freePlanDialog" class="dialog"><div class="dialog-head"><div><strong>Passez à une formule SIGAT payante</strong><div class="muted">Votre période Free donne accès à toutes les fonctionnalités pendant 20 jours.</div></div></div><div class="dialog-body"><div class="plans" style="grid-template-columns:1fr 1fr"><div class="card plan"><h3>STANDARD</h3><div class="price">20 600 FCFA</div><div class="muted">30 jours — accès complet</div></div><div class="card plan featured"><h3>BUSINESS</h3><div class="price">181 000 FCFA</div><div class="muted">365 jours — accès complet</div></div></div></div><div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary" value="cancel">COMPRIS</button></form><a class="btn btn-primary" href="/mon-compte/#abonnement">ACHETER MON PLAN</a></div></dialog><footer class="footer">SIGAT — Système Intégré de Gestion Administrative et Technique</footer><script type="module" src="/assets/app.js?v=1.77"></script></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIGAT — Tableau de bord</title>
+  <link rel="stylesheet" href="/assets/styles.css?v=1.78">
+</head>
+<body data-module="dashboard" class="dashboard-page">
+  <main class="container dashboard-container">
+    <section class="dashboard-hero" aria-labelledby="dashboardTitle">
+      <div class="dashboard-hero-copy">
+        <div class="dashboard-kicker">BIENVENUE SUR SIGAT</div>
+        <h1 id="dashboardTitle">Tableau de bord</h1>
+        <p id="orgScope">Chargement du périmètre…</p>
+      </div>
+      <div class="dashboard-hero-quote" aria-hidden="true">
+        <span>« Des forêts aujourd’hui,<br>un avenir pour demain »</span>
+        <i></i>
+      </div>
+      <div class="dashboard-hero-motto" aria-hidden="true">
+        <strong>PROTÉGER<br>GÉRER<br>PRÉSERVER</strong><i></i>
+      </div>
+    </section>
+
+    <section id="metricCards" class="dashboard-metrics" aria-label="Indicateurs principaux"></section>
+
+    <section class="dashboard-grid">
+      <article class="dashboard-panel dashboard-recent">
+        <div class="dashboard-panel-head">
+          <h2><span class="panel-icon">◷</span> Activités récentes</h2>
+          <a id="recentAllLink" class="panel-link" href="/rapports/">Voir tout <span>→</span></a>
+        </div>
+        <div id="recentActivities" class="recent-list"><div class="dashboard-empty">Chargement des activités…</div></div>
+      </article>
+
+      <article class="dashboard-panel dashboard-quick">
+        <div class="dashboard-panel-head"><h2><span class="panel-icon">⚡</span> Actions rapides</h2></div>
+        <div class="quick-grid" id="quickActions">
+          <a class="quick-action" data-dashboard-action-page="personnel" href="/personnel/"><span class="quick-icon">●</span><strong>Gérer les agents</strong><span class="quick-arrow">→</span></a>
+          <a class="quick-action" data-dashboard-action-page="missions" href="/missions/?view=ORDRE_MISSION"><span class="quick-icon">▣</span><strong>Planifier une mission</strong><span class="quick-arrow">→</span></a>
+          <a class="quick-action" data-dashboard-action-page="sensibilisations" href="/sensibilisations/"><span class="quick-icon">◖</span><strong>Enregistrer une sensibilisation</strong><span class="quick-arrow">→</span></a>
+          <a class="quick-action" data-dashboard-action-page="feux-brousse" href="/feux-brousse/?view=DEGATS"><span class="quick-icon">♨</span><strong>Déclarer un feu de brousse</strong><span class="quick-arrow">→</span></a>
+          <a class="quick-action" data-dashboard-action-page="formations" href="/formations/"><span class="quick-icon">◆</span><strong>Planifier une formation</strong><span class="quick-arrow">→</span></a>
+          <a class="quick-action" data-dashboard-action-page="rapports" href="/rapports/"><span class="quick-icon">▥</span><strong>Consulter les rapports</strong><span class="quick-arrow">→</span></a>
+        </div>
+      </article>
+
+      <article class="dashboard-panel dashboard-territory">
+        <div class="dashboard-panel-head">
+          <h2><span class="panel-icon">◫</span> Aperçu du territoire</h2>
+          <span class="territory-chip" id="territoryChip">Structure SIGAT</span>
+        </div>
+        <div class="territory-content">
+          <div class="territory-stats">
+            <div class="territory-row"><span>Structure</span><strong id="territoryType">—</strong></div>
+            <div class="territory-row"><span>Services rattachés</span><strong id="territoryChildren">—</strong></div>
+            <div class="territory-row"><span>Périmètre hiérarchique</span><strong id="territoryScope">—</strong></div>
+            <div class="territory-row"><span>État global</span><strong class="status-normal">Normal</strong></div>
+          </div>
+          <div class="territory-picture"><div><strong>Des écosystèmes préservés</strong><span>pour les générations futures</span><i></i></div></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="dashboard-principle">
+      <div class="principle-icon">●</div>
+      <div><strong>Principe SIGAT</strong><p id="principleText">Chaque service travaille dans son espace privé et les données remontent automatiquement selon la hiérarchie SIGAT.</p></div>
+      <div class="principle-quote"><span>“</span><p>Une gestion rigoureuse des données pour des forêts durables.</p><i></i></div>
+    </section>
+  </main>
+
+  <dialog id="freePlanDialog" class="dialog">
+    <div class="dialog-head"><div><strong>Passez à une formule SIGAT payante</strong><div class="muted">Votre période Free donne accès à toutes les fonctionnalités pendant 20 jours.</div></div></div>
+    <div class="dialog-body"><div class="plans" style="grid-template-columns:1fr 1fr"><div class="card plan"><h3>STANDARD</h3><div class="price">20 600 FCFA</div><div class="muted">30 jours — accès complet</div></div><div class="card plan featured"><h3>BUSINESS</h3><div class="price">181 000 FCFA</div><div class="muted">365 jours — accès complet</div></div></div></div>
+    <div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary" value="cancel">COMPRIS</button></form><a class="btn btn-primary" href="/mon-compte/#abonnement">ACHETER MON PLAN</a></div>
+  </dialog>
+  <footer class="footer dashboard-footer"><span id="dashboardFooterOrg">SIGAT</span><span>Système Intégré de Gestion Administrative et Technique</span><span>Version 1.78</span></footer>
+  <script type="module" src="/assets/app.js?v=1.78"></script>
+</body>
+</html>

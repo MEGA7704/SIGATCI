@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.76';
-import {MODULE_CONFIG} from './module-config.js?v=1.76';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.78';
+import {MODULE_CONFIG} from './module-config.js?v=1.78';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -338,14 +338,58 @@ async function loadDashboard(){
   try{
     const scope=new URLSearchParams(location.search).get('scopeOrg');
     const d=await api(`/api/dashboard${scope?`?scopeOrg=${encodeURIComponent(scope)}`:''}`);
-    const map=[['agents','Agents','personnel'],['missions','Missions','missions'],['awareness_actions','Sensibilisations','sensibilisations'],['fire_incidents','Feux de brousse','feux-brousse'],['training_sessions','Formations','formations']].filter(([, ,page])=>canViewPage(page));
-    document.getElementById('metricCards').innerHTML=map.map(([k,l])=>`<div class="card metric"><div class="k">${l}</div><div class="v">${Number(d.summary[k]||0)}</div><div class="s">Périmètre hiérarchique autorisé</div></div>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
+    const metricDefs=[
+      ['agents','Agents','personnel','●','metric-green'],
+      ['missions','Missions','missions','▣','metric-blue'],
+      ['awareness_actions','Sensibilisations','sensibilisations','◖','metric-green'],
+      ['fire_incidents','Feux de brousse','feux-brousse','♨','metric-red'],
+      ['training_sessions','Formations','formations','◆','metric-purple']
+    ].filter(([, ,page])=>canViewPage(page));
+    const cards=document.getElementById('metricCards');
+    if(cards)cards.innerHTML=metricDefs.map(([k,l,,icon,tone])=>`<article class="dashboard-metric ${tone}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${Number(d.summary[k]||0)}</div><div class="s">Périmètre hiérarchique autorisé</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></article>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
     const label=TYPE_LABEL[d.organization.type]||d.organization.type;
     const title=document.getElementById('dashboardTitle');if(title)title.textContent=`Tableau de bord — ${label}`;
     const parts=[];for(const [k,v] of Object.entries(d.hierarchyBreakdown||{})){if(v)parts.push(`${v} ${TYPE_LABEL[k]||k}`)}
-    document.getElementById('orgScope').textContent=d.organization.type==='PEF'?`Données privées du ${d.organization.name}.`:`Vue consolidée de ${d.organization.name}${parts.length?` — structures subordonnées : ${parts.join(', ')}`:''}.`;
+    const scopeText=d.organization.type==='PEF'?`Suivi des activités, des ressources et de la gestion durable — ${d.organization.name}.`:`Vue consolidée de ${d.organization.name}${parts.length?` — ${parts.join(', ')}`:''}.`;
+    const orgScope=document.getElementById('orgScope');if(orgScope)orgScope.textContent=scopeText;
     const principle=document.getElementById('principleText');if(principle)principle.textContent='Chaque service saisit ses propres données. Les services supérieurs consultent automatiquement les données de toutes les structures qui leur sont officiellement rattachées, sans ressaisie.';
+    const chip=document.getElementById('territoryChip');if(chip)chip.textContent=d.organization.name||'Structure SIGAT';
+    const territoryType=document.getElementById('territoryType');if(territoryType)territoryType.textContent=label||'—';
+    const territoryChildren=document.getElementById('territoryChildren');if(territoryChildren)territoryChildren.textContent=String(Number(d.childOrganizations||0));
+    const territoryScope=document.getElementById('territoryScope');if(territoryScope)territoryScope.textContent=d.viewingOwn?'Autorisé':'Vue consolidée';
+    const footerOrg=document.getElementById('dashboardFooterOrg');if(footerOrg)footerOrg.textContent=`SIGAT — ${d.organization.name||label||'Structure'}`;
+    document.querySelectorAll('[data-dashboard-action-page]').forEach(el=>{if(!canViewPage(el.dataset.dashboardActionPage))el.remove()});
+    const recentAll=document.getElementById('recentAllLink');if(recentAll&&!canViewPage('rapports'))recentAll.remove();
+    await loadDashboardRecentActivities(scope);
   }catch(e){showToast(e.message,'error')}
+}
+
+async function loadDashboardRecentActivities(scope=''){
+  const host=document.getElementById('recentActivities');if(!host)return;
+  const defs=[
+    {module:'sensibilisations',page:'sensibilisations',label:'Sensibilisation',path:'/sensibilisations/',icon:'◖'},
+    {module:'missions',page:'missions',label:'Mission',path:'/missions/',icon:'▣'},
+    {module:'personnel',page:'personnel',label:'Personnel',path:'/personnel/',icon:'●'},
+    {module:'formations',page:'formations',label:'Formation',path:'/formations/',icon:'◆'},
+    {module:'exploitation-forestiere',page:'exploitation-forestiere',label:'Exploitation forestière',path:'/exploitation-forestiere/',icon:'◒'}
+  ].filter(x=>canViewPage(x.page));
+  if(!defs.length){host.innerHTML='<div class="dashboard-empty">Aucune activité n’est autorisée pour ce compte.</div>';return}
+  try{
+    const settled=await Promise.allSettled(defs.map(async def=>{
+      const q=new URLSearchParams({module:def.module,page:'1',limit:'4'});if(scope)q.set('scopeOrg',scope);
+      const data=await api(`/api/load?${q.toString()}`);
+      return (data.items||[]).map(item=>({...item,__def:def}));
+    }));
+    const items=settled.flatMap(x=>x.status==='fulfilled'?x.value:[]).sort((a,b)=>new Date(b.event_date||b.updated_at||b.created_at||0)-new Date(a.event_date||a.updated_at||a.created_at||0)).slice(0,4);
+    if(!items.length){host.innerHTML='<div class="dashboard-empty">Aucune activité récente enregistrée.</div>';return}
+    host.innerHTML=items.map(item=>{
+      const def=item.__def,d=item.data||{},when=item.event_date||d.date_activite||d.date_constat||d.date_observation||item.created_at;
+      const subtitle=d.theme||d.localite||d.lieu||d.lieu_mission||d.fonction||d.essence||item.reference||def.label;
+      return `<a class="recent-item" href="${withScope(def.path)}"><span class="recent-icon">${def.icon}</span><span class="recent-copy"><strong>${esc(item.title||def.label)}</strong><small>${esc(subtitle||def.label)}</small></span><time>${esc(fmtDate(when))}</time></a>`;
+    }).join('');
+  }catch{
+    host.innerHTML='<div class="dashboard-empty">Les activités récentes ne sont pas disponibles pour le moment.</div>';
+  }
 }
 
 function bindCommonModuleControls(){
@@ -441,17 +485,23 @@ function updateForestTableHead(type){
 }
 
 function bindForestFilters(){
-  const ids=['forestYearFilter','forestDateFilter','forestSousPrefFilter','forestLocaliteFilter','forestEssenceFilter','forestReboisementTypeFilter','forestBeneficiaryFilter','forestContactFilter','forestEnterpriseFilter','forestCoordXFilter','forestCoordYFilter','forestSuperficieMinFilter','forestSuperficieMaxFilter','forestDensiteMinFilter','forestDensiteMaxFilter','forestPlantsMinFilter','forestPlantsMaxFilter'];
+  const ids=['forestYearFilter','forestDateFilter','forestSousPrefFilter','forestLocaliteFilter','forestEssenceFilter','forestReboisementTypeFilter','forestBeneficiaryFilter'];
   ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;const ev=el.tagName==='INPUT'&&['text','number'].includes(el.type)?'input':'change';el.addEventListener(ev,()=>{clearTimeout(window.__forestFilterTimer);window.__forestFilterTimer=setTimeout(()=>{currentPage=1;loadRecords()},220)})});
   document.getElementById('forestResetFilters')?.addEventListener('click',()=>{ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});currentSearch='';const q=document.getElementById('searchInput');if(q)q.value='';currentPage=1;loadRecords()});
 }
 function updateForestFilterVisibility(type){
   const set=(id,on)=>{const el=document.getElementById(id);if(el){el.hidden=!on;if(!on)el.value=''}};
-  set('forestSousPrefFilter',type==='RECHERCHE_PARCELLAIRE'||type==='PEPINIERE');
+  const isReboisement=type==='REBOISEMENT';
+  if(isReboisement)currentSearch='';
+  set('searchInput',!isReboisement);
+  set('forestYearFilter',!isReboisement);
+  set('forestDateFilter',true);
+  set('forestSousPrefFilter',!isReboisement&&(type==='RECHERCHE_PARCELLAIRE'||type==='PEPINIERE'));
   set('forestLocaliteFilter',type!=='PEPINIERE');
   set('forestEssenceFilter',true);
-  const reboisementOnly=['forestReboisementTypeFilter','forestBeneficiaryFilter','forestContactFilter','forestEnterpriseFilter','forestCoordXFilter','forestCoordYFilter','forestSuperficieMinFilter','forestSuperficieMaxFilter','forestDensiteMinFilter','forestDensiteMaxFilter','forestPlantsMinFilter','forestPlantsMaxFilter'];
-  reboisementOnly.forEach(id=>set(id,type==='REBOISEMENT'));
+  set('forestReboisementTypeFilter',isReboisement);
+  set('forestBeneficiaryFilter',isReboisement);
+  const toolbar=document.getElementById('forestFilters');if(toolbar)toolbar.classList.toggle('reboisement-filters',isReboisement);
 }
 
 
@@ -886,7 +936,7 @@ async function loadRecords(){
     const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
     const minefActivityFilter=moduleKey==='activites-minef'?`&year=${encodeURIComponent(document.getElementById('minefActivityYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('minefActivityDateFilter')?.value||'')}&activityType=${encodeURIComponent(document.getElementById('minefActivityTypeFilter')?.value||'')}&activityCategory=${encodeURIComponent(document.getElementById('minefActivityCategoryFilter')?.value||'')}&organizer=${encodeURIComponent(document.getElementById('minefActivityOrganizerFilter')?.value||'')}`:'';
     const awarenessFilter=moduleKey==='sensibilisations'?`&year=${encodeURIComponent(document.getElementById('awarenessYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('awarenessDateFilter')?.value||'')}&awarenessType=${encodeURIComponent(document.getElementById('awarenessTypeFilter')?.value||'')}`:'';
-    const forestFilter=moduleKey==='exploitation-forestiere'?`&forestType=${encodeURIComponent(currentForestType)}&year=${encodeURIComponent(document.getElementById('forestYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('forestDateFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('forestSousPrefFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('forestLocaliteFilter')?.value||'')}&essence=${encodeURIComponent(document.getElementById('forestEssenceFilter')?.value||'')}&reboisementType=${encodeURIComponent(document.getElementById('forestReboisementTypeFilter')?.value||'')}&beneficiary=${encodeURIComponent(document.getElementById('forestBeneficiaryFilter')?.value||'')}&contact=${encodeURIComponent(document.getElementById('forestContactFilter')?.value||'')}&enterprise=${encodeURIComponent(document.getElementById('forestEnterpriseFilter')?.value||'')}&coordX=${encodeURIComponent(document.getElementById('forestCoordXFilter')?.value||'')}&coordY=${encodeURIComponent(document.getElementById('forestCoordYFilter')?.value||'')}&superficieMin=${encodeURIComponent(document.getElementById('forestSuperficieMinFilter')?.value||'')}&superficieMax=${encodeURIComponent(document.getElementById('forestSuperficieMaxFilter')?.value||'')}&densiteMin=${encodeURIComponent(document.getElementById('forestDensiteMinFilter')?.value||'')}&densiteMax=${encodeURIComponent(document.getElementById('forestDensiteMaxFilter')?.value||'')}&plantsMin=${encodeURIComponent(document.getElementById('forestPlantsMinFilter')?.value||'')}&plantsMax=${encodeURIComponent(document.getElementById('forestPlantsMaxFilter')?.value||'')}`:'';
+    const forestFilter=moduleKey==='exploitation-forestiere'?`&forestType=${encodeURIComponent(currentForestType)}&year=${encodeURIComponent(document.getElementById('forestYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('forestDateFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('forestSousPrefFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('forestLocaliteFilter')?.value||'')}&essence=${encodeURIComponent(document.getElementById('forestEssenceFilter')?.value||'')}&reboisementType=${encodeURIComponent(document.getElementById('forestReboisementTypeFilter')?.value||'')}&beneficiary=${encodeURIComponent(document.getElementById('forestBeneficiaryFilter')?.value||'')}`:'';
     const woodFilter=moduleKey==='transformation-bois'?`&woodType=${encodeURIComponent(currentWoodType)}&year=${encodeURIComponent(document.getElementById('woodYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('woodDateFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('woodLocaliteFilter')?.value||'')}&natureProduit=${encodeURIComponent(document.getElementById('woodNatureFilter')?.value||'')}&operatorStatus=${encodeURIComponent(document.getElementById('woodStatusFilter')?.value||'')}&exercantType=${encodeURIComponent(document.getElementById('woodExercantFilter')?.value||'')}&region=${encodeURIComponent(document.getElementById('woodRegionFilter')?.value||'')}&departement=${encodeURIComponent(document.getElementById('woodDepartementFilter')?.value||'')}`:'';
     const fireFilter=moduleKey==='feux-brousse'?`&fireType=${encodeURIComponent(currentFireType)}&department=${encodeURIComponent(document.getElementById('fireDepartmentFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('fireSousPrefFilter')?.value||'')}&village=${encodeURIComponent(document.getElementById('fireVillageFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('fireDateFilter')?.value||'')}&natureDegats=${encodeURIComponent(document.getElementById('fireNatureFilter')?.value||'')}`:'';
     const faunaFilter=moduleKey==='faune'?`&faunaType=${encodeURIComponent(currentFaunaType)}&activityDate=${encodeURIComponent(document.getElementById('faunaDateFilter')?.value||'')}&species=${encodeURIComponent(document.getElementById('faunaSpeciesFilter')?.value||'')}&zone=${encodeURIComponent(document.getElementById('faunaZoneFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('faunaSousPrefFilter')?.value||'')}&village=${encodeURIComponent(document.getElementById('faunaVillageFilter')?.value||'')}&conflictType=${encodeURIComponent(document.getElementById('faunaConflictFilter')?.value||'')}`:'';
@@ -1082,7 +1132,7 @@ function mountForestEditorLogic(record=null){
     const type=q('type_reboisement'),enterprise=q('entreprise_responsable');
     const wrap=enterprise?.closest('.field');
     const update=()=>{const show=normalizeForestText(type?.value)==='compensatoires suivis';if(wrap)wrap.hidden=!show;if(enterprise&&!show)enterprise.value=''};
-    type?.addEventListener('change',update);update();
+    type?.addEventListener('change',update);type?.addEventListener('input',update);update();
   }
   if(editorForestType==='PLANTATION_CREEE'||editorForestType==='REBOISEMENT'){
     const superficie=q('superficie'),densite=q('densite'),total=q('nombre_total_plants');
