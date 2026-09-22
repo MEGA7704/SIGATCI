@@ -1,3 +1,9 @@
+# SIGAT V1.89 — Convocation / Référence administrative
+
+Correction ciblée du popup **Ajouter — Convocation** : remplacement de « Référence / N° » par **Référence administrative** au même emplacement, sans doublon. Le champ intelligent **Personne déjà enregistrée dans le personnel** est supprimé, tandis que le champ manuel **Nom et Prénoms de la personne convoquée** est conservé et reste obligatoire.
+
+---
+
 # SIGAT V1.88
 
 Correction ciblée des formulaires **Mise en stage** et **Fin de stage** : remplacement de « Référence / N° attestation » par **Référence administrative** au même emplacement et sans doublon. Pour **Fin de stage**, le champ manuel « Nom et Prénoms du stagiaire » est supprimé tandis que le champ intelligent **Stage en cours à clôturer** est conservé et utilisé pour reprendre l’identité du stagiaire.

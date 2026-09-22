@@ -102,7 +102,8 @@ const SMART_AUTOFILL={
   },
   absences:{sourceModule:'personnel',label:'Agent existant',help:"Sélectionnez un agent pour reprendre automatiquement son nom, son matricule, son emploi et son grade. Les autres champs de l’autorisation restent modifiables.",copyTitle:true,map:{grade:'data.grade',matricule:'data.matricule',emploi:'data.emploi'}},
   convocations:{
-    CONVOCATIONS:{sourceModule:'personnel',label:'Personne déjà enregistrée dans le personnel',help:"Le nom et la profession sont proposés automatiquement, puis restent modifiables.",copyTitle:true,map:{profession:'data.emploi'}},
+    // V1.89 — La convocation est saisie manuellement : aucun sélecteur intelligent de personnel.
+    // Le préremplissage intelligent est conservé uniquement pour le procès-verbal lié à une convocation.
     PV:{sourceModule:'convocations',label:'Convocation à l’origine de la rencontre',help:"Sélectionnez la convocation concernée : la personne, la date, l’heure, l’objet et le responsable sont préremplis. Tous les champs restent modifiables.",copyTitle:true,map:{convocation_reference:'$reference',profession:'data.profession',domicile:'data.domicile',date_rencontre:'data.date_presentation',heure_debut:'data.heure',objet_rencontre:'data.objet_convocation',personne_a_voir:'data.personne_a_voir'},sourceIdKey:'_source_convocation_id'}
   },
   missions:{sourceModule:'personnel',label:'Chef de mission',help:"Choisissez un agent pour renseigner le chef de mission. Le champ reste modifiable.",map:{chef_mission:'$title'}},
@@ -227,8 +228,9 @@ async function mountSmartAutofill(record=null){
   try{
     const candidates=await loadSmartCandidates(profile,record);
     const cessationMutation=moduleKey==='documents'&&editorDocumentType==='CESSATION_SERVICE';
-    const smartAgentRequired=!record&&(cessationMutation||isExplanationDocument||isAbsence||(moduleKey==='stages'&&editorStageType==='FIN_STAGE'));
-    select.innerHTML=smartAgentRequired?'<option value="">— Sélectionner un agent —</option>':'<option value="">— Saisie manuelle / ne pas préremplir —</option>';
+    const smartAgentRequired=!record&&(cessationMutation||(moduleKey==='documents'&&editorDocumentType==='DEMANDE_EXPLICATION')||(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE'))||(moduleKey==='convocations'&&editorConvocationView==='PV')||(moduleKey==='stages'&&editorStageType==='FIN_STAGE'));
+    const requiredSmartPlaceholder=(moduleKey==='convocations'&&editorConvocationView==='PV')?'— Sélectionner une convocation —':'— Sélectionner un agent —';
+    select.innerHTML=smartAgentRequired?`<option value="">${requiredSmartPlaceholder}</option>`:'<option value="">— Saisie manuelle / ne pas préremplir —</option>';
     if(smartAgentRequired)select.required=true;
     for(const r of candidates){const op=document.createElement('option');op.value=String(r.id);op.textContent=smartCandidateLabel(profile,r);select.appendChild(op)}
     const current=String(sourceId.value||'');if(current&&candidates.some(r=>String(r.id)===current))select.value=current;
@@ -1260,7 +1262,11 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="AUTORISÉ">AUTORISÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'AUTORISÉ';
   }else if(isConvocation){
-    refField.querySelector('label').textContent='Référence / N°';
+    // V1.89 — La Référence administrative remplace l’ancien champ « Référence / N° »
+    // au même emplacement. Le nom de la personne convoquée reste une saisie manuelle.
+    refField.querySelector('label').textContent='Référence administrative';
+    refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    refInput.placeholder='Ex. 00125';
     dateField.querySelector('label').textContent="Date d’établissement";
     titleField.querySelector('label').textContent='Nom et Prénoms de la personne convoquée *';
     titleField.classList.remove('full');
@@ -1268,10 +1274,17 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉMISE">ÉMISE</option><option value="REMISE">REMISE</option><option value="PRÉSENTÉ">PRÉSENTÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'ÉMISE';
   }else if(isConvocationPv){
-    refField.querySelector('label').textContent='Référence / N° du procès-verbal';
+    // V1.90 — Procès-verbal de rencontre : la Référence administrative remplace
+    // l’ancien « Référence / N° du procès-verbal » et l’identité provient
+    // exclusivement du champ intelligent « Convocation à l’origine de la rencontre ».
+    refField.querySelector('label').textContent='Référence administrative';
+    refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    refInput.placeholder='Ex. 00125';
     dateField.querySelector('label').textContent="Date d’établissement du procès-verbal";
     titleField.querySelector('label').textContent='Personne convoquée / personne concernée *';
     titleField.classList.remove('full');
+    titleField.classList.add('personnel-base-hidden');
+    titleInput.required=false;
     statusField.classList.remove('personnel-status-hidden');
     statusInput.innerHTML='<option value="BROUILLON">BROUILLON</option><option value="ÉTABLI">ÉTABLI</option><option value="VALIDÉ">VALIDÉ</option><option value="ANNULÉ">ANNULÉ</option>';
     statusInput.value=record?.status||'ÉTABLI';
@@ -1347,7 +1360,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
 
   // V1.74 — Référence administrative sur tous les formulaires de création, y compris les P-V.
   // Sur une modification, la valeur est conservée en champ caché afin qu'elle ne soit pas effacée.
-  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage){
+  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv){
     const administrativeReference=String(record?.data?.reference_administrative||'');
     if(record){
       const hidden=document.createElement('input');
@@ -1625,6 +1638,16 @@ async function saveRecord(e){
     }
     if(moduleKey==='documents'&&editorDocumentType==='DEMANDE_EXPLICATION'){
       // V1.87 — Le champ principal porte la référence administrative.
+      data.reference_administrative=String(payload.reference||'').trim();
+      payload.reference=data.reference_administrative;
+    }
+    if(moduleKey==='convocations'&&editorConvocationView==='CONVOCATIONS'){
+      // V1.89 — Une seule Référence administrative pour la convocation.
+      data.reference_administrative=String(payload.reference||'').trim();
+      payload.reference=data.reference_administrative;
+    }
+    if(moduleKey==='convocations'&&editorConvocationView==='PV'){
+      // V1.90 — Une seule Référence administrative pour le procès-verbal de rencontre.
       data.reference_administrative=String(payload.reference||'').trim();
       payload.reference=data.reference_administrative;
     }
