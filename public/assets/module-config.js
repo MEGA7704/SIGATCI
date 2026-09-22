@@ -130,7 +130,7 @@ export const MODULE_CONFIG={
     ['__section_saisie','Objets, produits ou matériels concernés','section'],['objets_saisis','Les objets saisis','computed-textarea'],['produits_saisis','Les produits saisis','computed-textarea'],['materiels_saisis','Les matériels saisis','computed-textarea'],['sort_biens','Sort des biens saisis','computed-text'],['lieu_conservation','Lieu de dépôt / conservation ou responsable','computed-text'],
     ['__section_redaction','Rédaction du procès-verbal','section'],['expose_faits','Exposé des faits','textarea'],['constatations','Constatations','textarea'],['declaration_mis_cause','Déclaration de la personne mise en cause','textarea'],['observations_pv','Observations','textarea'],['resume_infraction','Résumé de la nature de l’infraction','textarea'],['mesures_prises','Mesures prises / suite donnée','textarea'],['autorite_transmission','Service ou autorité compétente destinataire','text']
   ]},
-  'exploitation-forestiere':{title:'Exploitation forestière',singular:'Enregistrement forestier',subtitle:'Recherche parcellaire, pépinières et plantations forestières créées.',fields:[],exploitationTypes:{
+  'exploitation-forestiere':{title:'Exploitation forestière',singular:'Enregistrement forestier',subtitle:'Recherche parcellaire, pépinières, plantations forestières créées et suivi des reboisements.',fields:[],exploitationTypes:{
     RECHERCHE_PARCELLAIRE:{label:'Recherche parcellaire',singular:'Recherche parcellaire',addLabel:'Ajouter recherche parcellaire',fields:[
       ['sous_prefecture','Sous-préfecture','text'],['date_activite','Date','date'],['localite','Localité','text'],['essence','Essence','text'],['superficie_parcelle','Superficie de la parcelle (ha)','number'],['coord_x','Coordonnée X de la parcelle','text'],['coord_y','Coordonnée Y de la parcelle','text'],['contact_proprietaire','Contacts du propriétaire','text']
     ]},
@@ -139,6 +139,10 @@ export const MODULE_CONFIG={
     ]},
     PLANTATION_CREEE:{label:'Plantations forestières créées',singular:'Plantation forestière créée',addLabel:'Ajouter plantation forestière',fields:[
       ['date_activite','Date','date'],['localite','Localité','text'],['beneficiaire','Nom bénéficiaire','text'],['contact_beneficiaire','Contact bénéficiaire','text'],['superficie','Superficie (ha)','number'],['essence','Essence','text'],['densite','Densité (pieds/ha)','number'],['nombre_total_plants','Nombre total de plants','number'],['coord_x','Coordonnée X','text'],['coord_y','Coordonnée Y','text']
+    ]},
+    REBOISEMENT:{label:'Reboisement',singular:'Reboisement',addLabel:'Ajouter reboisement',fields:[
+      ['type_reboisement','Type de reboisement','select','particuliers suivis|agro forestiers suivis|antérieurs suivis|compensatoires suivis'],
+      ['date_activite','Date','date'],['localite','Localité','text'],['beneficiaire','Nom bénéficiaire','text'],['contact_beneficiaire','Contact bénéficiaire','text'],['superficie','Superficie (ha)','number'],['essence','Essence','text'],['densite','Densité (pieds/ha)','number'],['nombre_total_plants','Nombre total de plants','number'],['coord_x','Coordonnée X','text'],['coord_y','Coordonnée Y','text'],['entreprise_responsable','Entreprise responsable du reboisement','text']
     ]}
   }},
   'produits-secondaires':{title:'Produits secondaires',singular:'Opérateur',subtitle:'Exploitants et productions des produits secondaires.',fields:[['operateur','Nom de l’opérateur','text'],['contact','Contact','text'],['produit','Produit exploité','text'],['permis','N° permis','text'],['localite','Localité','text']]},

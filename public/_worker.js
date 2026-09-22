@@ -343,7 +343,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.76-account-permissions-security',
+    version: '1.77-reboisement-restored',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -1142,7 +1142,7 @@ async function apiLoad(env, request) {
     if (forestType === 'RECHERCHE_PARCELLAIRE') {
       where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IS NULL)`;
       params.push('RECHERCHE_PARCELLAIRE');
-    } else if (['PEPINIERE','PLANTATION_CREEE'].includes(forestType)) {
+    } else if (['PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
       where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ?`;
       params.push(forestType);
     }
@@ -1151,6 +1151,18 @@ async function apiLoad(env, request) {
     const sousPrefecture = String(url.searchParams.get('sousPrefecture') || '').trim();
     const localite = String(url.searchParams.get('localite') || '').trim();
     const essence = String(url.searchParams.get('essence') || '').trim();
+    const reboisementType = String(url.searchParams.get('reboisementType') || '').trim();
+    const beneficiary = String(url.searchParams.get('beneficiary') || '').trim();
+    const contact = String(url.searchParams.get('contact') || '').trim();
+    const enterprise = String(url.searchParams.get('enterprise') || '').trim();
+    const coordX = String(url.searchParams.get('coordX') || '').trim();
+    const coordY = String(url.searchParams.get('coordY') || '').trim();
+    const superficieMin = String(url.searchParams.get('superficieMin') || '').trim();
+    const superficieMax = String(url.searchParams.get('superficieMax') || '').trim();
+    const densiteMin = String(url.searchParams.get('densiteMin') || '').trim();
+    const densiteMax = String(url.searchParams.get('densiteMax') || '').trim();
+    const plantsMin = String(url.searchParams.get('plantsMin') || '').trim();
+    const plantsMax = String(url.searchParams.get('plantsMax') || '').trim();
     if (/^\d{4}$/.test(year)) {
       where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
       params.push(year);
@@ -1161,6 +1173,14 @@ async function apiLoad(env, request) {
     }
     for (const [key,value] of [['sous_prefecture',sousPrefecture],['localite',localite],['essence',essence]]) {
       if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
+    }
+    if (reboisementType) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`; params.push(reboisementType); }
+    for (const [key,value] of [['beneficiaire',beneficiary],['contact_beneficiaire',contact],['entreprise_responsable',enterprise],['coord_x',coordX],['coord_y',coordY]]) {
+      if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
+    }
+    for (const [key,minValue,maxValue] of [['superficie',superficieMin,superficieMax],['densite',densiteMin,densiteMax],['nombre_total_plants',plantsMin,plantsMax]]) {
+      if (minValue !== '' && Number.isFinite(Number(minValue))) { where += ` AND CAST(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),0) AS REAL) >= ?`; params.push(Number(minValue)); }
+      if (maxValue !== '' && Number.isFinite(Number(maxValue))) { where += ` AND CAST(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),0) AS REAL) <= ?`; params.push(Number(maxValue)); }
     }
   }
   if (module === 'transformation-bois') {
@@ -1406,6 +1426,18 @@ async function apiSave(env, request) {
   const orgId = Number(auth.user.organization_id);
   const payload = body?.payload || {};
   const incomingData = payload?.data && typeof payload.data === 'object' ? payload.data : {};
+  if (module === 'exploitation-forestiere') {
+    const forestType = String(incomingData._forest_type || 'RECHERCHE_PARCELLAIRE').toUpperCase();
+    if (!['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) return bad('Type d’enregistrement forestier non autorisé.');
+    incomingData._forest_type = forestType;
+    if (forestType === 'REBOISEMENT') {
+      const allowedReboisementTypes = ['particuliers suivis','agro forestiers suivis','antérieurs suivis','compensatoires suivis'];
+      const reboisementType = String(incomingData.type_reboisement || '').trim().toLocaleLowerCase('fr-FR');
+      if (!allowedReboisementTypes.includes(reboisementType)) return bad('Type de reboisement non autorisé.');
+      incomingData.type_reboisement = allowedReboisementTypes.find(x => x === reboisementType) || reboisementType;
+      if (reboisementType !== 'compensatoires suivis') incomingData.entreprise_responsable = '';
+    }
+  }
   const incomingStageType = module === 'stages' ? String(incomingData._stage_type || '').toUpperCase() : '';
   const incomingSourceStageId = incomingStageType === 'FIN_STAGE' ? Number(incomingData._source_stage_id || 0) : 0;
   const incomingSourceConvocationId = module === 'convocation_pv' ? Number(incomingData._source_convocation_id || 0) : 0;
@@ -1863,7 +1895,7 @@ async function guardStaticRequest(env,request,url){
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.76-account-permissions-security', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.77-reboisement-restored', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);

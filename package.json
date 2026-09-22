@@ -1,6 +1,6 @@
 {
   "name": "sigat-cloudflare",
-  "version": "1.76.0",
+  "version": "1.77.0",
   "private": true,
   "description": "SIGAT - Système Intégré de Gestion Administrative et Technique",
   "scripts": {

@@ -597,3 +597,7 @@ Ajout du champ « Référence administrative » sur tous les popups de création
 - Connexion : suppression des informations internes sur les rôles dans « Mot de passe oublié » et détection automatique du responsable de réinitialisation.
 - Connexion : verrouillage du bouton pendant l’authentification afin d’empêcher les doubles clics et requêtes répétées.
 - Compatibilité D1 : les éventuelles anciennes données Reboisement déjà stockées ne sont pas supprimées automatiquement, mais elles ne sont plus exposées par l’application.
+
+## V1.77 — Reboisement restauré dans Exploitation forestière
+
+Le suivi **Reboisement** est restauré comme onglet interne de la page **Exploitation forestière** uniquement. Le formulaire comprend le type de reboisement, la date, la localité, le bénéficiaire et son contact, la superficie, l’essence, la densité, le nombre total de plants, les coordonnées X/Y et, uniquement pour les reboisements compensatoires suivis, l’entreprise responsable. La recherche générale porte sur l’ensemble des données du registre et des filtres dédiés permettent de cibler le type, l’année/date, la localité, le bénéficiaire, le contact, l’essence, l’entreprise, les coordonnées ainsi que des plages de superficie, densité et nombre de plants. Les droits Voir/Modifier de la page Exploitation forestière restent appliqués côté interface et API.
