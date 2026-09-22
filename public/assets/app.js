@@ -125,7 +125,7 @@ function smartProfile(){
   return entry;
 }
 function ownLoadUrl(module,{stageType='',documentType='',limit=100}={}){
-  const q=new URLSearchParams({module,page:'1',limit:String(limit),search:'',ownedOnly:'1'});
+  const q=new URLSearchParams({module,page:'1',limit:String(limit),search:''});
   if(stageType)q.set('stageType',stageType);
   if(documentType)q.set('documentType',documentType);
   return `/api/load?${q.toString()}`;
@@ -267,21 +267,19 @@ async function mountHistorySuggestions(record=null){
   }catch{/* Les suggestions sont une aide : la saisie manuelle reste disponible. */}
 }
 
-const TYPE_LABEL={PEF:'Poste des Eaux et Forêts',CANTONNEMENT:'Cantonnement',DIRECTION_REGIONALE:'Direction Régionale',DIRECTION_DEPARTEMENTALE:'Direction Départementale'};
-const CHILD_LABEL={CANTONNEMENT:'Mes PEF',DIRECTION_DEPARTEMENTALE:'Mes Cantonnements',DIRECTION_REGIONALE:'Mes Directions Départementales'};
-function withScope(path){const q=new URLSearchParams(location.search).get('scopeOrg');return q?`${path}?scopeOrg=${encodeURIComponent(q)}`:path;}
+const TYPE_LABEL={PEF:'Poste des Eaux et Forêts',CANTONNEMENT:'Cantonnement'};
+function withScope(path){return path;}
 function navHTML(user){
   const A=p=>withScope(p);
   const can=(key)=>canViewPage(key,user);
   const link=(key,path,label)=>can(key)?`<a href="${A(path)}">${label}</a>`:'';
   const group=(title,links)=>{const content=links.filter(Boolean).join('');return content?`<div class="nav-group"><button type="button">${title} ▾</button><div class="dropdown">${content}</div></div>`:''};
-  const childLink=CHILD_LABEL[user.organizationType]&&can('structures-rattachees')?`<a href="${withScope('/structures-rattachees/')}">${CHILD_LABEL[user.organizationType]}</a>`:'';
   const administration=group('Administration',[link('personnel','/personnel/','Personnel'),link('documents','/documents/','Documents administratifs'),link('stages','/stages/','Stages'),link('convocations','/convocations/','Convocations')]);
   const technical=group('Activités techniques',[link('activites-minef','/activites-minef/','Activités du MINEF'),link('missions','/missions/','Missions'),link('exploitation-forestiere','/exploitation-forestiere/','Exploitation forestière'),link('produits-secondaires','/produits-secondaires/','Produits secondaires'),link('transformation-bois','/transformation-bois/','Transformation du bois'),link('sensibilisations','/sensibilisations/','Sensibilisations')]);
   const environment=group('Environnement',[link('ressources-naturelles','/ressources-naturelles/','Ressources naturelles'),link('feux-brousse','/feux-brousse/','Feux de brousse'),link('faune','/faune/','Faune')]);
   const management=group('Gestion',[link('formations','/formations/','Formations'),link('materiel','/materiel/','Matériel'),link('rapports','/rapports/','Rapports')]);
   const settings=user.role==='ORGANIZATION_ADMIN'?'<a href="/parametres/">Paramètres</a>':'';
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${childLink}${administration}${technical}${environment}${management}${settings}</nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${administration}${technical}${environment}${management}${settings}</nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
 }
 
 function bindResponsiveNav(){
@@ -336,8 +334,7 @@ function showFreePopup(){const d=document.getElementById('freePlanDialog');if(!d
 
 async function loadDashboard(){
   try{
-    const scope=new URLSearchParams(location.search).get('scopeOrg');
-    const d=await api(`/api/dashboard${scope?`?scopeOrg=${encodeURIComponent(scope)}`:''}`);
+    const d=await api('/api/dashboard');
     const metricDefs=[
       ['agents','Agents','personnel','●','metric-green'],
       ['missions','Missions','missions','▣','metric-blue'],
@@ -346,25 +343,24 @@ async function loadDashboard(){
       ['training_sessions','Formations','formations','◆','metric-purple']
     ].filter(([, ,page])=>canViewPage(page));
     const cards=document.getElementById('metricCards');
-    if(cards)cards.innerHTML=metricDefs.map(([k,l,,icon,tone])=>`<article class="dashboard-metric ${tone}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${Number(d.summary[k]||0)}</div><div class="s">Périmètre hiérarchique autorisé</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></article>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
+    if(cards)cards.innerHTML=metricDefs.map(([k,l,,icon,tone])=>`<article class="dashboard-metric ${tone}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${Number(d.summary[k]||0)}</div><div class="s">Données de votre service</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></article>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
     const label=TYPE_LABEL[d.organization.type]||d.organization.type;
     const title=document.getElementById('dashboardTitle');if(title)title.textContent=`Tableau de bord — ${label}`;
-    const parts=[];for(const [k,v] of Object.entries(d.hierarchyBreakdown||{})){if(v)parts.push(`${v} ${TYPE_LABEL[k]||k}`)}
-    const scopeText=d.organization.type==='PEF'?`Suivi des activités, des ressources et de la gestion durable — ${d.organization.name}.`:`Vue consolidée de ${d.organization.name}${parts.length?` — ${parts.join(', ')}`:''}.`;
+    const scopeText=`Suivi des activités, des ressources et de la gestion durable — ${d.organization.name}.`;
     const orgScope=document.getElementById('orgScope');if(orgScope)orgScope.textContent=scopeText;
-    const principle=document.getElementById('principleText');if(principle)principle.textContent='Chaque service saisit ses propres données. Les services supérieurs consultent automatiquement les données de toutes les structures qui leur sont officiellement rattachées, sans ressaisie.';
+    const principle=document.getElementById('principleText');if(principle)principle.textContent='Chaque service SIGAT gère ses propres données dans un espace indépendant et sécurisé, sans rattachement à une autre structure.';
     const chip=document.getElementById('territoryChip');if(chip)chip.textContent=d.organization.name||'Structure SIGAT';
     const territoryType=document.getElementById('territoryType');if(territoryType)territoryType.textContent=label||'—';
-    const territoryChildren=document.getElementById('territoryChildren');if(territoryChildren)territoryChildren.textContent=String(Number(d.childOrganizations||0));
-    const territoryScope=document.getElementById('territoryScope');if(territoryScope)territoryScope.textContent=d.viewingOwn?'Autorisé':'Vue consolidée';
+    const territoryChildren=document.getElementById('territoryChildren');if(territoryChildren)territoryChildren.textContent='Indépendant';
+    const territoryScope=document.getElementById('territoryScope');if(territoryScope)territoryScope.textContent='Votre service';
     const footerOrg=document.getElementById('dashboardFooterOrg');if(footerOrg)footerOrg.textContent=`SIGAT — ${d.organization.name||label||'Structure'}`;
     document.querySelectorAll('[data-dashboard-action-page]').forEach(el=>{if(!canViewPage(el.dataset.dashboardActionPage))el.remove()});
     const recentAll=document.getElementById('recentAllLink');if(recentAll&&!canViewPage('rapports'))recentAll.remove();
-    await loadDashboardRecentActivities(scope);
+    await loadDashboardRecentActivities();
   }catch(e){showToast(e.message,'error')}
 }
 
-async function loadDashboardRecentActivities(scope=''){
+async function loadDashboardRecentActivities(){
   const host=document.getElementById('recentActivities');if(!host)return;
   const defs=[
     {module:'sensibilisations',page:'sensibilisations',label:'Sensibilisation',path:'/sensibilisations/',icon:'◖'},
@@ -376,7 +372,7 @@ async function loadDashboardRecentActivities(scope=''){
   if(!defs.length){host.innerHTML='<div class="dashboard-empty">Aucune activité n’est autorisée pour ce compte.</div>';return}
   try{
     const settled=await Promise.allSettled(defs.map(async def=>{
-      const q=new URLSearchParams({module:def.module,page:'1',limit:'4'});if(scope)q.set('scopeOrg',scope);
+      const q=new URLSearchParams({module:def.module,page:'1',limit:'4'});
       const data=await api(`/api/load?${q.toString()}`);
       return (data.items||[]).map(item=>({...item,__def:def}));
     }));
@@ -613,9 +609,7 @@ function setConvocationView(type){
 
 async function manageConvocationPv(convocation){
   try{
-    const scope=new URLSearchParams(location.search).get('scopeOrg');
     const q=new URLSearchParams({module:'convocation_pv',page:'1',limit:'10',search:'',sourceConvocationId:String(convocation.id)});
-    if(scope)q.set('scopeOrg',scope);
     const resp=await api(`/api/load?${q.toString()}`);
     const existing=(resp.items||[])[0]||null;
     setConvocationView('PV');
@@ -703,7 +697,7 @@ function updateMissionTableHead(type){const head=document.getElementById('missio
 function setEditorFieldValue(key,value){const el=document.querySelector(`#dynamicFields [data-key="${key}"]`);if(el&&value!==undefined&&value!==null)el.value=String(value)}
 async function manageOffensePv(offense){
   try{
-    const scope=new URLSearchParams(location.search).get('scopeOrg');const q=new URLSearchParams({module:'offense_pv',page:'1',limit:'10',search:'',sourceOffenseId:String(offense.id)});if(scope)q.set('scopeOrg',scope);
+    const q=new URLSearchParams({module:'offense_pv',page:'1',limit:'10',search:'',sourceOffenseId:String(offense.id)});
     const resp=await api(`/api/load?${q.toString()}`);const existing=(resp.items||[])[0]||null;
     if(existing){editorMissionType='PV_INFRACTION';editorOffensePvRecord=existing;if(existing.owned)openEditor(existing,null,null,null,null,null,null,'PV_INFRACTION');else openDetails(existing);return}
     if(!offense.owned){await professionalAlert('Procès-verbal','Aucun P-V n’est encore enregistré pour cette affaire.');return}
@@ -724,8 +718,7 @@ async function manageOffensePv(offense){
 
 async function manageOrderMissionPv(orderMission){
   try{
-    const scope=new URLSearchParams(location.search).get('scopeOrg');
-    const q=new URLSearchParams({module:'missions',page:'1',limit:'10',search:'',missionType:'PV_ORDRE_MISSION',sourceOrderMissionId:String(orderMission.id)});if(scope)q.set('scopeOrg',scope);
+    const q=new URLSearchParams({module:'missions',page:'1',limit:'10',search:'',missionType:'PV_ORDRE_MISSION',sourceOrderMissionId:String(orderMission.id)});
     const resp=await api(`/api/load?${q.toString()}`);const existing=(resp.items||[])[0]||null;
     if(existing){const sd=orderMission.data||{};existing.data={...(existing.data||{}),_source_order_mission_id:orderMission.id,ordre_reference:sd.numero_mission||orderMission.reference||'',chef_mission:sd.chef_mission||'',_chef_mission_grade:sd._chef_mission_grade||'',_chef_mission_fonction:sd._chef_mission_fonction||'',agents_mission:[1,2,3,4].map(i=>{const n=sd[`agent_mission_${i}`];if(!n)return '';return [n,sd[`_agent_mission_${i}_grade`],sd[`_agent_mission_${i}_fonction`]].filter(Boolean).join(' – ')}).filter(Boolean).join('\n'),residence_affectation:sd.residence_affectation||'',lieu_mission:sd.lieu_mission||'',objectif_mission:sd.objectif_mission||'',date_depart:sd.date_depart||'',date_retour:sd.date_retour||'',moyen_deplacement_1:sd.moyen_deplacement_1||'',immatriculation_1:sd.immatriculation_1||'',moyen_deplacement_2:sd.moyen_deplacement_2||'',immatriculation_2:sd.immatriculation_2||'',moyens_deplacement:[[sd.moyen_deplacement_1,sd.immatriculation_1],[sd.moyen_deplacement_2,sd.immatriculation_2]].filter(x=>x.some(Boolean)).map(x=>x.filter(Boolean).join(' — ')).join('\n'),_chef_mission_matricule:sd._chef_mission_matricule||'',_chef_mission_corps:sd._chef_mission_corps||'',agent_mission_1:sd.agent_mission_1||'',_agent_mission_1_matricule:sd._agent_mission_1_matricule||'',_agent_mission_1_corps:sd._agent_mission_1_corps||'',_agent_mission_1_fonction:sd._agent_mission_1_fonction||'',agent_mission_2:sd.agent_mission_2||'',_agent_mission_2_matricule:sd._agent_mission_2_matricule||'',_agent_mission_2_corps:sd._agent_mission_2_corps||'',_agent_mission_2_fonction:sd._agent_mission_2_fonction||'',agent_mission_3:sd.agent_mission_3||'',_agent_mission_3_matricule:sd._agent_mission_3_matricule||'',_agent_mission_3_corps:sd._agent_mission_3_corps||'',_agent_mission_3_fonction:sd._agent_mission_3_fonction||'',agent_mission_4:sd.agent_mission_4||'',_agent_mission_4_matricule:sd._agent_mission_4_matricule||'',_agent_mission_4_corps:sd._agent_mission_4_corps||'',_agent_mission_4_fonction:sd._agent_mission_4_fonction||''};editorMissionType='PV_ORDRE_MISSION';editorOrderMissionPvRecord=existing;if(existing.owned)openEditor(existing,null,null,null,null,null,null,'PV_ORDRE_MISSION');else openDetails(existing);return}
     if(!orderMission.owned){await professionalAlert('Procès-verbal','Aucun P-V n’est encore enregistré pour cet ordre de mission.');return}
@@ -740,7 +733,7 @@ async function manageOrderMissionPv(orderMission){
 }
 
 /* V1.59 — Rapports et bilans consolidés.
-   La page agrège les registres imprimables du périmètre hiérarchique autorisé
+   La page agrège les registres imprimables de votre service
    et compose un seul document pour la période sélectionnée. */
 let reportCache=new Map(),reportCurrentSections=[],reportLoadingPromise=null;
 const reportCol=(label,get)=>({label,get});
@@ -811,8 +804,8 @@ function reportRenderTableSelector(){
 function reportSetAllTables(selected){reportSelectedTables=selected?new Set(reportAvailableSections().map(({section,index})=>reportSectionKey(section,index))):new Set();reportRenderTableSelector();reportRenderPreview()}
 function reportUniqueModules(){return [...new Set(reportAvailableSections().map(({section})=>section.module))]}
 async function reportLoadAllModule(module){
-  const scope=new URLSearchParams(location.search).get('scopeOrg');let page=1,totalPages=1;const items=[];
-  do{const q=new URLSearchParams({module,page:String(page),limit:'100',search:''});if(scope)q.set('scopeOrg',scope);const d=await api(`/api/load?${q.toString()}`);items.push(...(d.items||[]));totalPages=Number(d.totalPages||1);page++}while(page<=totalPages&&page<=250);
+  let page=1,totalPages=1;const items=[];
+  do{const q=new URLSearchParams({module,page:String(page),limit:'100',search:''});const d=await api(`/api/load?${q.toString()}`);items.push(...(d.items||[]));totalPages=Number(d.totalPages||1);page++}while(page<=totalPages&&page<=250);
   return items;
 }
 function reportIso(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
@@ -930,7 +923,6 @@ function bindAwarenessFilters(){
 
 async function loadRecords(){
   try{
-    const scope=new URLSearchParams(location.search).get('scopeOrg');
     const dataModule=effectiveModule();
     const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
     const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
@@ -941,7 +933,7 @@ async function loadRecords(){
     const fireFilter=moduleKey==='feux-brousse'?`&fireType=${encodeURIComponent(currentFireType)}&department=${encodeURIComponent(document.getElementById('fireDepartmentFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('fireSousPrefFilter')?.value||'')}&village=${encodeURIComponent(document.getElementById('fireVillageFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('fireDateFilter')?.value||'')}&natureDegats=${encodeURIComponent(document.getElementById('fireNatureFilter')?.value||'')}`:'';
     const faunaFilter=moduleKey==='faune'?`&faunaType=${encodeURIComponent(currentFaunaType)}&activityDate=${encodeURIComponent(document.getElementById('faunaDateFilter')?.value||'')}&species=${encodeURIComponent(document.getElementById('faunaSpeciesFilter')?.value||'')}&zone=${encodeURIComponent(document.getElementById('faunaZoneFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('faunaSousPrefFilter')?.value||'')}&village=${encodeURIComponent(document.getElementById('faunaVillageFilter')?.value||'')}&conflictType=${encodeURIComponent(document.getElementById('faunaConflictFilter')?.value||'')}`:'';
     const missionFilter=moduleKey==='missions'?`&missionType=${encodeURIComponent(currentMissionType)}`:'';
-    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${minefActivityFilter}${awarenessFilter}${forestFilter}${woodFilter}${fireFilter}${faunaFilter}${missionFilter}${scope?`&scopeOrg=${encodeURIComponent(scope)}`:''}`);
+    const d=await api(`/api/load?module=${encodeURIComponent(dataModule)}&page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}${stageFilter}${documentFilter}${minefActivityFilter}${awarenessFilter}${forestFilter}${woodFilter}${fireFilter}${faunaFilter}${missionFilter}`);
     if(currentPage>d.totalPages){currentPage=d.totalPages;return loadRecords()}
     lastItems=d.items||[];renderRows(lastItems);
     document.getElementById('pageInfo').textContent=`Page ${d.page} / ${d.totalPages} — ${d.total} enregistrement(s)`;
@@ -1111,8 +1103,6 @@ function absenceSignerTitle(){
   const t=session?.user?.organizationType;
   if(t==='PEF')return 'Le Chef de poste';
   if(t==='CANTONNEMENT')return 'Le Chef de Cantonnement';
-  if(t==='DIRECTION_REGIONALE')return 'Le Directeur Régional';
-  if(t==='DIRECTION_DEPARTEMENTALE')return 'Le Directeur Départemental';
   return 'Le Responsable du service';
 }
 function updateAbsenceDays(){
@@ -1429,7 +1419,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
 async function fetchOwnModuleItems(module,extra={}){
   const out=[];let page=1,totalPages=1;
   do{
-    const q=new URLSearchParams({module,page:String(page),limit:'100',search:'',ownedOnly:'1'});
+    const q=new URLSearchParams({module,page:String(page),limit:'100',search:''});
     Object.entries(extra||{}).forEach(([k,v])=>{if(v!==undefined&&v!==null&&String(v)!=='')q.set(k,String(v))});
     const r=await api(`/api/load?${q.toString()}`);out.push(...(r.items||[]));totalPages=Number(r.totalPages||1);page++;
   }while(page<=totalPages&&page<=100);
@@ -1484,7 +1474,7 @@ async function mountMissionEditorLogic(record=null){
   const q=k=>area.querySelector(`[data-key="${k}"]`);
   if(editorMissionType==='ORDRE_MISSION'){
     const numero=q('numero_mission');if(numero&&!record)numero.placeholder='Attribué automatiquement à l’enregistrement';
-    const locality=String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+    const locality=String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE)\s*/i,'').trim();
     const residence=q('residence_affectation');if(residence&&!record&&!residence.value)residence.value=locality||session?.user?.organizationName||'';
     const ensureHidden=(key,value='')=>{let el=q(key);if(!el){el=document.createElement('input');el.type='hidden';el.dataset.key=key;area.appendChild(el)}el.value=String(value??'');return el};
     const teamKeys=['chef_mission','agent_mission_1','agent_mission_2','agent_mission_3','agent_mission_4'];
@@ -2072,7 +2062,7 @@ function formattedReference(reference,s){
   return `<span class="reference-prefix">N°</span>${numberHtml}${suffix?`/<span class="reference-suffix">${esc(suffix)}</span>`:''}`;
 }
 function officialHeaderHtml(s,{reference='',hideReference=false}={}){
-  const left=[s.ministry,s.cabinet,s.regionalDirection,s.departmentalDirection,s.cantonment,s.post].map(adminLineHtml).join('');
+  const left=[s.ministry,s.cabinet,s.cantonment,s.post].map(adminLineHtml).join('');
   const emblem=s.emblemData?`<img class="official-emblem" src="${esc(s.emblemData)}" alt="Emblème">`:'';
   return `<div class="official-header"><div class="official-left">${left}</div><div class="official-center">${emblem}</div><div class="official-right"><div>${esc(settingsLine(s.republic)||'REPUBLIQUE DE COTE D’IVOIRE')}</div><div class="motto">${esc(settingsLine(s.motto)||'Union – Discipline – Travail')}</div><div class="admin-separator">- - - - - -</div></div></div>${hideReference?'':`<div class="official-reference">${formattedReference(reference,s)}</div>`}`;
 }
@@ -2080,7 +2070,7 @@ function officialSignatureHtml(s,date=''){
   const title=settingsLine(s.signerTitle)||absenceSignerTitle();
   const name=settingsLine(s.signerName);
   const position=settingsLine(s.signerPosition);
-  const locality=settingsLine(s.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+  const locality=settingsLine(s.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE)\s*/i,'').trim();
   const madeAt=(locality||date)?`Fait à ${esc(locality||'')}${locality&&date?', le ':''}${date?esc(longFrDate(date)):''}`:'';
   const sig=s.signatureData?`<img class="signature-image" src="${esc(s.signatureData)}" alt="Signature">`:'';
   const stamp=s.stampData?`<img class="stamp-image" src="${esc(s.stampData)}" alt="Cachet">`:'';
@@ -2359,8 +2349,6 @@ function stageResponsibleIntro(record){
     return `Le Chef de poste des Eaux et Forêts de ${m?m[1]:org}`;
   }
   if(type==='CANTONNEMENT')return `Le Chef de Cantonnement de ${org.replace(/^Cantonnement\s+(?:de\s+)?/i,'')}`;
-  if(type==='DIRECTION_REGIONALE')return `Le Directeur Régional de ${org.replace(/^Direction\s+Régionale\s+(?:du|de la|de l’|de l')?\s*/i,'')}`;
-  if(type==='DIRECTION_DEPARTEMENTALE')return `Le Directeur Départemental de ${org.replace(/^Direction\s+Départementale\s+(?:de\s+)?/i,'')}`;
   return `Le Responsable de ${org}`;
 }
 
@@ -2383,7 +2371,7 @@ function offenseSeizureHtml(d={},lead='Au cours de l’intervention, ont été s
 }
 function missionChiefSignatureHtml(d={},settings={},date='',time='',showDate=true){
   const chief=String(d.chef_mission||d._mission_chef||'').trim();const grade=String(d._mission_chef_grade||'').trim();const fn=String(d._mission_chef_fonction||'').trim();
-  const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+  const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE)\s*/i,'').trim();
   const madeDate=date?longFrDate(String(date).slice(0,10)):longFrDate(new Date().toISOString().slice(0,10));
   const madeAt=`Fait à ${esc(locality||'')}, le ${esc(madeDate)}${time?` à ${esc(String(time).slice(0,5).replace(':',' h '))}`:''}`;
   const gradeFunction=[grade,fn].filter(Boolean).join(' / ');
@@ -2419,7 +2407,7 @@ function orderMissionTeamFromPvHtml(d={}){
   return `<table class="order-team-table"><thead><tr><th>Nom et prénoms</th><th>Matricule</th><th>Corps</th><th>Fonction</th></tr></thead><tbody>${rows.slice(0,5).join('')}</tbody></table>`;
 }
 function orderMissionPrintBody(record,settings={}){
-  const d=record.data||{};const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE|DIRECTION RÉGIONALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE)|DIRECTION DÉPARTEMENTALE(?: DES EAUX ET FORÊTS)? (?:DU|DE LA|DE L’|DE))\s*/i,'').trim();
+  const d=record.data||{};const locality=settingsLine(settings.locality)||String(session?.user?.organizationName||'').replace(/^(POSTE DES EAUX ET FORÊTS DE|CANTONNEMENT(?: DES EAUX ET FORÊTS)? DE)\s*/i,'').trim();
   const n=displayValue(d.numero_mission||record.reference);
   return `<div class="document-title order-document-title">ORDRE DE MISSION</div><div class="order-mission-body"><div class="order-number">N° de la mission : <strong>${esc(n)}</strong></div><p class="order-intro">Le Chef de Poste des Eaux et Forêts de <strong>${esc(locality||'—')}</strong> donne l’ordre à :</p>${orderMissionTeamHtml(d)}<div class="order-box-row"><strong>Résidence d’affectation</strong><span class="order-colon">:</span><span>${esc(displayValue(d.residence_affectation||locality))}</span></div><div class="order-box-row"><strong>De se rendre en mission</strong><span class="order-colon">:</span><span>${esc(displayValue(d.lieu_mission))}</span></div><div class="order-objective-label"><strong>Objectif de la mission :</strong></div><div class="order-objective-box">${esc(displayValue(d.objectif_mission)).split('\n').join('<br>')}</div>${orderMissionPairHtml('Date de départ',fmtDate(d.date_depart),'Date de retour',fmtDate(d.date_retour))}${orderMissionPairHtml('Moyens de déplacement',d.moyen_deplacement_1,'Immatriculation',d.immatriculation_1)}${orderMissionPairHtml('Moyens de déplacement',d.moyen_deplacement_2,'Immatriculation',d.immatriculation_2)}</div>`;
 }
@@ -2623,11 +2611,9 @@ async function printRecord(record){
 }
 
 async function loadAllPersonnelForPrint(){
-  const scope=new URLSearchParams(location.search).get('scopeOrg');
   const items=[];let page=1,totalPages=1;
   do{
     const q=new URLSearchParams({module:'personnel',page:String(page),limit:'100',search:''});
-    if(scope)q.set('scopeOrg',scope);
     const d=await api(`/api/load?${q.toString()}`);
     items.push(...(d.items||[]));
     totalPages=Number(d.totalPages||1);page++;

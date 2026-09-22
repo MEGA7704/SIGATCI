@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIGAT — En-tête des imprimés</title><link rel="stylesheet" href="/assets/styles.css?v=1.78"></head>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIGAT — En-tête des imprimés</title><link rel="stylesheet" href="/assets/styles.css?v=1.79"></head>
 <body>
 <main class="container">
   <div class="page-head"><div><h1>En-tête des imprimés</h1><p>Configurez les mentions administratives, la référence, les ampliations et la signature qui apparaissent sur les PDF et impressions de votre structure.</p></div><a class="btn btn-secondary" href="/parametres/">Retour aux paramètres</a></div>
@@ -9,8 +9,6 @@
       <div class="settings-grid">
         <div class="field"><label>Ministère</label><input name="ministry" placeholder="MINISTERE DES EAUX ET FORETS"></div>
         <div class="field"><label>Cabinet</label><input name="cabinet" placeholder="CABINET DU MINISTRE"></div>
-        <div class="field"><label>Direction régionale</label><input name="regionalDirection" placeholder="DIRECTION REGIONALE DU GBEKE"></div>
-        <div class="field"><label>Direction départementale</label><input name="departmentalDirection" placeholder="DIRECTION DEPARTEMENTALE DE BEOUMI"></div>
         <div class="field"><label>Cantonnement</label><input name="cantonment" placeholder="CANTONNEMENT DE BOTRO"></div>
         <div class="field"><label>Poste / structure</label><input name="post" placeholder="POSTE DES EAUX ET FORETS DE DIABO"></div>
         <div class="field"><label>Nom de la structure</label><input name="structureName" placeholder="POSTE DES EAUX ET FORETS DE DIABO"></div>
@@ -25,7 +23,7 @@
       </div>
       <div class="settings-section-title">AMPLIATIONS</div>
       <div class="settings-grid ampliations-settings-grid">
-        <div class="field"><label>Destinataires / ampliations</label><textarea name="ampliations" rows="6" placeholder="Exemple :&#10;Direction Régionale du Gbêkê&#10;Direction Départementale de Béoumi&#10;Archives"></textarea><small class="muted">Saisissez un destinataire par ligne. Le tiret « - » est ajouté automatiquement devant chaque ligne sur le document imprimé.</small></div>
+        <div class="field"><label>Destinataires / ampliations</label><textarea name="ampliations" rows="6" placeholder="Exemple :&#10;Cantonnement de Botro&#10;Poste des Eaux et Forêts de Diabo&#10;Archives"></textarea><small class="muted">Saisissez un destinataire par ligne. Le tiret « - » est ajouté automatiquement devant chaque ligne sur le document imprimé.</small></div>
         <div class="field"><label>Nombres / exemplaires</label><textarea name="ampliationNumbers" rows="6" placeholder="Exemple :&#10;01&#10;01&#10;02"></textarea><small class="muted">Saisissez un nombre par ligne, dans le même ordre que les destinataires. Sur le PDF, les nombres restent alignés dans une colonne verticale fixe.</small></div>
         <div class="field full"><small class="muted">Cette liste peut être affichée ou masquée séparément sur chaque document au moment de sa rédaction. Lorsqu’elle est activée, elle apparaît en bas à gauche, sur la même ligne que la signature.</small></div>
       </div>

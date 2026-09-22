@@ -2,9 +2,8 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS organizations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  parent_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
-  organization_type TEXT NOT NULL CHECK (organization_type IN ('PEF','CANTONNEMENT','DIRECTION_REGIONALE')),
-  service_type TEXT, -- type canonique; permet DIRECTION_DEPARTEMENTALE tout en restant compatible avec les anciennes bases
+  organization_type TEXT NOT NULL CHECK (organization_type IN ('PEF','CANTONNEMENT')),
+  service_type TEXT CHECK (service_type IS NULL OR service_type IN ('PEF','CANTONNEMENT')),
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   region TEXT,
@@ -16,7 +15,6 @@ CREATE TABLE IF NOT EXISTS organizations (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_organizations_parent ON organizations(parent_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_type ON organizations(organization_type);
 
 CREATE TABLE IF NOT EXISTS roles (
