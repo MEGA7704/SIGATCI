@@ -1,4 +1,4 @@
-import {api,esc,fmtDate,loadSession,showToast,professionalConfirm,professionalAlert,withButtonLock} from './common.js?v=1.99';
+import {api,esc,fmtDate,loadSession,showToast,professionalConfirm,professionalAlert,withButtonLock} from './common.js?v=2.00';
 
 let accountSession=null;
 let permissionPages=[];
@@ -64,12 +64,43 @@ async function resetPwd(id){const yes=await professionalConfirm('Réinitialiser 
 async function setStatus(id,status){try{await api('/api/users/status',{method:'POST',body:{userId:id,status}});showToast('Statut mis à jour.');await loadUsers()}catch(e){showToast(e.message,'error')}}
 async function delUser(id){const yes=await professionalConfirm('Supprimer l’utilisateur','Le compte sera retiré de la liste active. Ses historiques restent conservés pour la traçabilité.',{confirmText:'Supprimer',danger:true});if(!yes)return;try{await api('/api/users/delete',{method:'POST',body:{userId:id}});await professionalAlert('Utilisateur supprimé','Le compte utilisateur a été retiré de la liste active.');await loadUsers()}catch(e){await professionalAlert('Suppression impossible',e.message)}}
 
+function subscriptionIsValidPaid(x){
+  return !!x && ['STANDARD','BUSINESS'].includes(String(x.plan||'').toUpperCase()) && !x.expired && Number(x.daysRemaining||0)>=0 && !['SUSPENDED','EXPIRED'].includes(String(x.status||'').toUpperCase());
+}
+function updatePurchaseButtons(){
+  const x=accountSession?.subscription;
+  const locked=subscriptionIsValidPaid(x);
+  document.querySelectorAll('[data-buy-plan]').forEach(a=>{
+    if(!a.dataset.originalHref)a.dataset.originalHref=a.getAttribute('href')||'';
+    a.classList.toggle('is-disabled',locked);
+    a.setAttribute('aria-disabled',locked?'true':'false');
+    if(locked){a.removeAttribute('href');a.setAttribute('tabindex','-1');a.title=`Achat verrouillé : votre abonnement ${String(x.plan||'').toUpperCase()} est valide jusqu’au ${fmtDate(x.end_date)}.`;}
+    else{if(a.dataset.originalHref)a.setAttribute('href',a.dataset.originalHref);a.removeAttribute('tabindex');a.removeAttribute('title');}
+  });
+}
 function renderSubscription(){
   const box=document.getElementById('subscriptionSummary');if(!box)return;const x=accountSession?.subscription;
-  if(!x){box.innerHTML='<div class="notice">Aucun abonnement actif.</div>';return}
-  box.innerHTML=`<div class="cards account-subscription-metrics"><div class="metric"><div class="k">Plan actuel</div><div class="v account-metric-value">${esc(x.plan)}</div></div><div class="metric"><div class="k">Prix</div><div class="v account-metric-value">${Number(x.price||0).toLocaleString('fr-FR')} FCFA</div></div><div class="metric"><div class="k">Expiration</div><div class="v account-metric-value">${fmtDate(x.end_date)}</div></div><div class="metric"><div class="k">Jours restants</div><div class="v account-metric-value">${Number(x.daysRemaining||0)}</div></div></div>${x.expired?'<div class="notice error" style="margin-top:14px">Votre abonnement SIGAT a expiré. Choisissez une formule payante pour continuer.</div>':''}`;
+  if(!x){box.innerHTML='<div class="notice">Aucun abonnement actif.</div>';updatePurchaseButtons();return}
+  const validPaid=subscriptionIsValidPaid(x);
+  const suspended=String(x.status||'').toUpperCase()==='SUSPENDED';
+  const message=validPaid?`<div class="notice ok account-subscription-lock" style="margin-top:14px">Votre abonnement ${esc(String(x.plan||'').toUpperCase())} est valide jusqu’au ${esc(fmtDate(x.end_date))}. Les boutons d’achat sont verrouillés jusqu’à son expiration.</div>`:(String(x.plan||'').toUpperCase()==='FREE'&&!x.expired?'<div class="notice account-subscription-free" style="margin-top:14px">Vous utilisez actuellement la formule FREE. Vous pouvez souscrire à STANDARD ou BUSINESS.</div>':(suspended?'<div class="notice error" style="margin-top:14px">Cet abonnement est suspendu administrativement. Contactez le Super Admin pour régulariser la situation.</div>':(x.expired?'<div class="notice error" style="margin-top:14px">Votre période actuelle est expirée. Vous pouvez choisir une formule payante.</div>':'')));
+  box.innerHTML=`<div class="cards account-subscription-metrics"><div class="metric"><div class="k">Plan actuel</div><div class="v account-metric-value">${esc(x.plan)}</div></div><div class="metric"><div class="k">Prix</div><div class="v account-metric-value">${Number(x.price||0).toLocaleString('fr-FR')} FCFA</div></div><div class="metric"><div class="k">Expiration</div><div class="v account-metric-value">${fmtDate(x.end_date)}</div></div><div class="metric"><div class="k">Jours restants</div><div class="v account-metric-value">${Number(x.daysRemaining||0)}</div></div></div>${message}`;
+  updatePurchaseButtons();
 }
 
+function accountTabFromHash(isAdmin){
+  const id=String(location.hash||'').replace(/^#/,'');
+  const allowed=isAdmin?['securite-compte','gestion-utilisateurs','journal-operations','abonnement']:['securite-compte'];
+  return allowed.includes(id)?id:'securite-compte';
+}
+function showAccountPanel(id,{updateHash=true}={}){
+  const isAdmin=accountSession?.user?.role==='ORGANIZATION_ADMIN';
+  const allowed=isAdmin?['securite-compte','gestion-utilisateurs','journal-operations','abonnement']:['securite-compte'];
+  const target=allowed.includes(id)?id:'securite-compte';
+  document.querySelectorAll('[data-account-panel]').forEach(panel=>{panel.hidden=panel.id!==target});
+  document.querySelectorAll('[data-account-tab]').forEach(btn=>{const active=btn.dataset.accountTab===target;btn.classList.toggle('is-active',active);btn.setAttribute('aria-pressed',active?'true':'false')});
+  if(updateHash&&location.hash!==`#${target}`)history.replaceState(null,'',`#${target}`);
+}
 
 function auditActionLabel(action){
   return ({RECORD_CREATED:'Création',RECORD_UPDATED:'Modification',RECORD_DELETED:'Suppression',RECORD_ARCHIVED:'Archivage',RECORD_PRINTED:'Impression',LOGIN_SUCCESS:'Connexion',LOGIN_FAILED:'Échec de connexion',LOGOUT:'Déconnexion',USER_CREATED:'Création utilisateur',USER_PERMISSIONS_CHANGED:'Modification des accès',USER_STATUS_CHANGED:'Changement de statut',PASSWORD_RESET_BY_ADMIN:'Réinitialisation mot de passe',PASSWORD_CHANGED:'Modification mot de passe',PRINT_SETTINGS_UPDATED:'Modification en-tête imprimés'})[String(action||'')]||String(action||'Action');
@@ -91,14 +122,12 @@ async function initAccount(){
   if(!isAdmin){
     const n=document.getElementById('memberSubscriptionNotice');
     if(n&&accountSession.subscription?.expired){n.textContent='L’accès aux pages métier de votre structure est actuellement suspendu. Veuillez contacter votre Administrateur.';n.classList.remove('hidden');}
+    showAccountPanel('securite-compte',{updateHash:false});
     return;
   }
   renderSubscription();
-  await loadUsers();
-  await loadAuditLogs();
-  if(location.hash==='#abonnement')document.getElementById('abonnement')?.scrollIntoView({behavior:'smooth',block:'start'});
-  if(location.hash==='#gestion-utilisateurs')document.getElementById('gestion-utilisateurs')?.scrollIntoView({behavior:'smooth',block:'start'});
-  if(location.hash==='#journal-operations')document.getElementById('journal-operations')?.scrollIntoView({behavior:'smooth',block:'start'});
+  showAccountPanel(accountTabFromHash(true),{updateHash:false});
+  await Promise.all([loadUsers(),loadAuditLogs()]);
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -115,5 +144,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   ['auditActionFilter','auditFromFilter','auditToFilter'].forEach(id=>document.getElementById(id)?.addEventListener('change',loadAuditLogs));
   ['auditActorFilter','auditSearchFilter'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>{clearTimeout(window.__auditTimer);window.__auditTimer=setTimeout(loadAuditLogs,300)}));
   document.getElementById('permissionsForm')?.addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter,id=Number(document.getElementById('permissionsUserId').value),role=document.getElementById('permissionsUserRole').value;await withButtonLock(btn,async()=>{try{await api('/api/users/permissions',{method:'POST',body:{userId:id,permissions:collectPermissions('editPermissionsGrid',role)}});document.getElementById('permissionsDialog').close();showToast('Droits d’accès mis à jour.');await loadUsers()}catch(err){showToast(err.message,'error')}},'Enregistrement…')});
+  document.querySelectorAll('[data-account-tab]').forEach(btn=>btn.addEventListener('click',()=>showAccountPanel(btn.dataset.accountTab)));
+  window.addEventListener('hashchange',()=>{if(accountSession)showAccountPanel(accountTabFromHash(accountSession.user.role==='ORGANIZATION_ADMIN'),{updateHash:false})});
+  document.querySelectorAll('[data-buy-plan]').forEach(a=>a.addEventListener('click',e=>{if(a.getAttribute('aria-disabled')==='true'){e.preventDefault();showToast('Achat verrouillé : votre abonnement actuel est encore valide.','error')}}));
   initAccount();
 });

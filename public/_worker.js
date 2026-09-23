@@ -604,14 +604,34 @@ function expiredCookie() {
   return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 }
 
+const FREE_PLAN_DAYS = 20;
 async function currentSubscription(env, organizationId) {
   if (!organizationId) return null;
-  const sub = await env.SIGAT_DB.prepare('SELECT * FROM subscriptions WHERE organization_id=? LIMIT 1').bind(organizationId).first();
+  let sub = await env.SIGAT_DB.prepare('SELECT * FROM subscriptions WHERE organization_id=? LIMIT 1').bind(organizationId).first();
   if (!sub) return null;
-  const today = new Date();
+  const now = new Date();
   const end = new Date(`${sub.end_date}T23:59:59Z`);
-  const expired = today > end || sub.status === 'EXPIRED' || sub.status === 'SUSPENDED';
-  const daysRemaining = Math.max(0, Math.ceil((end - today) / 86400000));
+  const paidPlan = ['STANDARD','BUSINESS'].includes(String(sub.plan||'').toUpperCase());
+  const expiredByDate = Number.isFinite(end.getTime()) && now > end;
+  const explicitlyExpired = String(sub.status||'').toUpperCase() === 'EXPIRED';
+  // Lorsqu'un abonnement payant arrive réellement à expiration, SIGAT bascule
+  // automatiquement la structure vers une nouvelle période FREE. Une suspension
+  // administrative reste une suspension et n'est pas transformée automatiquement.
+  if (paidPlan && (expiredByDate || explicitlyExpired)) {
+    const start = new Date();
+    const freeEnd = new Date(start.getTime() + FREE_PLAN_DAYS * 86400000);
+    const ds = d => d.toISOString().slice(0,10);
+    const update = await env.SIGAT_DB.prepare(`UPDATE subscriptions SET plan='FREE',price=0,start_date=?,end_date=?,status='TRIAL',updated_at=CURRENT_TIMESTAMP WHERE organization_id=? AND plan=? AND end_date=?`)
+      .bind(ds(start),ds(freeEnd),organizationId,sub.plan,sub.end_date).run();
+    if (Number(update?.meta?.changes || 0) > 0) {
+      await env.SIGAT_DB.prepare(`INSERT INTO subscription_history(organization_id,old_plan,new_plan,start_date,end_date,price,mode_activation,activated_by) VALUES(?,?,'FREE',?,?,0,'AUTO_FALLBACK_FREE',NULL)`)
+        .bind(organizationId,sub.plan,ds(start),ds(freeEnd)).run();
+    }
+    sub = await env.SIGAT_DB.prepare('SELECT * FROM subscriptions WHERE organization_id=? LIMIT 1').bind(organizationId).first();
+  }
+  const currentEnd = new Date(`${sub.end_date}T23:59:59Z`);
+  const expired = now > currentEnd || sub.status === 'EXPIRED' || sub.status === 'SUSPENDED';
+  const daysRemaining = Math.max(0, Math.ceil((currentEnd - now) / 86400000));
   return { ...sub, expired, daysRemaining };
 }
 
@@ -1605,7 +1625,7 @@ async function createFreeSubscription(env, orgId, actorId) {
   const existing = await env.SIGAT_DB.prepare('SELECT id FROM subscriptions WHERE organization_id=?').bind(orgId).first();
   if (existing) return;
   const start = new Date();
-  const end = new Date(start.getTime() + 20 * 86400000);
+  const end = new Date(start.getTime() + FREE_PLAN_DAYS * 86400000);
   const ds = d => d.toISOString().slice(0,10);
   await env.SIGAT_DB.prepare(`INSERT INTO subscriptions(organization_id,plan,price,start_date,end_date,status) VALUES(?,'FREE',0,?,?,'TRIAL')`).bind(orgId, ds(start), ds(end)).run();
   await env.SIGAT_DB.prepare(`INSERT INTO subscription_history(organization_id,old_plan,new_plan,start_date,end_date,price,mode_activation,activated_by) VALUES(?,NULL,'FREE',?,?,0,'AUTO_ACTIVATION',?)`).bind(orgId, ds(start), ds(end), actorId).run();
@@ -1770,7 +1790,7 @@ async function superSetPlan(env, request) {
   const b = await parseJson(request);
   const orgId = Number(b?.organizationId);
   const plan = String(b?.plan || '').toUpperCase();
-  const plans = { FREE: { days:20, price:0, status:'TRIAL' }, STANDARD:{days:30,price:23700,status:'ACTIVE'}, BUSINESS:{days:365,price:181000,status:'ACTIVE'} };
+  const plans = { FREE: { days:FREE_PLAN_DAYS, price:0, status:'TRIAL' }, STANDARD:{days:30,price:23700,status:'ACTIVE'}, BUSINESS:{days:365,price:181000,status:'ACTIVE'} };
   const cfg = plans[plan]; if (!cfg) return bad('Plan invalide.');
   const org = await env.SIGAT_DB.prepare("SELECT id FROM organizations WHERE id=? AND COALESCE(service_type,organization_type) IN ('PEF','CANTONNEMENT')").bind(orgId).first(); if (!org) return bad('Structure introuvable ou type de service non pris en charge.',404);
   const old = await env.SIGAT_DB.prepare('SELECT plan FROM subscriptions WHERE organization_id=?').bind(orgId).first();

@@ -1084,3 +1084,46 @@ body[data-module="ressources-naturelles"] #editorDialog [data-field-key="type_au
 @media(max-width:1100px){.global-search{order:14;flex:1 1 330px;min-width:240px}.top-actions{margin-left:auto}.dashboard-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.audit-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.audit-search-field{grid-column:span 2}}
 @media(max-width:700px){.global-search{order:14;flex:1 0 100%;width:100%;min-width:0;margin:0}.global-search-results{left:0;right:auto;width:100%}.top-actions{order:15}.dashboard-filter-controls{display:grid;grid-template-columns:1fr 1fr;width:100%}.dashboard-filter-controls label,.dashboard-filter-controls select,.dashboard-filter-controls input{width:100%;min-width:0}.dashboard-filter-controls .btn{align-self:end}.dashboard-metrics{grid-template-columns:1fr}.audit-filters{grid-template-columns:1fr 1fr}.audit-search-field{grid-column:1/-1}.agent-dossier{width:82vw}.agent-dossier-identity{grid-template-columns:1fr}.agent-dossier-photo{width:92px;height:108px}.agent-dossier-idgrid{grid-template-columns:1fr 1fr}.formation-participants-grid{grid-template-columns:1fr}}
 @media(max-width:460px){.dashboard-filter-controls{grid-template-columns:1fr}.audit-filters{grid-template-columns:1fr}.audit-search-field{grid-column:1}.agent-dossier-idgrid{grid-template-columns:1fr}}
+
+
+/* === SIGAT V2.00 — Mon compte par onglets + navigation horizontale compacte === */
+.account-tabbar{display:flex;align-items:center;gap:7px;width:100%;margin:0 0 18px;padding:7px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 7px 20px rgba(20,63,50,.06);overflow-x:auto;scrollbar-width:thin}
+.account-tab{flex:1 1 0;min-width:max-content;border:1px solid transparent;background:transparent;color:#29483d;border-radius:10px;padding:11px 13px;font-weight:800;cursor:pointer;white-space:nowrap;transition:.16s ease}
+.account-tab:hover{background:#edf5f1;color:var(--forest)}
+.account-tab.is-active{background:var(--forest);color:#fff;border-color:var(--forest);box-shadow:0 5px 14px rgba(0,59,59,.17)}
+.account-panel[hidden]{display:none!important}
+.subscription-buy-btn.is-disabled{pointer-events:none!important;opacity:.5!important;filter:grayscale(.2);cursor:not-allowed!important;box-shadow:none!important}
+.account-subscription-lock{border-color:#a9cbbb;background:#edf8f2;color:#174e3b}
+.logout-icon-btn{width:38px;height:38px;display:inline-grid;place-items:center;border:0;border-radius:10px;background:var(--forest);color:#fff;cursor:pointer;flex:0 0 auto;transition:.16s ease}
+.logout-icon-btn:hover{transform:translateY(-1px);box-shadow:0 7px 15px rgba(0,59,59,.18)}
+.logout-icon-btn:disabled{opacity:.65;cursor:wait;transform:none}
+.logout-icon-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+@media(min-width:1001px){
+  .topbar-inner{max-width:100%!important;min-height:64px!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;gap:7px!important;padding:0 12px!important}
+  .mobile-menu-btn{display:none!important}
+  .logo{flex:0 0 auto!important;gap:7px!important}.sigat-logo-nav{width:40px!important;height:40px!important}.logo strong{font-size:17px!important}.org-chip{max-width:145px!important;font-size:10px!important}
+  .nav{display:flex!important;order:0!important;flex:1 1 auto!important;width:auto!important;min-width:0!important;align-items:center!important;justify-content:flex-start!important;gap:1px!important;padding:0!important;border-top:0!important;background:transparent!important;white-space:nowrap!important}
+  .nav>a,.nav-group>button{width:auto!important;flex:0 0 auto!important;padding:8px clamp(5px,.55vw,9px)!important;font-size:clamp(10px,.82vw,12.5px)!important;white-space:nowrap!important;text-align:center!important}
+  .nav-group{width:auto!important;position:relative!important}
+  .dropdown{top:39px!important}
+  .global-search{order:0!important;flex:0 1 230px!important;min-width:150px!important;max-width:260px!important;margin-left:0!important}
+  .global-search-box{height:37px!important}.global-search-box input{font-size:12px!important}
+  .top-actions{order:0!important;flex:0 0 auto!important;margin-left:0!important;gap:5px!important;white-space:nowrap!important}
+  .top-actions>a.btn{padding:8px 9px!important;font-size:11px!important;white-space:nowrap!important}.avatar{width:34px!important;height:34px!important}
+}
+@media(max-width:1000px){
+  .topbar-inner{flex-wrap:wrap!important}
+  .mobile-menu-btn{display:inline-flex!important;margin-left:auto!important}
+  .nav{display:none!important;order:20!important;flex:0 0 100%!important;width:100%!important}
+  .nav.is-open{display:grid!important;grid-template-columns:1fr!important;gap:4px!important}
+  .nav-group{width:100%!important}.nav>a,.nav-group>button{width:100%!important;text-align:left!important}
+  .nav .nav-group:hover .dropdown,.nav .nav-group:focus-within .dropdown{display:none!important}
+  .nav .nav-group.is-open>.dropdown{display:grid!important;position:static!important;width:100%!important;max-width:none!important}
+}
+@media(max-width:760px){.account-tabbar{align-items:stretch}.account-tab{flex:0 0 auto;padding:10px 12px;font-size:12px}}
+
+@media(min-width:1001px) and (max-width:1150px){
+  .org-chip{display:none!important}
+  .global-search{flex-basis:155px!important;min-width:125px!important;max-width:175px!important}
+  .nav>a,.nav-group>button{font-size:10px!important;padding-left:5px!important;padding-right:5px!important}
+}

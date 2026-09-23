@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SIGAT — Mon compte</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=1.99">
+  <link rel="stylesheet" href="/assets/styles.css?v=2.00">
 </head>
 <body>
 <main class="container account-page">
@@ -17,7 +17,14 @@
 
   <div id="memberSubscriptionNotice" class="notice warn hidden"></div>
 
-  <section class="card account-section" id="securite-compte">
+  <nav class="account-tabbar" id="accountTabbar" aria-label="Rubriques Mon compte">
+    <button class="account-tab is-active" type="button" data-account-tab="securite-compte">Modifier votre mot de passe</button>
+    <button class="account-tab" type="button" data-account-tab="gestion-utilisateurs" data-admin-only>Gestion des utilisateurs / membres</button>
+    <button class="account-tab" type="button" data-account-tab="journal-operations" data-admin-only>Journal des opérations</button>
+    <button class="account-tab" type="button" data-account-tab="abonnement" data-admin-only>Abonnement SIGAT</button>
+  </nav>
+
+  <section class="card account-section account-panel" id="securite-compte" data-account-panel>
     <div class="account-section-head">
       <div>
         <div class="account-kicker">Sécurité</div>
@@ -37,7 +44,7 @@
   </section>
 
   <div id="adminAccountSections" data-admin-only>
-    <section class="card account-section" id="gestion-utilisateurs">
+    <section class="card account-section account-panel" id="gestion-utilisateurs" data-account-panel hidden>
       <div class="account-section-head">
         <div>
           <div class="account-kicker">Administration des accès</div>
@@ -61,7 +68,7 @@
     </section>
 
 
-    <section class="card account-section" id="journal-operations">
+    <section class="card account-section account-panel" id="journal-operations" data-account-panel hidden>
       <div class="account-section-head">
         <div><div class="account-kicker">Traçabilité</div><h2>Journal des opérations</h2><p class="muted">Historique des créations, modifications, suppressions, impressions et actions de sécurité réalisées dans votre structure.</p></div>
         <button id="auditReloadBtn" class="btn btn-secondary" type="button">Actualiser</button>
@@ -76,7 +83,7 @@
       <div class="table-wrap audit-table-wrap"><table class="table"><thead><tr><th>Date et heure</th><th>Utilisateur</th><th>Action</th><th>Donnée / document</th></tr></thead><tbody id="auditBody"><tr><td colspan="4">Chargement…</td></tr></tbody></table></div>
     </section>
 
-    <section class="card account-section" id="abonnement">
+    <section class="card account-section account-panel" id="abonnement" data-account-panel hidden>
       <div class="account-section-head">
         <div>
           <div class="account-kicker">Abonnement</div>
@@ -87,8 +94,8 @@
       <div id="subscriptionSummary"></div>
       <div class="plans account-plans">
         <div class="card plan"><h3>FREE</h3><div class="price">0 FCFA</div><p>20 jours — accès complet</p><button class="btn btn-secondary" disabled>Plan d’essai</button></div>
-        <div class="card plan"><h3>STANDARD</h3><div class="price">23 700 FCFA</div><p>30 jours — accès complet</p><a class="btn btn-primary" target="_blank" rel="noopener" href="https://pay.wave.com/m/M_ci_Enx-2JNAklk-/c/ci/?amount=23700">ACHETER STANDARD</a></div>
-        <div class="card plan featured"><h3>BUSINESS</h3><div class="price">181 000 FCFA</div><p>365 jours — accès complet</p><a class="btn btn-gold" target="_blank" rel="noopener" href="https://pay.wave.com/m/M_ci_Enx-2JNAklk-/c/ci/?amount=181000">ACHETER BUSINESS</a></div>
+        <div class="card plan"><h3>STANDARD</h3><div class="price">23 700 FCFA</div><p>30 jours — accès complet</p><a class="btn btn-primary subscription-buy-btn" data-buy-plan="STANDARD" target="_blank" rel="noopener" href="https://pay.wave.com/m/M_ci_Enx-2JNAklk-/c/ci/?amount=23700">ACHETER STANDARD</a></div>
+        <div class="card plan featured"><h3>BUSINESS</h3><div class="price">181 000 FCFA</div><p>365 jours — accès complet</p><a class="btn btn-gold subscription-buy-btn" data-buy-plan="BUSINESS" target="_blank" rel="noopener" href="https://pay.wave.com/m/M_ci_Enx-2JNAklk-/c/ci/?amount=181000">ACHETER BUSINESS</a></div>
       </div>
       <div class="notice warn account-subscription-note">Le paiement Wave n’active pas automatiquement le plan. L’activation est réalisée après validation par le Super Admin SIGAT.</div>
     </section>
@@ -126,7 +133,7 @@
 
 <dialog id="freePlanDialog" data-admin-only class="dialog"><div class="dialog-head"><strong>Passez à une formule SIGAT payante</strong></div><div class="dialog-body">STANDARD : 23 700 FCFA / 30 jours<br>BUSINESS : 181 000 FCFA / 365 jours</div><div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary">COMPRIS</button></form><a class="btn btn-primary" href="/mon-compte/#abonnement">VOIR MON ABONNEMENT</a></div></dialog>
 <footer class="footer">SIGAT — Système Intégré de Gestion Administrative et Technique</footer>
-<script type="module" src="/assets/app.js?v=1.99"></script>
-<script type="module" src="/assets/account.js?v=1.99"></script>
+<script type="module" src="/assets/app.js?v=2.00"></script>
+<script type="module" src="/assets/account.js?v=2.00"></script>
 </body>
 </html>

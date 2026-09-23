@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.99';
-import {MODULE_CONFIG} from './module-config.js?v=1.99';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=2.00';
+import {MODULE_CONFIG} from './module-config.js?v=2.00';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentNurseryView='SITES',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -308,7 +308,7 @@ function navHTML(user){
   const management=group('Gestion',[link('formations','/formations/','Formations'),link('materiel','/materiel/','Matériel'),link('rapports','/rapports/','Rapports'),journal]);
   const settings=user.role==='ORGANIZATION_ADMIN'?'<a href="/parametres/">Paramètres</a>':'';
   const search=`<div class="global-search" id="globalSearch"><div class="global-search-box"><span class="global-search-icon">⌕</span><input id="globalSearchInput" type="search" autocomplete="off" placeholder="Recherche SIGAT…" aria-label="Recherche globale SIGAT"><button id="globalSearchClear" type="button" aria-label="Effacer" hidden>×</button></div><div id="globalSearchResults" class="global-search-results" hidden></div></div>`;
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${administration}${technical}${environment}${management}${settings}</nav>${search}<div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${administration}${technical}${environment}${management}${settings}</nav>${search}<div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="logout-icon-btn" type="button" aria-label="Déconnexion" title="Déconnexion"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M7.2 5.7A8 8 0 1 0 16.8 5.7"/></svg></button><div class="avatar" id="avatar">U</div></div></div></div>`
 }
 
 function bindGlobalSearch(){
@@ -331,7 +331,7 @@ function bindResponsiveNav(){
   const toggle=document.getElementById('mobileMenuBtn');
   const nav=document.getElementById('mainNav');
   if(!toggle||!nav)return;
-  const mobile=()=>matchMedia('(max-width:760px)').matches;
+  const mobile=()=>matchMedia('(max-width:1000px)').matches;
   const closeGroups=(except=null)=>nav.querySelectorAll('.nav-group.is-open').forEach(g=>{if(g!==except)g.classList.remove('is-open')});
   const closeMobile=()=>{nav.classList.remove('is-open');toggle.setAttribute('aria-expanded','false')};
   const closeAll=()=>{closeMobile();closeGroups()};
@@ -354,7 +354,7 @@ async function boot(){
   document.body.insertAdjacentHTML('afterbegin',navHTML(session.user));
   bindResponsiveNav();
   bindGlobalSearch();
-  document.getElementById('logoutBtn').onclick=e=>withButtonLock(e.currentTarget,logout,'Déconnexion…');
+  document.getElementById('logoutBtn').onclick=e=>withButtonLock(e.currentTarget,logout,null);
   document.getElementById('avatar').textContent=(session.user.displayName||'U').trim()[0]?.toUpperCase()||'U';
   if(session.user.role!=='ORGANIZATION_ADMIN') document.querySelectorAll('[data-admin-only]').forEach(el=>el.remove());
   if(session.user.forcePasswordChange && location.pathname!='/mon-compte/'){location.href='/mon-compte/';return}
