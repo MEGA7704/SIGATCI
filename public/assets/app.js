@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.95';
-import {MODULE_CONFIG} from './module-config.js?v=1.97';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.99';
+import {MODULE_CONFIG} from './module-config.js?v=1.99';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentNurseryView='SITES',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -304,9 +304,27 @@ function navHTML(user){
   const administration=group('Administration',[link('personnel','/personnel/','Personnel'),link('documents','/documents/','Documents administratifs'),link('stages','/stages/','Stages'),link('convocations','/convocations/','Convocations')]);
   const technical=group('Activités techniques',[link('activites-minef','/activites-minef/','Activités du MINEF'),link('missions','/missions/','Missions'),link('exploitation-forestiere','/exploitation-forestiere/','Exploitation forestière'),link('produits-secondaires','/produits-secondaires/','Produits secondaires'),link('transformation-bois','/transformation-bois/','Transformation du bois'),link('sensibilisations','/sensibilisations/','Sensibilisations')]);
   const environment=group('Environnement',[link('ressources-naturelles','/ressources-naturelles/','Ressources naturelles'),link('feux-brousse','/feux-brousse/','Feux de brousse'),link('faune','/faune/','Faune')]);
-  const management=group('Gestion',[link('formations','/formations/','Formations'),link('materiel','/materiel/','Matériel'),link('rapports','/rapports/','Rapports')]);
+  const journal=user.role==='ORGANIZATION_ADMIN'?'<a href="/mon-compte/#journal-operations">Journal des opérations</a>':'';
+  const management=group('Gestion',[link('formations','/formations/','Formations'),link('materiel','/materiel/','Matériel'),link('rapports','/rapports/','Rapports'),journal]);
   const settings=user.role==='ORGANIZATION_ADMIN'?'<a href="/parametres/">Paramètres</a>':'';
-  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${administration}${technical}${environment}${management}${settings}</nav><div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+  const search=`<div class="global-search" id="globalSearch"><div class="global-search-box"><span class="global-search-icon">⌕</span><input id="globalSearchInput" type="search" autocomplete="off" placeholder="Recherche SIGAT…" aria-label="Recherche globale SIGAT"><button id="globalSearchClear" type="button" aria-label="Effacer" hidden>×</button></div><div id="globalSearchResults" class="global-search-results" hidden></div></div>`;
+  return `<div class="topbar"><div class="topbar-inner"><a class="logo" href="${A('/dashboard/')}" style="text-decoration:none"><img class="sigat-logo-nav" src="/assets/sigat-logo.png" alt="Logo SIGAT"><span><strong>SIGAT</strong><div class="org-chip" id="orgName">${esc(user.organizationName||'Structure SIGAT')}</div></span></a><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mainNav"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="nav" id="mainNav"><a href="${A('/dashboard/')}">Tableau de bord</a>${administration}${technical}${environment}${management}${settings}</nav>${search}<div class="top-actions"><a class="btn btn-secondary btn-sm" href="/mon-compte/">Mon compte</a><button id="logoutBtn" class="btn btn-primary btn-sm">Déconnexion</button><div class="avatar" id="avatar">U</div></div></div></div>`
+}
+
+function bindGlobalSearch(){
+  const input=document.getElementById('globalSearchInput'),results=document.getElementById('globalSearchResults'),clear=document.getElementById('globalSearchClear');
+  if(!input||!results)return;let timer=0,seq=0;
+  const hide=()=>{results.hidden=true;results.innerHTML=''};
+  const render=items=>{
+    if(!items.length){results.innerHTML='<div class="global-search-empty">Aucun résultat trouvé.</div>';results.hidden=false;return}
+    results.innerHTML=items.map(x=>`<a class="global-search-result" href="${esc(x.href)}"><span class="global-search-result-type">${esc(x.label||x.module)}</span><strong>${esc(x.title||'Sans titre')}</strong>${x.reference?`<small>N° ${esc(x.reference)}</small>`:''}</a>`).join('');results.hidden=false;
+  };
+  const run=async()=>{const q=input.value.trim();clear.hidden=!q;if(q.length<2){hide();return}const my=++seq;results.innerHTML='<div class="global-search-empty">Recherche…</div>';results.hidden=false;try{const d=await api(`/api/global-search?q=${encodeURIComponent(q)}`);if(my!==seq)return;render(d.items||[])}catch(e){if(my!==seq)return;results.innerHTML=`<div class="global-search-empty error">${esc(e.message)}</div>`;results.hidden=false}};
+  input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(run,260)});
+  input.addEventListener('focus',()=>{if(input.value.trim().length>=2)run()});
+  input.addEventListener('keydown',e=>{if(e.key==='Escape'){hide();input.blur()}else if(e.key==='Enter'){const first=results.querySelector('a');if(first){e.preventDefault();location.href=first.href}}});
+  clear?.addEventListener('click',()=>{input.value='';clear.hidden=true;hide();input.focus()});
+  document.addEventListener('click',e=>{if(!e.target.closest('#globalSearch'))hide()});
 }
 
 function bindResponsiveNav(){
@@ -335,6 +353,7 @@ async function boot(){
   if(session.user.role==='SUPER_ADMIN'){location.href='/superadmin/dashboard/';return}
   document.body.insertAdjacentHTML('afterbegin',navHTML(session.user));
   bindResponsiveNav();
+  bindGlobalSearch();
   document.getElementById('logoutBtn').onclick=e=>withButtonLock(e.currentTarget,logout,'Déconnexion…');
   document.getElementById('avatar').textContent=(session.user.displayName||'U').trim()[0]?.toUpperCase()||'U';
   if(session.user.role!=='ORGANIZATION_ADMIN') document.querySelectorAll('[data-admin-only]').forEach(el=>el.remove());
@@ -359,18 +378,39 @@ function handleSubscription(){
 }
 function showFreePopup(){const d=document.getElementById('freePlanDialog');if(!d||d.open)return;sessionStorage.setItem('sigat_last_free_popup',String(Date.now()));d.showModal()}
 
+function dashboardFilterQuery(){
+  const period=document.getElementById('dashboardPeriod')?.value||'year';const year=document.getElementById('dashboardYear')?.value||String(new Date().getFullYear());const month=document.getElementById('dashboardMonth')?.value||String(new Date().getMonth()+1);const quarter=document.getElementById('dashboardQuarter')?.value||String(Math.floor(new Date().getMonth()/3)+1);
+  return new URLSearchParams({period,year,month,quarter});
+}
+function bindDashboardFilters(){
+  const period=document.getElementById('dashboardPeriod'),year=document.getElementById('dashboardYear'),month=document.getElementById('dashboardMonth'),quarter=document.getElementById('dashboardQuarter');if(!period||period.dataset.bound==='1')return;period.dataset.bound='1';
+  const now=new Date();year.value=String(now.getFullYear());month.value=String(now.getMonth()+1);quarter.value=String(Math.floor(now.getMonth()/3)+1);
+  const updateVisibility=()=>{const monthLabel=month?.closest('label'),quarterLabel=quarter?.closest('label');if(monthLabel)monthLabel.hidden=period.value!=='month';if(quarterLabel)quarterLabel.hidden=period.value!=='quarter';month.hidden=period.value!=='month';quarter.hidden=period.value!=='quarter'};updateVisibility();
+  [period,year,month,quarter].forEach(el=>el?.addEventListener('change',()=>{updateVisibility();loadDashboard()}));
+  document.getElementById('dashboardRefresh')?.addEventListener('click',e=>withButtonLock(e.currentTarget,loadDashboard,'Actualisation…'));
+}
 async function loadDashboard(){
+  bindDashboardFilters();
   try{
-    const d=await api('/api/dashboard');
+    const d=await api(`/api/dashboard?${dashboardFilterQuery().toString()}`);
     const metricDefs=[
-      ['agents','Agents','personnel','●','metric-green'],
-      ['missions','Missions','missions','▣','metric-blue'],
-      ['awareness_actions','Sensibilisations','sensibilisations','◖','metric-green'],
-      ['fire_incidents','Feux de brousse','feux-brousse','♨','metric-red'],
-      ['training_sessions','Formations','formations','◆','metric-purple']
+      ['agents','Agents actifs','personnel','●','metric-green',v=>fmtNumber(v)],
+      ['missions','Missions réalisées','missions','▣','metric-blue',v=>fmtNumber(v)],
+      ['reboisements','Reboisements suivis','exploitation-forestiere','◒','metric-green',v=>fmtNumber(v)],
+      ['superficie_reboisee','Superficie reboisée (ha)','exploitation-forestiere','▰','metric-green',v=>fmtNumber(v,2)],
+      ['plants_produits','Plants produits','exploitation-forestiere','♧','metric-blue',v=>fmtNumber(v)],
+      ['plants_distribues','Plants distribués','exploitation-forestiere','↗','metric-purple',v=>fmtNumber(v)],
+      ['plants_disponibles','Plants disponibles','exploitation-forestiere','✓','metric-green',v=>fmtNumber(v)],
+      ['plantations','Plantations créées','exploitation-forestiere','♠','metric-green',v=>fmtNumber(v)],
+      ['sensibilisations','Sensibilisations','sensibilisations','◖','metric-blue',v=>fmtNumber(v)],
+      ['formations','Formations','formations','◆','metric-purple',v=>fmtNumber(v)],
+      ['equipements','Équipements','materiel','▦','metric-blue',v=>fmtNumber(v)],
+      ['conflits_faune','Conflits homme-faune','faune','◇','metric-red',v=>fmtNumber(v)],
+      ['degats_feux','Dégâts de feux','feux-brousse','♨','metric-red',v=>fmtNumber(v)]
     ].filter(([, ,page])=>canViewPage(page));
     const cards=document.getElementById('metricCards');
-    if(cards)cards.innerHTML=metricDefs.map(([k,l,,icon,tone])=>`<article class="dashboard-metric ${tone}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${Number(d.summary[k]||0)}</div><div class="s">Données de votre service</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></article>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
+    if(cards)cards.innerHTML=metricDefs.map(([k,l,,icon,tone,formatter])=>`<article class="dashboard-metric ${tone}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${esc(formatter(d.summary[k]||0))}</div><div class="s">${k==='agents'?'Effectif actuel':esc(d.period?.label||'Période sélectionnée')}</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></article>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
+    const periodLabel=document.getElementById('dashboardPeriodLabel');if(periodLabel)periodLabel.textContent=d.period?.label||'';
     const label=TYPE_LABEL[d.organization.type]||d.organization.type;
     const title=document.getElementById('dashboardTitle');if(title)title.textContent=`Tableau de bord — ${label}`;
     const scopeText=`Suivi des activités, des ressources et de la gestion durable — ${d.organization.name}.`;
@@ -386,6 +426,7 @@ async function loadDashboard(){
     await loadDashboardRecentActivities();
   }catch(e){showToast(e.message,'error')}
 }
+function fmtNumber(v,digits=0){return new Intl.NumberFormat('fr-FR',{maximumFractionDigits:digits,minimumFractionDigits:0}).format(Number(v||0))}
 
 async function loadDashboardRecentActivities(){
   const host=document.getElementById('recentActivities');if(!host)return;
@@ -416,6 +457,7 @@ async function loadDashboardRecentActivities(){
 }
 
 function bindCommonModuleControls(){
+  const initialSearch=String(new URLSearchParams(location.search).get('search')||'').trim();const searchBox=document.getElementById('searchInput');if(initialSearch&&searchBox){currentSearch=initialSearch;searchBox.value=initialSearch;}
   document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(window.__s);window.__s=setTimeout(()=>{currentSearch=e.target.value;currentPage=1;loadRecords()},300)});
   const recordForm=document.getElementById('recordForm');
   if(recordForm)recordForm.addEventListener('submit',e=>{
@@ -1161,16 +1203,24 @@ function personnelSexeShort(value){
   return String(value);
 }
 
+function dossierItemHtml(r,kind=''){
+  const d=r.data||{};const when=r.event_date||d.date_activite||d.date_depart||d.date_cessation||d.date_reprise||d.date_demande||r.created_at;
+  const detail=d.objectif_mission||d.type_conge||d.theme||d.motif||d.texte_demande||d.nouvelle_affectation||d.ancien_service||'';
+  return `<div class="agent-dossier-event"><div><strong>${esc(r.title||kind||'Enregistrement')}</strong>${detail?`<small>${esc(detail)}</small>`:''}</div><time>${esc(fmtDate(when))}</time></div>`;
+}
+async function openAgentDossier(record){
+  try{
+    const resp=await api(`/api/agent-dossier?id=${encodeURIComponent(record.id)}`);const agent=resp.agent||record,d=agent.data||{},sections=resp.sections||{};
+    const identity=[['Référence administrative',d.reference_administrative||agent.reference],['Nom et Prénoms',agent.title],['Date de naissance',d.date_naissance?fmtDate(d.date_naissance):''],['Lieu de naissance',d.lieu_naissance],['Matricule',d.matricule],['Emploi',d.emploi],['Fonction',d.fonction],['Catégorie / Grade',[d.categorie,d.grade].filter(Boolean).join(' — ')],['Classe / Échelon',[d.classe,d.echelon].filter(Boolean).join(' — ')],['Prise de service au MINEF',d.date_prise_service_minef?fmtDate(d.date_prise_service_minef):''],['Prise de service dans la Région',d.date_prise_service_region?fmtDate(d.date_prise_service_region):d.date_prise_service_gbeke?fmtDate(d.date_prise_service_gbeke):''],['Handicap',d.handicap],['Situation matrimoniale',d.situation_matrimoniale],['Téléphone',d.telephone]];
+    const block=(title,key)=>{const items=sections[key]||[];return `<section class="agent-dossier-section"><div class="agent-dossier-section-head"><h3>${esc(title)}</h3><span>${items.length}</span></div>${items.length?`<div class="agent-dossier-events">${items.map(r=>dossierItemHtml(r,title)).join('')}</div>`:'<div class="agent-dossier-empty">Aucun enregistrement associé.</div>'}</section>`};
+    const photo=d.photo?`<img class="agent-dossier-photo" src="${esc(d.photo)}" alt="Photo de l’agent">`:'<div class="agent-dossier-photo agent-dossier-photo-empty">PHOTO</div>';
+    const html=`<div class="agent-dossier"><div class="agent-dossier-identity">${photo}<div class="agent-dossier-idgrid">${identity.map(([l,v])=>`<div><span>${esc(l)}</span><strong>${esc(displayValue(v))}</strong></div>`).join('')}</div></div><div class="agent-dossier-summary"><span><strong>${(sections.mutations||[]).length}</strong> Mutation(s)</span><span><strong>${(sections.conges||[]).length}</strong> Congé(s)</span><span><strong>${(sections.missions||[]).length}</strong> Mission(s)</span><span><strong>${(sections.formations||[]).length}</strong> Formation(s)</span></div>${block('Mutations et prises de service','mutations')}${block('Congés / cessations','conges')}${block('Reprises de service','reprises')}${block('Demandes d’explication','explications')}${block('Autorisations d’absence','absences')}${block('Formations','formations')}${block('Missions','missions')}</div>`;
+    await professionalDialog({title:`Dossier administratif — ${agent.title||'Agent'}`,html,confirmText:'Fermer'});
+  }catch(e){await professionalAlert('Dossier agent',e.message||'Impossible de charger le dossier administratif.');}
+}
+
 function openDetails(record){
-  if(moduleKey==='personnel'){
-    const d=record.data||{};
-    const rows=[
-      ['Référence administrative',d.reference_administrative||record.reference],['Nom et Prénoms',record.title],['Date de naissance',fmtDate(d.date_naissance)],['Lieu de naissance',d.lieu_naissance],['Matricule',d.matricule],['Emploi',d.emploi],['Fonction',d.fonction],['Catégorie',d.categorie],['Grade',d.grade],['Classe',d.classe],['Échelon',d.echelon],['Date de prise de service au MINEF',fmtDate(d.date_prise_service_minef)],['Date de prise de service dans la Région',fmtDate(d.date_prise_service_gbeke)],['Handicap',d.handicap],['Situation matrimoniale',d.situation_matrimoniale],['Numéro de téléphone',d.telephone]
-    ];
-    const photo=d.photo?`<div class="agent-photo-view"><img src="${esc(d.photo)}" alt="Photo de l’agent"></div>`:'';
-    const html=`<div class="detail-layout">${photo}<div class="detail-grid">${rows.map(([l,v])=>`<div class="detail-item"><span>${esc(l)}</span><strong>${esc(displayValue(v))}</strong></div>`).join('')}</div></div>`;
-    professionalDialog({title:'Agent — Informations',html,confirmText:'Fermer'});return;
-  }
+  if(moduleKey==='personnel'){openAgentDossier(record);return;}
   const photo=moduleKey==='personnel'&&record.data?.photo?`<div class="agent-photo-view"><img src="${esc(record.data.photo)}" alt="Photo agent"></div>`:'';
   const rows=[
     ['Référence',record.reference],['Nom / Intitulé',record.title],['Date',fmtDate(record.event_date)],['Statut',record.status],
@@ -1765,11 +1815,25 @@ function mountMinefActivityEditorLogic(record=null){
   update();
 }
 
-function mountFormationEditorLogic(record=null){
-  const theme=document.querySelector('#dynamicFields [data-key="theme"]');if(!theme)return;
-  const update=()=>{const other=normalizeWoodText(theme.value).startsWith('autres');setFieldVisibility('theme_autre',other,{clear:!other})};
-  theme.addEventListener('change',update);update();
+async function mountFormationEditorLogic(record=null){
+  const area=document.getElementById('dynamicFields');const theme=area?.querySelector('[data-key="theme"]');if(!theme)return;
+  const update=()=>{const other=normalizeWoodText(theme.value).startsWith('autres');setFieldVisibility('theme_autre',other,{clear:!other})};theme.addEventListener('change',update);update();
+  // V1.99 — Liaison nominative facultative des formations avec les agents.
+  // Elle alimente automatiquement le dossier administratif numérique de l'agent.
+  try{
+    const agents=await fetchOwnModuleItems('personnel');if(!agents.length)return;
+    let selected=[];try{selected=JSON.parse(String(record?.data?._participant_agent_ids||'[]'))}catch{}selected=(Array.isArray(selected)?selected:[]).map(Number);
+    const wrap=document.createElement('div');wrap.className='field full formation-participants-field';wrap.dataset.fieldKey='_participant_agent_ids';
+    const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_participant_agent_ids';hidden.value=JSON.stringify(selected);
+    const label=document.createElement('label');label.textContent='Agents participants (liaison avec les fiches individuelles)';
+    const help=document.createElement('div');help.className='small-note';help.textContent='Facultatif : cochez les agents concernés afin que cette formation apparaisse dans leur dossier administratif numérique.';
+    const grid=document.createElement('div');grid.className='formation-participants-grid';
+    const sync=()=>{const ids=[...grid.querySelectorAll('input[type="checkbox"]:checked')].map(x=>Number(x.value)).filter(Boolean);hidden.value=JSON.stringify(ids)};
+    grid.innerHTML=agents.map(a=>`<label class="formation-participant"><input type="checkbox" value="${Number(a.id)}" ${selected.includes(Number(a.id))?'checked':''}><span><strong>${esc(a.title||'Agent')}</strong><small>${esc(a.data?.matricule||a.data?.fonction||a.data?.emploi||'')}</small></span></label>`).join('');grid.addEventListener('change',sync);
+    wrap.append(label,help,hidden,grid);area.appendChild(wrap);
+  }catch{/* Le rattachement nominatif reste facultatif si Personnel n'est pas accessible. */}
 }
+
 function mountResourceEditorLogic(record=null){
   const type=document.querySelector('#dynamicFields [data-key="type"]');if(!type)return;
   const otherInput=document.querySelector('#dynamicFields [data-key="type_autre"]');
@@ -2568,6 +2632,11 @@ function buildPrintDocument({title,body,reference='',date='',settings,signature=
 }
 
 async function launchPrint(html){
+  // V1.99 — Toute impression est inscrite dans le journal des opérations.
+  try{
+    const doc=new DOMParser().parseFromString(String(html||''),'text/html');const printedTitle=doc?.title||'Document SIGAT';const targetId=window.__sigatPrintTargetId||null;window.__sigatPrintTargetId=null;
+    api('/api/audit/print',{method:'POST',body:{module:moduleKey||'rapports',page:currentPermissionPage()||moduleKey,targetId,description:`Impression — ${printedTitle}`}}).catch(()=>{});
+  }catch{}
   return new Promise((resolve,reject)=>{
     const frame=document.createElement('iframe');
     frame.setAttribute('aria-hidden','true');
@@ -2578,18 +2647,11 @@ async function launchPrint(html){
     const startPrint=()=>{
       if(started||finished)return;started=true;
       try{
-        const w=frame.contentWindow;
-        if(!w)throw new Error('Fenêtre d’impression indisponible.');
-        const images=[...frame.contentDocument.images];
-        Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r})))
-          .then(()=>setTimeout(()=>{try{w.focus();w.print();setTimeout(done,700)}catch(e){fail(e)}},180))
-          .catch(fail);
+        const w=frame.contentWindow;if(!w)throw new Error('Fenêtre d’impression indisponible.');const images=[...frame.contentDocument.images];
+        Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r}))).then(()=>setTimeout(()=>{try{w.focus();w.print();setTimeout(done,700)}catch(e){fail(e)}},180)).catch(fail);
       }catch(e){fail(e)}
     };
-    frame.onload=startPrint;
-    document.body.appendChild(frame);
-    frame.srcdoc=html;
-    setTimeout(()=>{if(!started&&!finished&&frame.contentDocument?.readyState==='complete')startPrint()},1800);
+    frame.onload=startPrint;document.body.appendChild(frame);frame.srcdoc=html;setTimeout(()=>{if(!started&&!finished&&frame.contentDocument?.readyState==='complete')startPrint()},1800);
   });
 }
 
@@ -2877,6 +2939,7 @@ async function printRecord(record){
     const suppressAdministrativeReference=suppressesAdministrativeReference(record);
     const printReference=suppressAdministrativeReference?'':String(record.data?.reference_administrative||record.reference||'');
     const html=buildPrintDocument({title,body,reference:printReference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',hideReference:suppressAdministrativeReference,showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
+    window.__sigatPrintTargetId=record.id;
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }

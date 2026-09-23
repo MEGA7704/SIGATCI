@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SIGAT — Tableau de bord</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=1.82">
+  <link rel="stylesheet" href="/assets/styles.css?v=1.99">
 </head>
 <body data-module="dashboard" class="dashboard-page">
   <main class="container dashboard-container">
@@ -20,6 +20,18 @@
       </div>
       <div class="dashboard-hero-motto" aria-hidden="true">
         <strong>PROTÉGER<br>GÉRER<br>PRÉSERVER</strong><i></i>
+      </div>
+    </section>
+
+
+    <section class="dashboard-filterbar" aria-label="Période du tableau de bord">
+      <div class="dashboard-filter-copy"><strong>Indicateurs dynamiques</strong><span id="dashboardPeriodLabel">Période sélectionnée</span></div>
+      <div class="dashboard-filter-controls">
+        <label><span>Période</span><select id="dashboardPeriod"><option value="month">Mois</option><option value="quarter">Trimestre</option><option value="year" selected>Année</option></select></label>
+        <label><span>Année</span><input id="dashboardYear" type="number" min="2000" max="2100"></label>
+        <label><span>Mois</span><select id="dashboardMonth"><option value="1">Janvier</option><option value="2">Février</option><option value="3">Mars</option><option value="4">Avril</option><option value="5">Mai</option><option value="6">Juin</option><option value="7">Juillet</option><option value="8">Août</option><option value="9">Septembre</option><option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option></select></label>
+        <label><span>Trimestre</span><select id="dashboardQuarter"><option value="1">1er trimestre</option><option value="2">2e trimestre</option><option value="3">3e trimestre</option><option value="4">4e trimestre</option></select></label>
+        <button id="dashboardRefresh" class="btn btn-secondary btn-sm" type="button">Actualiser</button>
       </div>
     </section>
 
@@ -75,7 +87,7 @@
     <div class="dialog-body"><div class="plans" style="grid-template-columns:1fr 1fr"><div class="card plan"><h3>STANDARD</h3><div class="price">23 700 FCFA</div><div class="muted">30 jours — accès complet</div></div><div class="card plan featured"><h3>BUSINESS</h3><div class="price">181 000 FCFA</div><div class="muted">365 jours — accès complet</div></div></div></div>
     <div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary" value="cancel">COMPRIS</button></form><a class="btn btn-primary" href="/mon-compte/#abonnement">ACHETER MON PLAN</a></div>
   </dialog>
-  <footer class="footer dashboard-footer"><span id="dashboardFooterOrg">SIGAT</span><span>Système Intégré de Gestion Administrative et Technique</span><span>Version 1.78</span></footer>
-  <script type="module" src="/assets/app.js?v=1.97"></script>
+  <footer class="footer dashboard-footer"><span id="dashboardFooterOrg">SIGAT</span><span>Système Intégré de Gestion Administrative et Technique</span><span>Version 1.99</span></footer>
+  <script type="module" src="/assets/app.js?v=1.99"></script>
 </body>
 </html>

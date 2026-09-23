@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SIGAT — Mon compte</title>
-  <link rel="stylesheet" href="/assets/styles.css?v=1.82">
+  <link rel="stylesheet" href="/assets/styles.css?v=1.99">
 </head>
 <body>
 <main class="container account-page">
@@ -60,6 +60,22 @@
       </div>
     </section>
 
+
+    <section class="card account-section" id="journal-operations">
+      <div class="account-section-head">
+        <div><div class="account-kicker">Traçabilité</div><h2>Journal des opérations</h2><p class="muted">Historique des créations, modifications, suppressions, impressions et actions de sécurité réalisées dans votre structure.</p></div>
+        <button id="auditReloadBtn" class="btn btn-secondary" type="button">Actualiser</button>
+      </div>
+      <div class="audit-filters">
+        <div class="field"><label>Action</label><select id="auditActionFilter"><option value="">Toutes les actions</option><option value="RECORD_CREATED">Créations</option><option value="RECORD_UPDATED">Modifications</option><option value="RECORD_DELETED">Suppressions</option><option value="RECORD_PRINTED">Impressions</option></select></div>
+        <div class="field"><label>Utilisateur</label><input id="auditActorFilter" placeholder="Nom de l’utilisateur"></div>
+        <div class="field"><label>Du</label><input id="auditFromFilter" type="date"></div>
+        <div class="field"><label>Au</label><input id="auditToFilter" type="date"></div>
+        <div class="field audit-search-field"><label>Recherche</label><input id="auditSearchFilter" placeholder="Document, module, intitulé…"></div>
+      </div>
+      <div class="table-wrap audit-table-wrap"><table class="table"><thead><tr><th>Date et heure</th><th>Utilisateur</th><th>Action</th><th>Donnée / document</th></tr></thead><tbody id="auditBody"><tr><td colspan="4">Chargement…</td></tr></tbody></table></div>
+    </section>
+
     <section class="card account-section" id="abonnement">
       <div class="account-section-head">
         <div>
@@ -110,7 +126,7 @@
 
 <dialog id="freePlanDialog" data-admin-only class="dialog"><div class="dialog-head"><strong>Passez à une formule SIGAT payante</strong></div><div class="dialog-body">STANDARD : 23 700 FCFA / 30 jours<br>BUSINESS : 181 000 FCFA / 365 jours</div><div class="dialog-foot"><form method="dialog"><button class="btn btn-secondary">COMPRIS</button></form><a class="btn btn-primary" href="/mon-compte/#abonnement">VOIR MON ABONNEMENT</a></div></dialog>
 <footer class="footer">SIGAT — Système Intégré de Gestion Administrative et Technique</footer>
-<script type="module" src="/assets/app.js?v=1.97"></script>
-<script type="module" src="/assets/account.js?v=1.77"></script>
+<script type="module" src="/assets/app.js?v=1.99"></script>
+<script type="module" src="/assets/account.js?v=1.99"></script>
 </body>
 </html>

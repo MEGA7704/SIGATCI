@@ -189,3 +189,7 @@ La section Paramètres > En-tête des imprimés intègre désormais les champs D
 
 ## Correctif V1.85 — Prise de service / mutation
 Dans le popup Ajouter / Modifier « Prise de service / mutation », le champ manuel « Référence / N° certificat » et le sélecteur intelligent « Cessation de service / mutation existante » ont été supprimés. Le champ manuel « Nom et Prénoms de l’agent » est conservé et reste obligatoire. Les autres champs et traitements restent inchangés.
+
+## Évolution V1.99 — Traçabilité, pilotage et dossier agent
+
+SIGAT V1.99 ajoute un journal des opérations consultable par l’Administrateur, la traçabilité des impressions, un tableau de bord dynamique filtrable par mois/trimestre/année, une recherche globale dans le menu horizontal et un dossier administratif numérique consolidé pour chaque agent. Les résultats, indicateurs et éléments du dossier respectent les permissions du compte connecté et l’isolation des données de la structure.

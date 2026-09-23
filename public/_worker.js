@@ -882,20 +882,72 @@ async function apiDashboard(env, request) {
   if (auth.denied) return bad('Abonnement expiré.', 402, auth.denied);
   if (auth.user.role_code === 'SUPER_ADMIN') return bad('Utilisez le tableau de bord Super Admin.', 403);
   const orgId = Number(auth.user.organization_id);
-  const summary = {};
-  const wanted = [
-    ['agents','personnel'],['missions','missions'],['awareness_actions','sensibilisations'],
-    ['fire_incidents','feux-brousse'],['training_sessions','formations']
-  ];
-  for (const [table,pageKey] of wanted) {
-    if (!hasPagePermission(auth.user,pageKey,'view')) continue;
-    if (!await tableExists(env, table)) { summary[table] = 0; continue; }
-    const r = await env.SIGAT_DB.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE organization_id=? AND archived_at IS NULL`).bind(orgId).first();
-    summary[table] = Number(r?.c || 0);
+  const url = new URL(request.url);
+  const now = new Date();
+  const period = ['month','quarter','year'].includes(String(url.searchParams.get('period')||'').toLowerCase()) ? String(url.searchParams.get('period')).toLowerCase() : 'year';
+  const yearRaw = Number(url.searchParams.get('year') || now.getUTCFullYear());
+  const year = Number.isFinite(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100 ? Math.trunc(yearRaw) : now.getUTCFullYear();
+  const monthRaw = Number(url.searchParams.get('month') || (now.getUTCMonth()+1));
+  const month = Math.min(12,Math.max(1,Number.isFinite(monthRaw)?Math.trunc(monthRaw):1));
+  const quarterRaw = Number(url.searchParams.get('quarter') || (Math.floor(now.getUTCMonth()/3)+1));
+  const quarter = Math.min(4,Math.max(1,Number.isFinite(quarterRaw)?Math.trunc(quarterRaw):1));
+  const iso = d => d.toISOString().slice(0,10);
+  let fromDate,toDate,label;
+  if(period==='month'){
+    fromDate=iso(new Date(Date.UTC(year,month-1,1)));toDate=iso(new Date(Date.UTC(year,month,1)));
+    label=new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(year,month-1,1)));
+  }else if(period==='quarter'){
+    const startMonth=(quarter-1)*3;fromDate=iso(new Date(Date.UTC(year,startMonth,1)));toDate=iso(new Date(Date.UTC(year,startMonth+3,1)));label=`${quarter===1?'1er':`${quarter}e`} trimestre ${year}`;
+  }else{
+    fromDate=`${year}-01-01`;toDate=`${year+1}-01-01`;label=`Année ${year}`;
+  }
+  const inRange=(expr)=>`date(${expr}) >= date(?) AND date(${expr}) < date(?)`;
+  const metric={};
+  async function scalar(table,sql,params=[]){
+    if(!await tableExists(env,table))return 0;
+    const row=await env.SIGAT_DB.prepare(sql).bind(...params).first();
+    return Number(row?.v||0);
+  }
+  // Effectif actuel : volontairement indépendant du filtre de période.
+  if(hasPagePermission(auth.user,'personnel','view')) metric.agents=await scalar('agents',`SELECT COUNT(*) v FROM agents WHERE organization_id=? AND archived_at IS NULL`,[orgId]);
+  if(hasPagePermission(auth.user,'missions','view')){
+    // Une mission est considérée comme réalisée lorsqu'une date de retour est enregistrée
+    // et qu'elle n'est pas située dans le futur.
+    const expr=`NULLIF(json_extract(COALESCE(data_json,'{}'),'$.date_retour'),'')`;
+    metric.missions=await scalar('missions',`SELECT COUNT(*) v FROM missions WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._mission_type')='ORDRE_MISSION' AND ${expr} IS NOT NULL AND date(${expr})<=date('now') AND ${inRange(expr)}`,[orgId,fromDate,toDate]);
+  }
+  if(hasPagePermission(auth.user,'exploitation-forestiere','view')){
+    const forestDate=`COALESCE(NULLIF(json_extract(COALESCE(data_json,'{}'),'$.date_activite'),''),NULLIF(event_date,''),substr(created_at,1,10))`;
+    metric.reboisements=await scalar('forest_perimeters',`SELECT COUNT(*) v FROM forest_perimeters WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._forest_type')='REBOISEMENT' AND ${inRange(forestDate)}`,[orgId,fromDate,toDate]);
+    metric.superficie_reboisee=await scalar('forest_perimeters',`SELECT COALESCE(SUM(CAST(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.superficie'),0) AS REAL)),0) v FROM forest_perimeters WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._forest_type')='REBOISEMENT' AND ${inRange(forestDate)}`,[orgId,fromDate,toDate]);
+    metric.plantations=await scalar('forest_perimeters',`SELECT COUNT(*) v FROM forest_perimeters WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._forest_type')='PLANTATION_CREEE' AND ${inRange(forestDate)}`,[orgId,fromDate,toDate]);
+    const prodDate=`COALESCE(NULLIF(event_date,''),substr(created_at,1,10))`;
+    metric.plants_produits=await scalar('forest_perimeters',`SELECT COALESCE(SUM(CAST(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.nbr_plants_produits'),0) AS REAL)),0) v FROM forest_perimeters WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._forest_type') IN ('PEPINIERE_PRODUCTION','PEPINIERE') AND ${inRange(prodDate)}`,[orgId,fromDate,toDate]);
+    const distributed=await scalar('forest_perimeters',`SELECT COALESCE(SUM(CAST(COALESCE(json_extract(COALESCE(data_json,'{}'),'$.nombre_total_plants'),0) AS REAL)),0) v FROM forest_perimeters WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._forest_type') IN ('REBOISEMENT','PLANTATION_CREEE') AND ${inRange(forestDate)}`,[orgId,fromDate,toDate]);
+    metric.plants_distribues=distributed;metric.plants_disponibles=Number(metric.plants_produits||0)-distributed;
+  }
+  if(hasPagePermission(auth.user,'sensibilisations','view')){
+    const expr=`COALESCE(NULLIF(json_extract(COALESCE(data_json,'{}'),'$.date_activite'),''),NULLIF(event_date,''),substr(created_at,1,10))`;
+    metric.sensibilisations=await scalar('awareness_actions',`SELECT COUNT(*) v FROM awareness_actions WHERE organization_id=? AND archived_at IS NULL AND ${inRange(expr)}`,[orgId,fromDate,toDate]);
+  }
+  if(hasPagePermission(auth.user,'formations','view')){
+    const expr=`COALESCE(NULLIF(json_extract(COALESCE(data_json,'{}'),'$.date_activite'),''),NULLIF(event_date,''),substr(created_at,1,10))`;
+    metric.formations=await scalar('training_sessions',`SELECT COUNT(*) v FROM training_sessions WHERE organization_id=? AND archived_at IS NULL AND ${inRange(expr)}`,[orgId,fromDate,toDate]);
+  }
+  if(hasPagePermission(auth.user,'materiel','view')){
+    metric.equipements=await scalar('equipment',`SELECT COUNT(*) v FROM equipment WHERE organization_id=? AND archived_at IS NULL AND ${inRange(`COALESCE(NULLIF(event_date,''),substr(created_at,1,10))`)}`,[orgId,fromDate,toDate]);
+  }
+  if(hasPagePermission(auth.user,'faune','view')){
+    const expr=`COALESCE(NULLIF(json_extract(COALESCE(data_json,'{}'),'$.date_observation'),''),NULLIF(event_date,''),substr(created_at,1,10))`;
+    metric.conflits_faune=await scalar('wildlife_observations',`SELECT COUNT(*) v FROM wildlife_observations WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'),'$._fauna_type')='CONFLITS' AND ${inRange(expr)}`,[orgId,fromDate,toDate]);
+  }
+  if(hasPagePermission(auth.user,'feux-brousse','view')){
+    const expr=`COALESCE(NULLIF(json_extract(COALESCE(data_json,'{}'),'$.date_constat'),''),NULLIF(event_date,''),substr(created_at,1,10))`;
+    metric.degats_feux=await scalar('fire_incidents',`SELECT COUNT(*) v FROM fire_incidents WHERE organization_id=? AND archived_at IS NULL AND (json_extract(COALESCE(data_json,'{}'),'$._fire_type')='DEGATS' OR json_extract(COALESCE(data_json,'{}'),'$._fire_type') IS NULL) AND ${inRange(expr)}`,[orgId,fromDate,toDate]);
   }
   const org = await env.SIGAT_DB.prepare(`SELECT id,name,code,COALESCE(service_type,organization_type) AS organization_type FROM organizations WHERE id=?`).bind(orgId).first();
   if (!org || !SERVICE_TYPES.includes(String(org.organization_type||''))) return bad('Type de service non pris en charge.',403,'UNSUPPORTED_SERVICE_TYPE');
-  return ok({ summary, organization: { id:org.id,name:org.name,code:org.code,type:org.organization_type } });
+  return ok({ summary:metric, period:{period,year,month,quarter,from:fromDate,to:toDate,label}, organization:{id:org.id,name:org.name,code:org.code,type:org.organization_type} });
 }
 
 async function apiLoad(env, request) {
@@ -1250,6 +1302,49 @@ function syncPvFromOffense(incomingData,source,sourceData){
   incomingData.personne_mise_cause=String(sourceData.personne_mise_cause||source.title||'').trim();
 }
 
+function recordAuditLabel(module,data={},title=''){
+  const m=String(module||'');
+  const d=data&&typeof data==='object'?data:{};
+  if(m==='personnel')return 'Agent';
+  if(m==='documents'){
+    const x=String(d._document_type||'').toUpperCase();
+    return ({CESSATION_SERVICE:'Cessation de service / mutation',CESSATION_CONGE:'Cessation de service / congé',REPRISE_SERVICE:'Reprise de service / congé',PRISE_SERVICE_MUTATION:'Prise de service / mutation',DEMANDE_EXPLICATION:'Demande d’explication'})[x]||'Document administratif';
+  }
+  if(m==='absences')return 'Autorisation d’absence';
+  if(m==='stages')return String(d._stage_type||'').toUpperCase()==='FIN_STAGE'?'Fin de stage':'Mise en stage';
+  if(m==='convocations')return 'Convocation';
+  if(m==='convocation_pv')return 'Procès-verbal de rencontre';
+  if(m==='missions'){
+    const x=String(d._mission_type||'').toUpperCase();
+    return ({ORDRE_MISSION:'Ordre de mission',PV_ORDRE_MISSION:'Procès-verbal de mission',REPRESSION:'Répression d’infraction'})[x]||'Mission';
+  }
+  if(m==='offense_pv')return 'Procès-verbal d’infraction';
+  if(m==='exploitation-forestiere'){
+    const x=String(d._forest_type||'').toUpperCase();
+    return ({RECHERCHE_PARCELLAIRE:'Recherche parcellaire',PEPINIERE_SITE:'Site de pépinière',PEPINIERE_PRODUCTION:'Production de pépinière',PEPINIERE:'Production de pépinière',PLANTATION_CREEE:'Plantation forestière créée',REBOISEMENT:'Reboisement'})[x]||'Exploitation forestière';
+  }
+  if(m==='produits-secondaires')return 'Produit secondaire';
+  if(m==='transformation-bois'){
+    const x=String(d._wood_type||'').toUpperCase();return ({EXPLOITANTS_SECONDAIRES:'Exploitant de produits secondaires',PRODUITS_QTE:'Quantité de produits secondaires exploitée',UNITES_BOIS:'Unité / exerçant du bois'})[x]||'Transformation du bois';
+  }
+  if(m==='sensibilisations')return 'Sensibilisation';
+  if(m==='activites-minef')return 'Activité du MINEF';
+  if(m==='ressources-naturelles')return 'Ressource naturelle';
+  if(m==='feux-brousse'){
+    const x=String(d._fire_type||'').toUpperCase();return ({CREE:'Comité créé',REDYNAMISE:'Comité redynamisé',RENOUVELE:'Comité renouvelé',DEGATS:'Dégât de feu de brousse'})[x]||'Feux de brousse';
+  }
+  if(m==='faune')return String(d._fauna_type||'').toUpperCase()==='CONFLITS'?'Conflit homme-faune':'Observation animale';
+  if(m==='conflits')return 'Conflit homme-faune';
+  if(m==='formations')return 'Formation';
+  if(m==='materiel')return 'Équipement';
+  if(m==='rapports')return 'Rapport';
+  return title||m||'Enregistrement';
+}
+function auditRecordDescription(module,data,title,reference=''){
+  const label=recordAuditLabel(module,data,title);const ref=String(reference||'').trim();const t=String(title||'').trim();
+  return [label,ref?`N° ${ref}`:'',t&&t.toLocaleLowerCase('fr-FR')!==label.toLocaleLowerCase('fr-FR')?t:''].filter(Boolean).join(' — ');
+}
+
 async function apiSave(env, request) {
   const auth = await getSession(env, request, { allowExpired: false });
   if (!auth) return bad('Session invalide.', 401);
@@ -1344,13 +1439,13 @@ async function apiSave(env, request) {
     const r = await env.SIGAT_DB.prepare(`INSERT INTO ${table}(organization_id,reference,title,event_date,status,data_json,created_by) VALUES(?,?,?,?,?,?,?)`)
       .bind(orgId, payload.reference || null, title, payload.eventDate || null, payload.status || 'ACTIVE', JSON.stringify(incomingData), auth.user.id).run();
     if (module === 'stages' && incomingStageType === 'FIN_STAGE' && incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);
-    await audit(env, request, { action: 'RECORD_CREATED', organization_id: orgId, actor_user_id: auth.user.id, user_id: auth.user.id, target_type: module, target_id: r.meta.last_row_id, description: title });
+    await audit(env, request, { action: 'RECORD_CREATED', organization_id: orgId, actor_user_id: auth.user.id, user_id: auth.user.id, target_type: module, target_id: r.meta.last_row_id, description: auditRecordDescription(module,incomingData,title,payload.reference) });
     return ok({ id: r.meta.last_row_id });
   }
 
   const id = Number(payload.id);
   if (!id) return bad('Identifiant manquant.');
-  const owned = await env.SIGAT_DB.prepare(`SELECT id,status,data_json FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).first();
+  const owned = await env.SIGAT_DB.prepare(`SELECT id,reference,title,status,data_json FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).first();
   if (!owned) return bad('Cette donnée ne peut pas être modifiée par votre structure.', 403, 'NOT_OWNER');
   const previousData = ['stages','missions'].includes(module) ? safeJson(owned.data_json) : {};
   const previousStageType = module === 'stages' ? String(previousData._stage_type || '').toUpperCase() : '';
@@ -1387,7 +1482,7 @@ async function apiSave(env, request) {
       if (previousSourceStageId && previousSourceStageId !== incomingSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
       if (incomingSourceStageId) await syncStageSourceStatus(env, orgId, incomingSourceStageId);
     }
-    await audit(env, request, { action: 'RECORD_UPDATED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id, description: title });
+    await audit(env, request, { action: 'RECORD_UPDATED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id, description: auditRecordDescription(module,incomingData,title,payload.reference) });
     return ok();
   }
 
@@ -1397,13 +1492,13 @@ async function apiSave(env, request) {
     if (module === 'missions' && String(previousData._mission_type||'').toUpperCase()==='ORDRE_MISSION' && await orderMissionHasPv(env,orgId,id)) return bad('Cet ordre de mission possède un P-V. Supprimez d’abord le P-V lié avant de supprimer l’ordre de mission.');
     await env.SIGAT_DB.prepare(`DELETE FROM ${table} WHERE id=? AND organization_id=?`).bind(id, orgId).run();
     if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
-    await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
+    await audit(env, request, { action: 'RECORD_DELETED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id, description:auditRecordDescription(module,safeJson(owned.data_json),owned.title,owned.reference) });
     return ok();
   }
 
   await env.SIGAT_DB.prepare(`UPDATE ${table} SET status='ARCHIVED',archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?`).bind(id, orgId).run();
   if (module === 'stages' && previousSourceStageId) await syncStageSourceStatus(env, orgId, previousSourceStageId);
-  await audit(env, request, { action: 'RECORD_ARCHIVED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id });
+  await audit(env, request, { action: 'RECORD_ARCHIVED', organization_id: orgId, actor_user_id: auth.user.id, target_type: module, target_id: id, description:auditRecordDescription(module,safeJson(owned.data_json),owned.title,owned.reference) });
   return ok();
 }
 
@@ -1707,6 +1802,105 @@ async function superAuditLogs(env, request) {
   return ok({ items: rows.results });
 }
 
+async function orgAuditLogs(env, request) {
+  const auth=await getSession(env,request,{allowExpired:true});
+  if(!auth)return bad('Session invalide.',401);
+  if(auth.user.role_code!=='ORGANIZATION_ADMIN')return bad('Droits insuffisants.',403);
+  const url=new URL(request.url);const orgId=Number(auth.user.organization_id);
+  const action=String(url.searchParams.get('action')||'').trim();const actor=String(url.searchParams.get('actor')||'').trim();const search=String(url.searchParams.get('search')||'').trim();const from=String(url.searchParams.get('from')||'').trim();const to=String(url.searchParams.get('to')||'').trim();
+  let where='a.organization_id=?';const params=[orgId];
+  if(action){where+=' AND a.action=?';params.push(action)}
+  if(actor){where+=' AND LOWER(COALESCE(u.display_name,\'\')) LIKE LOWER(?)';params.push(`%${actor}%`)}
+  if(search){where+=' AND (LOWER(COALESCE(a.description,\'\')) LIKE LOWER(?) OR LOWER(COALESCE(a.target_type,\'\')) LIKE LOWER(?))';params.push(`%${search}%`,`%${search}%`)}
+  if(/^\d{4}-\d{2}-\d{2}$/.test(from)){where+=' AND date(a.created_at)>=date(?)';params.push(from)}
+  if(/^\d{4}-\d{2}-\d{2}$/.test(to)){where+=' AND date(a.created_at)<=date(?)';params.push(to)}
+  const rows=await env.SIGAT_DB.prepare(`SELECT a.id,a.action,a.target_type,a.target_id,a.description,a.created_at,u.display_name AS actor_name FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id WHERE ${where} ORDER BY a.created_at DESC LIMIT 500`).bind(...params).all();
+  return ok({items:rows.results||[]});
+}
+
+async function apiAuditPrint(env,request){
+  const auth=await getSession(env,request,{allowExpired:false});if(!auth)return bad('Session invalide.',401);if(auth.denied)return bad('Abonnement expiré.',402,auth.denied);if(!requireCsrf(request,auth))return bad('Jeton CSRF invalide.',403,'CSRF');
+  const body=await parseJson(request);const module=String(body?.module||'').trim();const permissionPage=MODULE_PERMISSION_PAGE[module]||String(body?.page||'').trim();
+  if(!permissionPage||!USER_PERMISSION_PAGE_BY_KEY[permissionPage])return bad('Contexte d’impression invalide.',400);
+  if(!hasPagePermission(auth.user,permissionPage,'view'))return bad('Droits insuffisants.',403);
+  const description=String(body?.description||'Document SIGAT').trim().slice(0,500);const targetId=body?.targetId!=null?String(body.targetId).slice(0,80):null;
+  await audit(env,request,{action:'RECORD_PRINTED',organization_id:auth.user.organization_id,user_id:auth.user.id,actor_user_id:auth.user.id,target_type:module||permissionPage||'print',target_id:targetId,description});
+  return ok();
+}
+
+function globalResultMeta(module,row){
+  const d=safeJson(row.data_json);let label=recordAuditLabel(module,d,row.title),href='/',view='';
+  if(module==='personnel')href='/personnel/';
+  else if(module==='documents'){view=String(d._document_type||'CESSATION_SERVICE').toUpperCase();href=`/documents/?view=${encodeURIComponent(view)}`}
+  else if(module==='absences')href='/documents/?view=ABSENCE';
+  else if(module==='stages'){view=String(d._stage_type||'MISE_STAGE').toUpperCase();href=`/stages/?view=${encodeURIComponent(view)}`}
+  else if(module==='convocations')href='/convocations/?view=CONVOCATIONS';
+  else if(module==='convocation_pv')href='/convocations/?view=PV';
+  else if(module==='offense_pv')href='/missions/?view=REPRESSION';
+  else if(module==='missions'){
+    view=String(d._mission_type||'ORDRE_MISSION').toUpperCase();if(view==='PV_ORDRE_MISSION')view='ORDRE_MISSION';href=`/missions/?view=${encodeURIComponent(view==='REPRESSION'?'REPRESSION':'ORDRE_MISSION')}`;
+  }else if(module==='exploitation-forestiere'){
+    view=String(d._forest_type||'RECHERCHE_PARCELLAIRE').toUpperCase();
+    if(view==='PEPINIERE_SITE')href='/exploitation-forestiere/?view=PEPINIERE&nursery=SITES';else if(['PEPINIERE_PRODUCTION','PEPINIERE'].includes(view))href='/exploitation-forestiere/?view=PEPINIERE&nursery=PRODUCTION';else href=`/exploitation-forestiere/?view=${encodeURIComponent(view)}`;
+  }else if(module==='produits-secondaires')href='/produits-secondaires/';
+  else if(module==='transformation-bois'){view=String(d._wood_type||'UNITES_BOIS').toUpperCase();href=`/transformation-bois/?view=${encodeURIComponent(view)}`}
+  else if(module==='sensibilisations')href='/sensibilisations/';else if(module==='activites-minef')href='/activites-minef/';else if(module==='ressources-naturelles')href='/ressources-naturelles/';
+  else if(module==='feux-brousse'){view=String(d._fire_type||'DEGATS').toUpperCase();href=`/feux-brousse/?view=${encodeURIComponent(view)}`}
+  else if(module==='faune'){view=String(d._fauna_type||'OBSERVATIONS').toUpperCase();href=`/faune/?view=${encodeURIComponent(view)}`}
+  else if(module==='conflits')href='/faune/?view=CONFLITS';
+  else if(module==='formations')href='/formations/';else if(module==='materiel')href='/materiel/';else if(module==='rapports')href='/rapports/';
+  const sep=href.includes('?')?'&':'?';href+=`${sep}search=${encodeURIComponent(String(row.title||row.reference||''))}`;
+  return {id:row.id,module,label,title:row.title,reference:row.reference||'',updated_at:row.updated_at||row.created_at||'',href};
+}
+
+async function apiGlobalSearch(env,request){
+  const auth=await getSession(env,request,{allowExpired:false});if(!auth)return bad('Session invalide.',401);if(auth.denied)return bad('Abonnement expiré.',402,auth.denied);if(auth.user.role_code==='SUPER_ADMIN')return bad('Recherche réservée aux espaces métier.',403);
+  const url=new URL(request.url);const q=String(url.searchParams.get('q')||'').trim().slice(0,120);if(q.length<2)return ok({items:[]});const like=`%${q}%`;const orgId=Number(auth.user.organization_id);
+  const modules=['personnel','documents','absences','stages','convocations','convocation_pv','missions','exploitation-forestiere','transformation-bois','sensibilisations','activites-minef','ressources-naturelles','feux-brousse','faune','formations','materiel','rapports'];
+  const out=[];
+  for(const module of modules){
+    const page=MODULE_PERMISSION_PAGE[module];if(page&&!hasPagePermission(auth.user,page,'view'))continue;const table=MODULES[module];if(!table||!await tableExists(env,table))continue;
+    const rows=await env.SIGAT_DB.prepare(`SELECT id,reference,title,data_json,created_at,updated_at FROM ${table} WHERE organization_id=? AND archived_at IS NULL AND (LOWER(COALESCE(title,'')) LIKE LOWER(?) OR LOWER(COALESCE(reference,'')) LIKE LOWER(?) OR LOWER(COALESCE(data_json,'')) LIKE LOWER(?)) ORDER BY COALESCE(updated_at,created_at) DESC LIMIT 6`).bind(orgId,like,like,like).all();
+    for(const row of rows.results||[])out.push(globalResultMeta(module,row));
+  }
+  out.sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
+  return ok({items:out.slice(0,30)});
+}
+
+async function apiAgentDossier(env,request){
+  const auth=await getSession(env,request,{allowExpired:false});if(!auth)return bad('Session invalide.',401);if(auth.denied)return bad('Abonnement expiré.',402,auth.denied);if(!hasPagePermission(auth.user,'personnel','view'))return bad('Droits insuffisants.',403);
+  const url=new URL(request.url);const id=Number(url.searchParams.get('id')||0);if(!id)return bad('Agent invalide.');const orgId=Number(auth.user.organization_id);
+  if(!await tableExists(env,'agents'))return bad('Personnel indisponible.',404);
+  const agent=await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,status,data_json,created_at,updated_at FROM agents WHERE id=? AND organization_id=? AND archived_at IS NULL`).bind(id,orgId).first();if(!agent)return bad('Agent introuvable.',404);
+  const ad=safeJson(agent.data_json);const name=String(agent.title||'').trim();const matricule=String(ad.matricule||'').trim();
+  const match=(r)=>{const d=safeJson(r.data_json);if(Number(d._smart_source_id||0)===id&&String(d._smart_source_module||'')==='personnel')return true;if(name&&String(r.title||'').trim().toLocaleLowerCase('fr-FR')===name.toLocaleLowerCase('fr-FR'))return true;const raw=String(r.data_json||'').toLocaleLowerCase('fr-FR');return !!(matricule&&raw.includes(matricule.toLocaleLowerCase('fr-FR')))||!!(name&&raw.includes(name.toLocaleLowerCase('fr-FR')))};
+  async function rows(table,{participantLinks=false}={}){
+    if(!await tableExists(env,table))return[];
+    const clauses=[`(CAST(json_extract(COALESCE(data_json,'{}'),'$._smart_source_id') AS INTEGER)=? AND json_extract(COALESCE(data_json,'{}'),'$._smart_source_module')='personnel')`];
+    const params=[orgId,id];
+    if(name){clauses.push(`LOWER(TRIM(COALESCE(title,'')))=LOWER(TRIM(?))`);params.push(name);clauses.push(`LOWER(COALESCE(data_json,'')) LIKE LOWER(?)`);params.push(`%${name}%`)}
+    if(matricule){clauses.push(`LOWER(COALESCE(data_json,'')) LIKE LOWER(?)`);params.push(`%${matricule}%`)}
+    if(participantLinks)clauses.push(`COALESCE(data_json,'') LIKE '%_participant_agent_ids%'`);
+    const r=await env.SIGAT_DB.prepare(`SELECT id,reference,title,event_date,status,data_json,created_at,updated_at FROM ${table} WHERE organization_id=? AND archived_at IS NULL AND (${clauses.join(' OR ')}) ORDER BY COALESCE(event_date,created_at) DESC LIMIT 1000`).bind(...params).all();
+    return (r.results||[]).filter(r=>participantLinks||match(r));
+  }
+  // Le dossier consolidé respecte strictement les permissions du compte connecté :
+  // une rubrique non autorisée n'est ni chargée ni exposée par l'API.
+  const canDocuments=hasPagePermission(auth.user,'documents','view');
+  const canMissions=hasPagePermission(auth.user,'missions','view');
+  const canFormations=hasPagePermission(auth.user,'formations','view');
+  const [docs,absences,missions,formations]=await Promise.all([
+    canDocuments?rows('administrative_documents'):Promise.resolve([]),
+    canDocuments?rows('absences'):Promise.resolve([]),
+    canMissions?rows('missions'):Promise.resolve([]),
+    canFormations?rows('training_sessions',{participantLinks:true}):Promise.resolve([])
+  ]);
+  const byType=t=>docs.filter(r=>String(safeJson(r.data_json)._document_type||'').toUpperCase()===t).map(r=>({...r,data:safeJson(r.data_json),data_json:undefined}));
+  const missionItems=missions.filter(r=>{const d=safeJson(r.data_json),t=String(d._mission_type||'').toUpperCase();if(!['ORDRE_MISSION','REPRESSION'].includes(t))return false;if(matricule){const mats=['_chef_mission_matricule','_agent_mission_1_matricule','_agent_mission_2_matricule','_agent_mission_3_matricule','_agent_mission_4_matricule'].map(k=>String(d[k]||'').trim());if(mats.includes(matricule))return true}return [d.chef_mission,d.agent_mission_1,d.agent_mission_2,d.agent_mission_3,d.agent_mission_4].some(v=>name&&String(v||'').trim().toLocaleLowerCase('fr-FR')===name.toLocaleLowerCase('fr-FR'))}).map(r=>({...r,data:safeJson(r.data_json),data_json:undefined}));
+  const formationItems=formations.filter(r=>{const d=safeJson(r.data_json);let ids=[];try{ids=JSON.parse(String(d._participant_agent_ids||'[]'))}catch{}return ids.map(Number).includes(id)||match(r)}).map(r=>({...r,data:safeJson(r.data_json),data_json:undefined}));
+  return ok({agent:{...agent,data:ad,data_json:undefined},sections:{mutations:[...byType('CESSATION_SERVICE'),...byType('PRISE_SERVICE_MUTATION')],conges:byType('CESSATION_CONGE'),reprises:byType('REPRISE_SERVICE'),explications:byType('DEMANDE_EXPLICATION'),absences:absences.map(r=>({...r,data:safeJson(r.data_json),data_json:undefined})),formations:formationItems,missions:missionItems}});
+}
+
 function staticPagePermissionKey(pathname){
   const p=String(pathname||'').replace(/\/+$/,'')||'/';
   if(p==='/absences') return 'documents';
@@ -1738,7 +1932,7 @@ async function guardStaticRequest(env,request,url){
 async function routeApi(env, request, url) {
   const p = url.pathname;
   const m = request.method.toUpperCase();
-  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.81-print-header-administrative-levels', message:'SIGAT Worker opérationnel' });
+  if (p === '/api/ping' && m === 'GET') return ok({ worker:true, version:'1.99-tracabilite-dashboard-search-dossier', message:'SIGAT Worker opérationnel' });
   if (p === '/api/health' && m === 'GET') return apiHealth(env);
   if (p === '/api/login' && m === 'POST') return apiLogin(env, request);
   if (p === '/api/logout' && m === 'POST') return apiLogout(env, request);
@@ -1747,6 +1941,10 @@ async function routeApi(env, request, url) {
   if (p === '/api/password-reset-request' && m === 'POST') return apiPasswordResetRequest(env, request);
   if (p === '/api/change-password' && m === 'POST') return apiChangePassword(env, request);
   if (p === '/api/dashboard' && m === 'GET') return apiDashboard(env, request);
+  if (p === '/api/global-search' && m === 'GET') return apiGlobalSearch(env, request);
+  if (p === '/api/agent-dossier' && m === 'GET') return apiAgentDossier(env, request);
+  if (p === '/api/audit-logs' && m === 'GET') return orgAuditLogs(env, request);
+  if (p === '/api/audit/print' && m === 'POST') return apiAuditPrint(env, request);
   if (p === '/api/print-settings' && m === 'GET') return apiPrintSettings(env, request);
   if (p === '/api/print-settings' && m === 'POST') return apiPrintSettingsSave(env, request);
   if (p === '/api/load' && m === 'GET') return apiLoad(env, request);

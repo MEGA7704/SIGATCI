@@ -1,4 +1,4 @@
-import {api,esc,fmtDate,loadSession,showToast,professionalConfirm,professionalAlert,withButtonLock} from './common.js?v=1.76';
+import {api,esc,fmtDate,loadSession,showToast,professionalConfirm,professionalAlert,withButtonLock} from './common.js?v=1.99';
 
 let accountSession=null;
 let permissionPages=[];
@@ -70,6 +70,19 @@ function renderSubscription(){
   box.innerHTML=`<div class="cards account-subscription-metrics"><div class="metric"><div class="k">Plan actuel</div><div class="v account-metric-value">${esc(x.plan)}</div></div><div class="metric"><div class="k">Prix</div><div class="v account-metric-value">${Number(x.price||0).toLocaleString('fr-FR')} FCFA</div></div><div class="metric"><div class="k">Expiration</div><div class="v account-metric-value">${fmtDate(x.end_date)}</div></div><div class="metric"><div class="k">Jours restants</div><div class="v account-metric-value">${Number(x.daysRemaining||0)}</div></div></div>${x.expired?'<div class="notice error" style="margin-top:14px">Votre abonnement SIGAT a expiré. Choisissez une formule payante pour continuer.</div>':''}`;
 }
 
+
+function auditActionLabel(action){
+  return ({RECORD_CREATED:'Création',RECORD_UPDATED:'Modification',RECORD_DELETED:'Suppression',RECORD_ARCHIVED:'Archivage',RECORD_PRINTED:'Impression',LOGIN_SUCCESS:'Connexion',LOGIN_FAILED:'Échec de connexion',LOGOUT:'Déconnexion',USER_CREATED:'Création utilisateur',USER_PERMISSIONS_CHANGED:'Modification des accès',USER_STATUS_CHANGED:'Changement de statut',PASSWORD_RESET_BY_ADMIN:'Réinitialisation mot de passe',PASSWORD_CHANGED:'Modification mot de passe',PRINT_SETTINGS_UPDATED:'Modification en-tête imprimés'})[String(action||'')]||String(action||'Action');
+}
+function auditDateTime(v){if(!v)return '—';const d=new Date(String(v).replace(' ','T')+'Z');return Number.isNaN(d.getTime())?String(v):d.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'medium'});}
+async function loadAuditLogs(){
+  const body=document.getElementById('auditBody');if(!body)return;
+  const q=new URLSearchParams();const action=document.getElementById('auditActionFilter')?.value||'',actor=document.getElementById('auditActorFilter')?.value.trim()||'',from=document.getElementById('auditFromFilter')?.value||'',to=document.getElementById('auditToFilter')?.value||'',search=document.getElementById('auditSearchFilter')?.value.trim()||'';
+  if(action)q.set('action',action);if(actor)q.set('actor',actor);if(from)q.set('from',from);if(to)q.set('to',to);if(search)q.set('search',search);
+  body.innerHTML='<tr><td colspan="4">Chargement…</td></tr>';
+  try{const d=await api(`/api/audit-logs?${q.toString()}`);const items=d.items||[];body.innerHTML=items.map(x=>{const a=String(x.action||'');const cls=a.includes('DELETE')||a.includes('ARCHIV')?' is-delete':a.includes('PRINT')?' is-print':a.includes('PASSWORD')||a.includes('LOGIN')||a.includes('SESSION')?' is-security':'';return `<tr><td>${esc(auditDateTime(x.created_at))}</td><td><strong>${esc(x.actor_name||'Système')}</strong></td><td><span class="audit-action-pill${cls}">${esc(auditActionLabel(x.action))}</span></td><td>${esc(x.description||x.target_type||'—')}</td></tr>`}).join('')||'<tr><td colspan="4">Aucune opération correspondant aux filtres.</td></tr>'}catch(e){body.innerHTML=`<tr><td colspan="4" class="error">${esc(e.message)}</td></tr>`}
+}
+
 async function initAccount(){
   try{accountSession=await loadSession()}catch{return}
   const isAdmin=accountSession.user.role==='ORGANIZATION_ADMIN';
@@ -82,8 +95,10 @@ async function initAccount(){
   }
   renderSubscription();
   await loadUsers();
+  await loadAuditLogs();
   if(location.hash==='#abonnement')document.getElementById('abonnement')?.scrollIntoView({behavior:'smooth',block:'start'});
   if(location.hash==='#gestion-utilisateurs')document.getElementById('gestion-utilisateurs')?.scrollIntoView({behavior:'smooth',block:'start'});
+  if(location.hash==='#journal-operations')document.getElementById('journal-operations')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -96,6 +111,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('permissionViewAll')?.addEventListener('click',()=>{document.querySelectorAll('#createPermissionsGrid [data-permission-view]').forEach(x=>x.checked=true)});
   document.getElementById('permissionClearAll')?.addEventListener('click',()=>{document.querySelectorAll('#createPermissionsGrid input[type="checkbox"]').forEach(x=>x.checked=false)});
   document.getElementById('userForm')?.addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter,role=document.getElementById('uRole').value;await withButtonLock(btn,async()=>{try{await api('/api/users/create',{method:'POST',body:{displayName:document.getElementById('uName').value,username:document.getElementById('uUsername').value,email:document.getElementById('uEmail').value,phone:document.getElementById('uPhone').value,role,password:document.getElementById('uPassword').value,permissions:collectPermissions('createPermissionsGrid',role)}});document.getElementById('userDialog').close();showToast('Utilisateur créé avec ses droits d’accès.');await loadUsers()}catch(err){showToast(err.message,'error')}},'Création…')});
+  document.getElementById('auditReloadBtn')?.addEventListener('click',e=>withButtonLock(e.currentTarget,loadAuditLogs,'Actualisation…'));
+  ['auditActionFilter','auditFromFilter','auditToFilter'].forEach(id=>document.getElementById(id)?.addEventListener('change',loadAuditLogs));
+  ['auditActorFilter','auditSearchFilter'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>{clearTimeout(window.__auditTimer);window.__auditTimer=setTimeout(loadAuditLogs,300)}));
   document.getElementById('permissionsForm')?.addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter,id=Number(document.getElementById('permissionsUserId').value),role=document.getElementById('permissionsUserRole').value;await withButtonLock(btn,async()=>{try{await api('/api/users/permissions',{method:'POST',body:{userId:id,permissions:collectPermissions('editPermissionsGrid',role)}});document.getElementById('permissionsDialog').close();showToast('Droits d’accès mis à jour.');await loadUsers()}catch(err){showToast(err.message,'error')}},'Enregistrement…')});
   initAccount();
 });
