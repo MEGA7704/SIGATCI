@@ -193,3 +193,7 @@ Dans le popup Ajouter / Modifier « Prise de service / mutation », le champ man
 ## Évolution V1.99 — Traçabilité, pilotage et dossier agent
 
 SIGAT V1.99 ajoute un journal des opérations consultable par l’Administrateur, la traçabilité des impressions, un tableau de bord dynamique filtrable par mois/trimestre/année, une recherche globale dans le menu horizontal et un dossier administratif numérique consolidé pour chaque agent. Les résultats, indicateurs et éléments du dossier respectent les permissions du compte connecté et l’isolation des données de la structure.
+
+
+## V2.01 — Indicateurs du tableau de bord
+Les indicateurs dynamiques ont été simplifiés à 8 cartes métier, présentées sur une seule ligne horizontale. Chaque carte est cliquable et ouvre la rubrique SIGAT associée. Les cartes Reboisements suivis, Formations, Équipements, Conflits homme-faune et Dégâts de feux ont été retirées du tableau de bord.

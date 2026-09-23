@@ -394,22 +394,17 @@ async function loadDashboard(){
   try{
     const d=await api(`/api/dashboard?${dashboardFilterQuery().toString()}`);
     const metricDefs=[
-      ['agents','Agents actifs','personnel','●','metric-green',v=>fmtNumber(v)],
-      ['missions','Missions réalisées','missions','▣','metric-blue',v=>fmtNumber(v)],
-      ['reboisements','Reboisements suivis','exploitation-forestiere','◒','metric-green',v=>fmtNumber(v)],
-      ['superficie_reboisee','Superficie reboisée (ha)','exploitation-forestiere','▰','metric-green',v=>fmtNumber(v,2)],
-      ['plants_produits','Plants produits','exploitation-forestiere','♧','metric-blue',v=>fmtNumber(v)],
-      ['plants_distribues','Plants distribués','exploitation-forestiere','↗','metric-purple',v=>fmtNumber(v)],
-      ['plants_disponibles','Plants disponibles','exploitation-forestiere','✓','metric-green',v=>fmtNumber(v)],
-      ['plantations','Plantations créées','exploitation-forestiere','♠','metric-green',v=>fmtNumber(v)],
-      ['sensibilisations','Sensibilisations','sensibilisations','◖','metric-blue',v=>fmtNumber(v)],
-      ['formations','Formations','formations','◆','metric-purple',v=>fmtNumber(v)],
-      ['equipements','Équipements','materiel','▦','metric-blue',v=>fmtNumber(v)],
-      ['conflits_faune','Conflits homme-faune','faune','◇','metric-red',v=>fmtNumber(v)],
-      ['degats_feux','Dégâts de feux','feux-brousse','♨','metric-red',v=>fmtNumber(v)]
+      ['agents','Agents actifs','personnel','/personnel/','●','metric-green',v=>fmtNumber(v)],
+      ['missions','Missions réalisées','missions','/missions/?view=ORDRE_MISSION','▣','metric-blue',v=>fmtNumber(v)],
+      ['superficie_reboisee','Superficie reboisée (ha)','exploitation-forestiere','/exploitation-forestiere/?view=REBOISEMENT','▰','metric-green',v=>fmtNumber(v,2)],
+      ['plants_produits','Plants produits','exploitation-forestiere','/exploitation-forestiere/?view=PEPINIERE&nursery=PRODUCTION','♧','metric-blue',v=>fmtNumber(v)],
+      ['plants_distribues','Plants distribués','exploitation-forestiere','/exploitation-forestiere/?view=PEPINIERE&nursery=SITUATION','↗','metric-purple',v=>fmtNumber(v)],
+      ['plants_disponibles','Plants disponibles','exploitation-forestiere','/exploitation-forestiere/?view=PEPINIERE&nursery=SITUATION','✓','metric-green',v=>fmtNumber(v)],
+      ['plantations','Plantations créées','exploitation-forestiere','/exploitation-forestiere/?view=PLANTATION_CREEE','♠','metric-green',v=>fmtNumber(v)],
+      ['sensibilisations','Sensibilisations','sensibilisations','/sensibilisations/','◖','metric-blue',v=>fmtNumber(v)]
     ].filter(([, ,page])=>canViewPage(page));
     const cards=document.getElementById('metricCards');
-    if(cards)cards.innerHTML=metricDefs.map(([k,l,,icon,tone,formatter])=>`<article class="dashboard-metric ${tone}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${esc(formatter(d.summary[k]||0))}</div><div class="s">${k==='agents'?'Effectif actuel':esc(d.period?.label||'Période sélectionnée')}</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></article>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
+    if(cards)cards.innerHTML=metricDefs.map(([k,l,,href,icon,tone,formatter])=>`<a class="dashboard-metric dashboard-metric-link ${tone}" href="${href}" title="Ouvrir ${esc(l)}" aria-label="Ouvrir la section ${esc(l)}"><div class="dashboard-metric-icon">${icon}</div><div class="dashboard-metric-copy"><div class="k">${esc(l)}</div><div class="v">${esc(formatter(d.summary[k]||0))}</div><div class="s">${k==='agents'?'Effectif actuel':esc(d.period?.label||'Période sélectionnée')}</div></div><div class="metric-bars" aria-hidden="true"><i></i><i></i><i></i></div></a>`).join('')||'<div class="notice">Aucun indicateur métier n’est autorisé pour ce compte.</div>';
     const periodLabel=document.getElementById('dashboardPeriodLabel');if(periodLabel)periodLabel.textContent=d.period?.label||'';
     const label=TYPE_LABEL[d.organization.type]||d.organization.type;
     const title=document.getElementById('dashboardTitle');if(title)title.textContent=`Tableau de bord — ${label}`;
