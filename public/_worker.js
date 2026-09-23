@@ -314,7 +314,7 @@ async function apiHealth(env) {
   // des secrets Cloudflare. Elle ne charge aucune donnée métier.
   const result = {
     worker: true,
-    version: '1.77-reboisement-restored',
+    version: '1.94-nursery-situation',
     dbBinding: !!env.SIGAT_DB,
     kvBinding: !!env.SIGAT_KV,
     superAdminUsernameConfigured: !!env.SIGAT_SUPERADMIN_USERNAME,
@@ -981,7 +981,10 @@ async function apiLoad(env, request) {
     if (forestType === 'RECHERCHE_PARCELLAIRE') {
       where += ` AND (json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ? OR json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IS NULL)`;
       params.push('RECHERCHE_PARCELLAIRE');
-    } else if (['PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
+    } else if (forestType === 'PEPINIERE_PRODUCTION') {
+      // Compatibilité avec les anciennes situations de pépinière : elles sont désormais traitées comme des productions.
+      where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') IN ('PEPINIERE_PRODUCTION','PEPINIERE')`;
+    } else if (['PEPINIERE_SITE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) {
       where += ` AND json_extract(COALESCE(r.data_json,'{}'), '$._forest_type') = ?`;
       params.push(forestType);
     }
@@ -1010,9 +1013,13 @@ async function apiLoad(env, request) {
       where += ` AND COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, '') = ?`;
       params.push(activityDate);
     }
-    for (const [key,value] of [['sous_prefecture',sousPrefecture],['localite',localite],['essence',essence]]) {
-      if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
+    if (sousPrefecture) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.sous_prefecture'),'')) LIKE LOWER(?)`; params.push(`%${sousPrefecture}%`); }
+    if (localite) {
+      if (forestType === 'PEPINIERE_PRODUCTION') where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.localite'), json_extract(COALESCE(r.data_json,'{}'), '$.localisation'),'')) LIKE LOWER(?)`;
+      else where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.localite'),'')) LIKE LOWER(?)`;
+      params.push(`%${localite}%`);
     }
+    if (essence) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.essence'),'')) LIKE LOWER(?)`; params.push(`%${essence}%`); }
     if (reboisementType) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.type_reboisement'),'')) = LOWER(?)`; params.push(reboisementType); }
     for (const [key,value] of [['beneficiaire',beneficiary],['contact_beneficiaire',contact],['entreprise_responsable',enterprise],['coord_x',coordX],['coord_y',coordY]]) {
       if (value) { where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.${key}'),'')) LIKE LOWER(?)`; params.push(`%${value}%`); }
@@ -1263,8 +1270,30 @@ async function apiSave(env, request) {
   const incomingData = payload?.data && typeof payload.data === 'object' ? payload.data : {};
   if (module === 'exploitation-forestiere') {
     const forestType = String(incomingData._forest_type || 'RECHERCHE_PARCELLAIRE').toUpperCase();
-    if (!['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) return bad('Type d’enregistrement forestier non autorisé.');
+    if (!['RECHERCHE_PARCELLAIRE','PEPINIERE_SITE','PEPINIERE_PRODUCTION','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) return bad('Type d’enregistrement forestier non autorisé.');
     incomingData._forest_type = forestType;
+    if (forestType === 'PEPINIERE_SITE') {
+      const sousPrefecture = String(incomingData.sous_prefecture || '').trim();
+      const localite = String(incomingData.localite || '').trim();
+      const responsable = String(incomingData.responsable_nom || '').trim();
+      if (!sousPrefecture || !localite || !responsable) return bad('Sous-préfecture, localité et nom du responsable sont obligatoires pour un site de pépinière.');
+    }
+    if (forestType === 'PEPINIERE_PRODUCTION') {
+      const sousPrefecture = String(incomingData.sous_prefecture || '').trim();
+      const localite = String(incomingData.localite || '').trim();
+      const essence = String(incomingData.essence || '').trim();
+      const produced = Number(incomingData.nbr_plants_produits || 0);
+      if (!sousPrefecture || !localite || !essence || !Number.isFinite(produced) || produced < 0) return bad('Sous-préfecture, localité, essence et nombre de plants produits sont obligatoires.');
+      const site = await env.SIGAT_DB.prepare(`SELECT id,data_json FROM forest_perimeters WHERE organization_id=? AND archived_at IS NULL AND json_extract(COALESCE(data_json,'{}'), '$._forest_type')='PEPINIERE_SITE' AND LOWER(TRIM(COALESCE(json_extract(COALESCE(data_json,'{}'), '$.sous_prefecture'),'')))=LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(json_extract(COALESCE(data_json,'{}'), '$.localite'),'')))=LOWER(TRIM(?)) LIMIT 1`).bind(orgId,sousPrefecture,localite).first();
+      if (!site) return bad('Le site de pépinière sélectionné est introuvable. Enregistrez d’abord le site et son responsable.');
+      const siteData = safeJson(site.data_json);
+      incomingData.sous_prefecture = String(siteData.sous_prefecture || sousPrefecture).trim();
+      incomingData.localite = String(siteData.localite || localite).trim();
+      incomingData.coord_x = String(siteData.coord_x || '').trim();
+      incomingData.coord_y = String(siteData.coord_y || '').trim();
+      incomingData.nbr_plants_produits = String(Math.round(produced));
+      incomingData._nursery_site_id = String(site.id || '');
+    }
     if (forestType === 'REBOISEMENT') {
       const allowedReboisementTypes = ['particuliers suivis','agro forestiers suivis','antérieurs suivis','compensatoires suivis'];
       const reboisementType = String(incomingData.type_reboisement || '').trim().toLocaleLowerCase('fr-FR');

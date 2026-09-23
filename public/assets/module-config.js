@@ -134,8 +134,11 @@ export const MODULE_CONFIG={
     RECHERCHE_PARCELLAIRE:{label:'Recherche parcellaire',singular:'Recherche parcellaire',addLabel:'Ajouter recherche parcellaire',fields:[
       ['sous_prefecture','Sous-préfecture','text'],['date_activite','Date','date'],['localite','Localité','text'],['essence','Essence','text'],['superficie_parcelle','Superficie de la parcelle (ha)','number'],['coord_x','Coordonnée X de la parcelle','text'],['coord_y','Coordonnée Y de la parcelle','text'],['contact_proprietaire','Contacts du propriétaire','text']
     ]},
-    PEPINIERE:{label:'Situation de la pépinière',singular:'Situation de la pépinière',addLabel:'Ajouter situation de la pépinière',fields:[
-      ['localisation','Localisation','text'],['date_activite','Date','date'],['sous_prefecture','Sous-préfecture','text'],['coord_x','Coordonnée X de la parcelle','text'],['coord_y','Coordonnée Y de la parcelle','text'],['essence','Essence','text'],['nbr_plants_produits','Nbr. de plants produits','number'],['nbr_plants_distribues','Nbr. de plants distribués','number'],['nbr_plants_disponibles','Nbr. de plants disponibles','computed'],['contact_responsable','Contacts du responsable','text']
+    PEPINIERE_SITE:{label:'Sites de pépinière et responsables',singular:'Site de pépinière',addLabel:'Ajouter un site de pépinière',fields:[
+      ['sous_prefecture','Sous-préfecture','text'],['localite','Localité','text'],['coord_x','Coordonnée X du site','text'],['coord_y','Coordonnée Y du site','text'],['responsable_nom','Nom du responsable','text'],['responsable_contact','Contacts du responsable','text']
+    ]},
+    PEPINIERE_PRODUCTION:{label:'Production de pépinières',singular:'Production de pépinière',addLabel:'Ajouter une production de pépinière',fields:[
+      ['sous_prefecture','Sous-préfecture','select',''],['localite','Localité','select',''],['coord_x','Coordonnée X du site','computed-text'],['coord_y','Coordonnée Y du site','computed-text'],['essence','Essence','text'],['nbr_plants_produits','Nbr. de plants produits','number']
     ]},
     PLANTATION_CREEE:{label:'Plantations forestières créées',singular:'Plantation forestière créée',addLabel:'Ajouter plantation forestière',fields:[
       ['date_activite','Date','date'],['localite','Localité','text'],['beneficiaire','Nom bénéficiaire','text'],['contact_beneficiaire','Contact bénéficiaire','text'],['superficie','Superficie (ha)','number'],['essence','Essence','text'],['densite','Densité (pieds/ha)','number'],['nombre_total_plants','Nombre total de plants','number'],['coord_x','Coordonnée X','text'],['coord_y','Coordonnée Y','text']

@@ -1,3 +1,9 @@
+# SIGAT V1.94 — Situation de la pépinière
+
+La rubrique **Situation de la pépinière** est désormais structurée en trois sous-sections : **Sites de pépinière et responsables**, **Production de pépinières**, et **Distribution et situation générale**. Les productions sont rattachées intelligemment aux sites enregistrés. La situation générale calcule automatiquement, par essence, les plants produits, les plants distribués depuis **Reboisement** et **Plantations forestières créées**, puis les plants disponibles. Les anciennes lignes de pépinière sont conservées comme productions historiques. Aucune migration D1 n’est requise.
+
+---
+
 # SIGAT V1.92 — Répression d’infraction / Chef de mission
 
 Dans le popup **Ajouter — Répression d’infraction**, le sélecteur simple **Chef de mission** est supprimé. Le champ intelligent **Chef de mission** est conservé et reste la seule sélection du chef à la création. La valeur choisie continue d’être enregistrée pour les rapports et impressions. Aucun autre champ n’est modifié.

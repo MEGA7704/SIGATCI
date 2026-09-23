@@ -1,6 +1,6 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.93';
-import {MODULE_CONFIG} from './module-config.js?v=1.93';
-let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.94';
+import {MODULE_CONFIG} from './module-config.js?v=1.94';
+let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentNurseryView='SITES',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
 const config=MODULE_CONFIG[moduleKey];
@@ -25,7 +25,7 @@ function documentTypeOf(record){
   return currentDocumentType;
 }
 function documentConfig(type=currentDocumentType){return config?.documentTypes?.[type]||null}
-function forestTypeOf(record){const t=String(record?.data?._forest_type||'').toUpperCase();return ['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(t)?t:'RECHERCHE_PARCELLAIRE'}
+function forestTypeOf(record){const t=String(record?.data?._forest_type||'').toUpperCase();if(t==='PEPINIERE')return 'PEPINIERE_PRODUCTION';return ['RECHERCHE_PARCELLAIRE','PEPINIERE_SITE','PEPINIERE_PRODUCTION','PLANTATION_CREEE','REBOISEMENT'].includes(t)?t:'RECHERCHE_PARCELLAIRE'}
 function forestConfig(type=currentForestType){return config?.exploitationTypes?.[type]||null}
 function woodTypeOf(record){const t=String(record?.data?._wood_type||'').toUpperCase();return ['EXPLOITANTS_SECONDAIRES','PRODUITS_QTE','UNITES_BOIS'].includes(t)?t:'UNITES_BOIS'}
 function woodConfig(type=currentWoodType){return config?.woodTypes?.[type]||null}
@@ -470,33 +470,68 @@ function setupForestModule(){
   const printBtn=document.getElementById('printListBtn');
   if(printBtn)printBtn.onclick=e=>withButtonLock(e.currentTarget,()=>printCurrentList(),'Préparation…');
   document.querySelectorAll('[data-forest-tab]').forEach(btn=>btn.addEventListener('click',()=>setForestView(btn.dataset.forestTab)));
+  document.querySelectorAll('[data-nursery-tab]').forEach(btn=>btn.addEventListener('click',()=>setNurseryView(btn.dataset.nurseryTab)));
   bindForestFilters();
-  const requested=String(new URLSearchParams(location.search).get('view')||'').toUpperCase();
+  const params=new URLSearchParams(location.search);
+  const requested=String(params.get('view')||'').toUpperCase();
+  const nurseryRequested=String(params.get('nursery')||'SITES').toUpperCase();
+  if(['SITES','PRODUCTION','SITUATION'].includes(nurseryRequested))currentNurseryView=nurseryRequested;
   setForestView(['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(requested)?requested:'RECHERCHE_PARCELLAIRE');
 }
 
+function nurseryEditorForestType(view=currentNurseryView){return view==='PRODUCTION'?'PEPINIERE_PRODUCTION':'PEPINIERE_SITE'}
+function effectiveForestType(){return currentForestType==='PEPINIERE'?nurseryEditorForestType():currentForestType}
+
 function setForestView(type){
   if(!['RECHERCHE_PARCELLAIRE','PEPINIERE','PLANTATION_CREEE','REBOISEMENT'].includes(type))type='RECHERCHE_PARCELLAIRE';
-  currentForestType=type;editorForestType=type;currentPage=1;
+  currentForestType=type;currentPage=1;
   document.querySelectorAll('[data-forest-tab]').forEach(btn=>{const on=btn.dataset.forestTab===type;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
+  const nurseryTabs=document.getElementById('nurserySubTabs');if(nurseryTabs)nurseryTabs.hidden=type!=='PEPINIERE';
+  const summaryCards=document.getElementById('nurserySummaryCards');if(summaryCards)summaryCards.hidden=true;
+  if(type==='PEPINIERE'){setNurseryView(currentNurseryView);return}
+  editorForestType=type;
   const cfg=forestConfig(type)||{};
   const title=document.getElementById('forestViewTitle');if(title)title.textContent=cfg.label||'Exploitation forestière';
-  const sub=document.getElementById('forestViewSubtitle');if(sub)sub.textContent=type==='RECHERCHE_PARCELLAIRE'?'Localisation et suivi des parcelles forestières.':type==='PEPINIERE'?'Production, distribution et disponibilité des plants en pépinière.':type==='PLANTATION_CREEE'?'Enregistrement des plantations forestières créées.':'Suivi des reboisements particuliers, agro forestiers, antérieurs et compensatoires.';
-  const addBtn=document.getElementById('addBtn');if(addBtn){addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,null,null,type)}
+  const sub=document.getElementById('forestViewSubtitle');if(sub)sub.textContent=type==='RECHERCHE_PARCELLAIRE'?'Localisation et suivi des parcelles forestières.':type==='PLANTATION_CREEE'?'Enregistrement des plantations forestières créées.':'Suivi des reboisements particuliers, agro forestiers, antérieurs et compensatoires.';
+  const addBtn=document.getElementById('addBtn');if(addBtn){addBtn.hidden=false;addBtn.textContent=cfg.addLabel||'Ajouter';addBtn.onclick=()=>openEditor(null,null,null,null,type)}
   updateForestTableHead(type);updateForestFilterVisibility(type);
-  const url=new URL(location.href);url.searchParams.set('view',type);history.replaceState(null,'',url.pathname+url.search);
+  const url=new URL(location.href);url.searchParams.set('view',type);url.searchParams.delete('nursery');history.replaceState(null,'',url.pathname+url.search);
+  loadRecords();
+}
+
+function setNurseryView(view){
+  if(!['SITES','PRODUCTION','SITUATION'].includes(view))view='SITES';
+  currentForestType='PEPINIERE';currentNurseryView=view;currentPage=1;
+  document.querySelectorAll('[data-nursery-tab]').forEach(btn=>{const on=btn.dataset.nurseryTab===view;btn.classList.toggle('is-active',on);btn.setAttribute('aria-selected',on?'true':'false')});
+  const meta={
+    SITES:{title:'Sites de pépinière et responsables',subtitle:'Enregistrement des sites de pépinière, de leurs coordonnées et de leurs responsables.',add:'Ajouter un site de pépinière'},
+    PRODUCTION:{title:'Production de pépinières',subtitle:'Production des plants par site, avec sélection intelligente de la sous-préfecture et de la localité.',add:'Ajouter une production de pépinière'},
+    SITUATION:{title:'Distribution et situation de la pépinière',subtitle:'Résumé automatique par essence : plants produits, distribués et disponibles.',add:''}
+  }[view];
+  const title=document.getElementById('forestViewTitle');if(title)title.textContent=meta.title;
+  const sub=document.getElementById('forestViewSubtitle');if(sub)sub.textContent=meta.subtitle;
+  const addBtn=document.getElementById('addBtn');if(addBtn){addBtn.hidden=view==='SITUATION';if(view!=='SITUATION'){editorForestType=nurseryEditorForestType(view);addBtn.textContent=meta.add;addBtn.onclick=()=>openEditor(null,null,null,null,editorForestType)}}
+  const summaryCards=document.getElementById('nurserySummaryCards');if(summaryCards)summaryCards.hidden=view!=='SITUATION';
+  updateForestTableHead('PEPINIERE');updateForestFilterVisibility('PEPINIERE');
+  const url=new URL(location.href);url.searchParams.set('view','PEPINIERE');url.searchParams.set('nursery',view);history.replaceState(null,'',url.pathname+url.search);
   loadRecords();
 }
 
 function updateForestTableHead(type){
   const head=document.getElementById('forestTableHead');if(!head)return;
-  const map={
-    RECHERCHE_PARCELLAIRE:['Date','Sous-préfecture','Localité','Essence','Superficie (ha)','Contact propriétaire','Actions'],
-    PEPINIERE:['Date','Localisation','Essence','Plants produits','Plants distribués','Plants disponibles','Actions'],
-    PLANTATION_CREEE:['Date','Localité','Bénéficiaire','Superficie (ha)','Essence','Total plants','Actions'],
-    REBOISEMENT:['Date','Type','Localité','Bénéficiaire','Essence','Superficie (ha)','Total plants','Entreprise','Actions']
-  };
-  head.innerHTML='<tr>'+map[type].map(v=>`<th>${esc(v)}</th>`).join('')+'</tr>';
+  let cols;
+  if(type==='PEPINIERE'){
+    cols=currentNurseryView==='SITES'?['Sous-préfecture','Localité','Coordonnées X / Y','Nom du responsable','Contacts du responsable','Actions']:
+      currentNurseryView==='PRODUCTION'?['Sous-préfecture','Localité','Coordonnées X / Y','Essence','Nbr. de plants produits','Actions']:
+      ['Essence','Nbr. de Plants produits','Nbr. de Plants distribués','Plants disponibles','Actions'];
+  }else{
+    const map={
+      RECHERCHE_PARCELLAIRE:['Date','Sous-préfecture','Localité','Essence','Superficie (ha)','Contact propriétaire','Actions'],
+      PLANTATION_CREEE:['Date','Localité','Bénéficiaire','Superficie (ha)','Essence','Total plants','Actions'],
+      REBOISEMENT:['Date','Type','Localité','Bénéficiaire','Essence','Superficie (ha)','Total plants','Entreprise','Actions']
+    };cols=map[type]||[];
+  }
+  head.innerHTML='<tr>'+cols.map(v=>`<th>${esc(v)}</th>`).join('')+'</tr>';
 }
 
 function bindForestFilters(){
@@ -508,15 +543,19 @@ function updateForestFilterVisibility(type){
   const set=(id,on)=>{const el=document.getElementById(id);if(el){el.hidden=!on;if(!on)el.value=''}};
   const isReboisement=type==='REBOISEMENT';
   if(isReboisement)currentSearch='';
-  set('searchInput',!isReboisement);
-  set('forestYearFilter',!isReboisement);
-  set('forestDateFilter',true);
-  set('forestSousPrefFilter',!isReboisement&&(type==='RECHERCHE_PARCELLAIRE'||type==='PEPINIERE'));
-  set('forestLocaliteFilter',type!=='PEPINIERE');
-  set('forestEssenceFilter',true);
-  set('forestReboisementTypeFilter',isReboisement);
-  set('forestBeneficiaryFilter',isReboisement);
-  const toolbar=document.getElementById('forestFilters');if(toolbar)toolbar.classList.toggle('reboisement-filters',isReboisement);
+  if(type==='PEPINIERE'){
+    set('searchInput',true);set('forestYearFilter',false);set('forestDateFilter',false);
+    set('forestSousPrefFilter',currentNurseryView!=='SITUATION');
+    set('forestLocaliteFilter',currentNurseryView!=='SITUATION');
+    set('forestEssenceFilter',currentNurseryView!=='SITES');
+    set('forestReboisementTypeFilter',false);set('forestBeneficiaryFilter',false);
+  }else{
+    set('searchInput',!isReboisement);set('forestYearFilter',!isReboisement);set('forestDateFilter',true);
+    set('forestSousPrefFilter',!isReboisement&&type==='RECHERCHE_PARCELLAIRE');
+    set('forestLocaliteFilter',true);set('forestEssenceFilter',true);
+    set('forestReboisementTypeFilter',isReboisement);set('forestBeneficiaryFilter',isReboisement);
+  }
+  const toolbar=document.getElementById('forestFilters');if(toolbar){toolbar.classList.toggle('reboisement-filters',isReboisement);toolbar.classList.toggle('nursery-filters',type==='PEPINIERE')}
 }
 
 
@@ -762,7 +801,7 @@ const reportDateValue=v=>v?fmtDate(String(v).slice(0,10)):'—';
 const reportSum=(...vals)=>vals.reduce((a,v)=>a+(Number(v)||0),0);
 function reportDocType(r){const t=String(r?.data?._document_type||'').toUpperCase();if(t)return t;const x=String(r?.data?.type||'').toUpperCase();if(x.includes('CESSATION'))return 'CESSATION_SERVICE';if(x.includes('REPRISE'))return 'REPRISE_SERVICE';return ''}
 function reportStageType(r){return String(r?.data?._stage_type||'FIN_STAGE').toUpperCase()}
-function reportForestType(r){return String(r?.data?._forest_type||'RECHERCHE_PARCELLAIRE').toUpperCase()}
+function reportForestType(r){const t=String(r?.data?._forest_type||'RECHERCHE_PARCELLAIRE').toUpperCase();return t==='PEPINIERE'?'PEPINIERE_PRODUCTION':t}
 function reportWoodType(r){return String(r?.data?._wood_type||'UNITES_BOIS').toUpperCase()}
 function reportFireType(r){return String(r?.data?._fire_type||'DEGATS').toUpperCase()}
 function reportFaunaType(r){return String(r?.data?._fauna_type||'OBSERVATIONS').toUpperCase()}
@@ -793,7 +832,8 @@ const REPORT_SECTIONS=[
   {module:'missions',label:'Répression des infractions',match:r=>reportMissionType(r)==='REPRESSION',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Objet',r=>reportData(r).objet_infraction||r.title),reportCol('Personne mise en cause',r=>reportData(r).personne_mise_cause||reportData(r).personne),reportCol('Contact',r=>reportData(r).contact_mis_cause),reportCol('Objets saisis',r=>reportData(r).objets_saisis),reportCol('Observations',r=>reportData(r).observations)]},
   {module:'offense_pv',label:'Procès-verbaux d’infraction',columns:[reportCol('Date',r=>reportDateValue(r.event_date)),reportCol('Affaire',r=>r.title),reportCol('Objet',r=>reportData(r).objet_infraction),reportCol('Chef de mission',r=>reportData(r).chef_mission),reportCol('Agents',r=>reportData(r).agents_arrestation)]},
   {module:'exploitation-forestiere',label:'Recherche parcellaire',match:r=>reportForestType(r)==='RECHERCHE_PARCELLAIRE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Localité',r=>reportData(r).localite),reportCol('Essence',r=>reportData(r).essence),reportCol('Superficie (ha)',r=>reportData(r).superficie_parcelle),reportCol('Coordonnées',r=>reportCoordinate(reportData(r)))]},
-  {module:'exploitation-forestiere',label:'Situation de la pépinière',match:r=>reportForestType(r)==='PEPINIERE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Localisation',r=>reportData(r).localisation),reportCol('Essence',r=>reportData(r).essence),reportCol('Produits',r=>reportData(r).nbr_plants_produits),reportCol('Distribués',r=>reportData(r).nbr_plants_distribues),reportCol('Disponibles',r=>reportData(r).nbr_plants_disponibles)]},
+  {module:'exploitation-forestiere',label:'Sites de pépinière et responsables',match:r=>reportForestType(r)==='PEPINIERE_SITE',columns:[reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Localité',r=>reportData(r).localite),reportCol('Coordonnées',r=>reportCoordinate(reportData(r))),reportCol('Responsable',r=>reportData(r).responsable_nom),reportCol('Contacts',r=>reportData(r).responsable_contact)]},
+  {module:'exploitation-forestiere',label:'Production de pépinières',match:r=>reportForestType(r)==='PEPINIERE_PRODUCTION',columns:[reportCol('Sous-préfecture',r=>reportData(r).sous_prefecture),reportCol('Localité',r=>reportData(r).localite||reportData(r).localisation),reportCol('Coordonnées',r=>reportCoordinate(reportData(r))),reportCol('Essence',r=>reportData(r).essence),reportCol('Plants produits',r=>reportData(r).nbr_plants_produits)]},
   {module:'exploitation-forestiere',label:'Plantations forestières créées',match:r=>reportForestType(r)==='PLANTATION_CREEE',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Localité',r=>reportData(r).localite),reportCol('Bénéficiaire',r=>reportData(r).beneficiaire),reportCol('Superficie',r=>reportData(r).superficie),reportCol('Essence',r=>reportData(r).essence),reportCol('Total plants',r=>reportData(r).nombre_total_plants)]},
   {module:'exploitation-forestiere',label:'Reboisements suivis',match:r=>reportForestType(r)==='REBOISEMENT',columns:[reportCol('Date',r=>reportDateValue(reportData(r).date_activite||r.event_date)),reportCol('Type',r=>reportData(r).type_reboisement),reportCol('Localité',r=>reportData(r).localite),reportCol('Bénéficiaire',r=>reportData(r).beneficiaire),reportCol('Superficie',r=>reportData(r).superficie),reportCol('Essence',r=>reportData(r).essence),reportCol('Plants',r=>reportData(r).nombre_total_plants),reportCol('Entreprise',r=>reportData(r).entreprise_responsable)]},
   {module:'transformation-bois',label:'Exploitants de produits secondaires',match:r=>reportWoodType(r)==='EXPLOITANTS_SECONDAIRES',columns:[reportCol('Opérateur',r=>reportData(r).nom_operateur||r.title),reportCol('Contact',r=>reportData(r).contact),reportCol('Produit',r=>reportData(r).nature_produit),reportCol('N° permis',r=>reportData(r).numero_permis),reportCol('Localité',r=>reportData(r).localite),reportCol('Service de suivi',r=>reportData(r).service_suivi)]},
@@ -940,14 +980,46 @@ function bindAwarenessFilters(){
   });
 }
 
+function nurseryEssenceKey(value){return normalizeForestText(value)}
+function nurseryNumber(value){const n=Number(value||0);return Number.isFinite(n)?Math.max(0,n):0}
+function formatNurseryNumber(value){return new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(value||0))}
+async function loadNurserySituation(){
+  try{
+    const [productions,reboisements,plantations]=await Promise.all([
+      fetchOwnModuleItems('exploitation-forestiere',{forestType:'PEPINIERE_PRODUCTION'}),
+      fetchOwnModuleItems('exploitation-forestiere',{forestType:'REBOISEMENT'}),
+      fetchOwnModuleItems('exploitation-forestiere',{forestType:'PLANTATION_CREEE'})
+    ]);
+    const byEssence=new Map();
+    productions.forEach(r=>{const d=r.data||{},label=String(d.essence||'').trim();if(!label)return;const key=nurseryEssenceKey(label);if(!key)return;const row=byEssence.get(key)||{essence:label,produced:0,distributedReboisement:0,distributedPlantation:0};row.produced+=nurseryNumber(d.nbr_plants_produits);byEssence.set(key,row)});
+    reboisements.forEach(r=>{const d=r.data||{},key=nurseryEssenceKey(d.essence);const row=byEssence.get(key);if(row)row.distributedReboisement+=nurseryNumber(d.nombre_total_plants)});
+    plantations.forEach(r=>{const d=r.data||{},key=nurseryEssenceKey(d.essence);const row=byEssence.get(key);if(row)row.distributedPlantation+=nurseryNumber(d.nombre_total_plants)});
+    let rows=[...byEssence.values()].map((x,i)=>{const distributed=x.distributedReboisement+x.distributedPlantation;return {id:`nursery-summary-${i}`,owned:false,_nurserySummary:true,title:x.essence,data:{essence:x.essence,nbr_plants_produits:Math.round(x.produced),nbr_plants_distribues_reboisement:Math.round(x.distributedReboisement),nbr_plants_distribues_plantation:Math.round(x.distributedPlantation),nbr_plants_distribues:Math.round(distributed),nbr_plants_disponibles:Math.round(x.produced-distributed)}}}).sort((a,b)=>String(a.data.essence).localeCompare(String(b.data.essence),'fr',{sensitivity:'base'}));
+    const totalProduced=rows.reduce((a,r)=>a+nurseryNumber(r.data.nbr_plants_produits),0);
+    const totalDistributed=rows.reduce((a,r)=>a+nurseryNumber(r.data.nbr_plants_distribues),0);
+    document.getElementById('nurseryTotalProduced').textContent=formatNurseryNumber(totalProduced);
+    document.getElementById('nurseryTotalDistributed').textContent=formatNurseryNumber(totalDistributed);
+    document.getElementById('nurseryTotalAvailable').textContent=formatNurseryNumber(totalProduced-totalDistributed);
+    const essenceFilter=normalizeForestText(document.getElementById('forestEssenceFilter')?.value||'');
+    const search=normalizeForestText(currentSearch||document.getElementById('searchInput')?.value||'');
+    if(essenceFilter)rows=rows.filter(r=>nurseryEssenceKey(r.data.essence).includes(essenceFilter));
+    if(search)rows=rows.filter(r=>nurseryEssenceKey(r.data.essence).includes(search));
+    const total=rows.length,totalPages=Math.max(1,Math.ceil(total/25));if(currentPage>totalPages)currentPage=totalPages;
+    const start=(currentPage-1)*25;lastItems=rows.slice(start,start+25);renderRows(lastItems);
+    document.getElementById('pageInfo').textContent=`Page ${currentPage} / ${totalPages} — ${total} essence(s)`;
+    document.getElementById('prevBtn').disabled=currentPage<=1;document.getElementById('nextBtn').disabled=currentPage>=totalPages;
+  }catch(e){showToast(e.message||'Impossible de calculer la situation de la pépinière.','error')}
+}
+
 async function loadRecords(){
   try{
+    if(moduleKey==='exploitation-forestiere'&&currentForestType==='PEPINIERE'&&currentNurseryView==='SITUATION')return await loadNurserySituation();
     const dataModule=effectiveModule();
     const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
     const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
     const minefActivityFilter=moduleKey==='activites-minef'?`&year=${encodeURIComponent(document.getElementById('minefActivityYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('minefActivityDateFilter')?.value||'')}&activityType=${encodeURIComponent(document.getElementById('minefActivityTypeFilter')?.value||'')}&activityCategory=${encodeURIComponent(document.getElementById('minefActivityCategoryFilter')?.value||'')}&organizer=${encodeURIComponent(document.getElementById('minefActivityOrganizerFilter')?.value||'')}`:'';
     const awarenessFilter=moduleKey==='sensibilisations'?`&year=${encodeURIComponent(document.getElementById('awarenessYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('awarenessDateFilter')?.value||'')}&awarenessType=${encodeURIComponent(document.getElementById('awarenessTypeFilter')?.value||'')}`:'';
-    const forestFilter=moduleKey==='exploitation-forestiere'?`&forestType=${encodeURIComponent(currentForestType)}&year=${encodeURIComponent(document.getElementById('forestYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('forestDateFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('forestSousPrefFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('forestLocaliteFilter')?.value||'')}&essence=${encodeURIComponent(document.getElementById('forestEssenceFilter')?.value||'')}&reboisementType=${encodeURIComponent(document.getElementById('forestReboisementTypeFilter')?.value||'')}&beneficiary=${encodeURIComponent(document.getElementById('forestBeneficiaryFilter')?.value||'')}`:'';
+    const forestFilter=moduleKey==='exploitation-forestiere'?`&forestType=${encodeURIComponent(effectiveForestType())}&year=${encodeURIComponent(document.getElementById('forestYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('forestDateFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('forestSousPrefFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('forestLocaliteFilter')?.value||'')}&essence=${encodeURIComponent(document.getElementById('forestEssenceFilter')?.value||'')}&reboisementType=${encodeURIComponent(document.getElementById('forestReboisementTypeFilter')?.value||'')}&beneficiary=${encodeURIComponent(document.getElementById('forestBeneficiaryFilter')?.value||'')}`:'';
     const woodFilter=moduleKey==='transformation-bois'?`&woodType=${encodeURIComponent(currentWoodType)}&year=${encodeURIComponent(document.getElementById('woodYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('woodDateFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('woodLocaliteFilter')?.value||'')}&natureProduit=${encodeURIComponent(document.getElementById('woodNatureFilter')?.value||'')}&operatorStatus=${encodeURIComponent(document.getElementById('woodStatusFilter')?.value||'')}&exercantType=${encodeURIComponent(document.getElementById('woodExercantFilter')?.value||'')}&region=${encodeURIComponent(document.getElementById('woodRegionFilter')?.value||'')}&departement=${encodeURIComponent(document.getElementById('woodDepartementFilter')?.value||'')}`:'';
     const fireFilter=moduleKey==='feux-brousse'?`&fireType=${encodeURIComponent(currentFireType)}&department=${encodeURIComponent(document.getElementById('fireDepartmentFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('fireSousPrefFilter')?.value||'')}&village=${encodeURIComponent(document.getElementById('fireVillageFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('fireDateFilter')?.value||'')}&natureDegats=${encodeURIComponent(document.getElementById('fireNatureFilter')?.value||'')}`:'';
     const faunaFilter=moduleKey==='faune'?`&faunaType=${encodeURIComponent(currentFaunaType)}&activityDate=${encodeURIComponent(document.getElementById('faunaDateFilter')?.value||'')}&species=${encodeURIComponent(document.getElementById('faunaSpeciesFilter')?.value||'')}&zone=${encodeURIComponent(document.getElementById('faunaZoneFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('faunaSousPrefFilter')?.value||'')}&village=${encodeURIComponent(document.getElementById('faunaVillageFilter')?.value||'')}&conflictType=${encodeURIComponent(document.getElementById('faunaConflictFilter')?.value||'')}`:'';
@@ -1013,7 +1085,7 @@ function renderRows(items){
   const isMissionRegister=moduleKey==='missions';
   const genericSpec=(!isPersonnelRegister&&!isMinefActivityRegister&&!isAwarenessRegister&&!isForestRegister&&!isWoodRegister&&!isFireRegister&&!isFaunaRegister&&!isMissionRegister)?genericTableSpec():null;
   if(genericSpec)updateGenericTableHead(genericSpec);
-  if(!items.length){const emptyCols=genericSpec?genericSpec.length+1:(isPersonnelRegister?11:12);tb.innerHTML=`<tr><td colspan="${emptyCols}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
+  if(!items.length){const visibleHeadCols=tb.closest('table')?.querySelectorAll('thead th')?.length||0;const emptyCols=visibleHeadCols||(genericSpec?genericSpec.length+1:(isPersonnelRegister?11:12));tb.innerHTML=`<tr><td colspan="${emptyCols}" class="muted">Aucune donnée enregistrée.</td></tr>`;return}
   const isConvocationRegister=moduleKey==='convocations'&&currentConvocationView==='CONVOCATIONS';
   const isPvRegister=moduleKey==='convocations'&&currentConvocationView==='PV';
   const actionsHtml=r=>`<div class="actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}">PDF</button>${isConvocationRegister&&canEditCurrentPage()?`<button class="btn btn-primary btn-sm" data-pv="${r.id}">Procès-verbal</button>`:''}${r.owned&&canEditCurrentPage()?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}">Modifier</button><button class="btn btn-danger btn-sm" data-delete="${r.id}">Supprimer</button>`:'<span class="muted">Consultation</span>'}</div>`;
@@ -1028,7 +1100,17 @@ function renderRows(items){
     tb.innerHTML=items.map(r=>{const d=r.data||{};const hommes=Number(d.hommes||0),femmes=Number(d.femmes||0),total=hommes+femmes;const type=d.type_sensibilisation||d.theme||r.title||'—';return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td title="${esc(type)}"><strong>${esc(type)}</strong></td><td title="${esc(displayValue(d.lieu))}">${esc(displayValue(d.lieu))}</td><td title="${esc(displayValue(d.cible))}">${esc(displayValue(d.cible))}</td><td class="awareness-count">H : ${hommes} · F : ${femmes} · Total : <strong>${total}</strong></td><td>${awarenessActionsHtml(r)}</td></tr>`}).join('');
   }else if(isForestRegister){
     const forestActionsHtml=r=>`<div class="actions forest-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned&&canEditCurrentPage()?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
-    tb.innerHTML=items.map(r=>{const d=r.data||{};const coord=[d.coord_x,d.coord_y].filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').join(' / ')||'—';const a=forestActionsHtml(r);if(currentForestType==='PEPINIERE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localisation))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${esc(displayValue(d.nbr_plants_distribues))}</td><td><strong>${esc(displayValue(d.nbr_plants_disponibles))}</strong></td><td>${a}</td></tr>`;if(currentForestType==='PLANTATION_CREEE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${a}</td></tr>`;if(currentForestType==='REBOISEMENT')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.type_reboisement))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(displayValue(d.entreprise_responsable))}</td><td>${a}</td></tr>`;return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie_parcelle))}</td><td>${esc(displayValue(d.contact_proprietaire))}</td><td>${a}</td></tr>`}).join('');
+    if(currentForestType==='PEPINIERE'&&currentNurseryView==='SITUATION'){
+      tb.innerHTML=items.map(r=>{const d=r.data||{};return `<tr><td><strong>${esc(displayValue(d.essence))}</strong></td><td>${esc(formatNurseryNumber(d.nbr_plants_produits))}</td><td>${esc(formatNurseryNumber(d.nbr_plants_distribues))}</td><td><strong>${esc(formatNurseryNumber(d.nbr_plants_disponibles))}</strong></td><td><div class="actions forest-actions"><button class="btn btn-secondary btn-sm" data-nursery-detail="${esc(d.essence||'')}">Détails</button></div></td></tr>`}).join('');
+      tb.querySelectorAll('[data-nursery-detail]').forEach(btn=>btn.addEventListener('click',async()=>{const essence=btn.dataset.nurseryDetail||'';const r=items.find(x=>String(x.data?.essence||'')===essence);if(!r)return;const d=r.data||{};await professionalAlert(`Situation — ${essence}`,`Plants produits : ${formatNurseryNumber(d.nbr_plants_produits)}\nDistribués — Reboisement : ${formatNurseryNumber(d.nbr_plants_distribues_reboisement)}\nDistribués — Plantations forestières créées : ${formatNurseryNumber(d.nbr_plants_distribues_plantation)}\nTotal plants distribués : ${formatNurseryNumber(d.nbr_plants_distribues)}\nPlants disponibles : ${formatNurseryNumber(d.nbr_plants_disponibles)}`)}));
+      return;
+    }
+    tb.innerHTML=items.map(r=>{const d=r.data||{};const coord=[d.coord_x,d.coord_y].filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').join(' / ')||'—';const a=forestActionsHtml(r);
+      if(currentForestType==='PEPINIERE'&&currentNurseryView==='SITES')return `<tr><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(coord)}</td><td><strong>${esc(displayValue(d.responsable_nom))}</strong></td><td>${esc(displayValue(d.responsable_contact))}</td><td>${a}</td></tr>`;
+      if(currentForestType==='PEPINIERE'&&currentNurseryView==='PRODUCTION')return `<tr><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite||d.localisation))}</td><td>${esc(coord)}</td><td><strong>${esc(displayValue(d.essence))}</strong></td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${a}</td></tr>`;
+      if(currentForestType==='PLANTATION_CREEE')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${a}</td></tr>`;
+      if(currentForestType==='REBOISEMENT')return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.type_reboisement))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(displayValue(d.entreprise_responsable))}</td><td>${a}</td></tr>`;
+      return `<tr><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.superficie_parcelle))}</td><td>${esc(displayValue(d.contact_proprietaire))}</td><td>${a}</td></tr>`}).join('');
   }else if(isWoodRegister){
     const woodActionsHtml=r=>`<div class="actions wood-actions"><button class="btn btn-secondary btn-sm" data-view="${r.id}" title="Voir">Voir</button><button class="btn btn-secondary btn-sm" data-print="${r.id}" title="PDF">PDF</button>${r.owned&&canEditCurrentPage()?`<button class="btn btn-secondary btn-sm" data-edit="${r.id}" title="Modifier">✎</button><button class="btn btn-danger btn-sm" data-delete="${r.id}" title="Supprimer">×</button>`:'<span class="muted">Consult.</span>'}</div>`;
     tb.innerHTML=items.map(r=>{const d=r.data||{},a=woodActionsHtml(r);if(currentWoodType==='EXPLOITANTS_SECONDAIRES')return `<tr><td title="${esc(displayValue(d.nom_operateur||r.title))}"><strong>${esc(displayValue(d.nom_operateur||r.title))}</strong></td><td>${esc(displayValue(d.contact))}</td><td title="${esc(displayValue(d.nature_produit))}">${esc(displayValue(d.nature_produit))}</td><td>${esc(displayValue(d.numero_permis))}</td><td>${esc(displayValue(d.localite))}</td><td>${a}</td></tr>`;if(currentWoodType==='PRODUITS_QTE'){const autres=[woodProductSummary(d.mortiers_qte_t,d.mortiers_nbr_carnet,'T'),woodProductSummary(d.kinkeliba_qte_t,d.kinkeliba_nbr_carnet,'T'),woodProductSummary(d.karite_qte_t,d.karite_nbr_carnet,'T'),woodProductSummary(d.bambou_qte_t,d.bambou_nbr_carnet,'T')].filter(v=>v!=='—').join(' · ')||'—';return `<tr><td><strong>${esc(displayValue(d.statut_operateur))}</strong></td><td>${esc(woodProductSummary(d.charbon_qte_sacs,d.charbon_nbr_carnet,'sac'))}</td><td>${esc(woodProductSummary(d.bois_feu_qte_t,d.bois_feu_nbr_carnet,'T'))}</td><td title="${esc(autres)}">${esc(autres)}</td><td>${a}</td></tr>`;}const name=d.nom_usine||d.nom_operateur||r.title||'—';const activity=d.activites_principales||d.service_rattachement||'—';const permit=[d.numero_permis,d.date_delivrance?fmtDate(d.date_delivrance):''].filter(Boolean).join(' / ')||'—';return `<tr><td>${esc(displayValue(d.type_exercant))}</td><td>${esc(displayValue(d.localite))}</td><td title="${esc(name)}"><strong>${esc(name)}</strong></td><td title="${esc(activity)}">${esc(activity)}</td><td>${esc(displayValue(d.contact_operateur))}</td><td>${esc(permit)}</td><td>${a}</td></tr>`}).join('');
@@ -1134,7 +1216,7 @@ function updateAbsenceDays(){
 
 
 function normalizeForestText(v){return String(v||'').trim().toLocaleLowerCase('fr-FR').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ')}
-function mountForestEditorLogic(record=null){
+async function mountForestEditorLogic(record=null){
   const area=document.getElementById('dynamicFields');if(!area)return;
   const q=k=>area.querySelector(`[data-key="${k}"]`);
   if(editorForestType==='REBOISEMENT'){
@@ -1148,12 +1230,38 @@ function mountForestEditorLogic(record=null){
     const calculate=()=>{if(!total||String(total.value||'').trim())return;const sv=Number(superficie?.value||0),dv=Number(densite?.value||0);if(sv>0&&dv>0)total.value=String(Math.round(sv*dv))};
     superficie?.addEventListener('input',calculate);densite?.addEventListener('input',calculate);calculate();
   }
-  if(editorForestType==='PEPINIERE'){
-    const produced=q('nbr_plants_produits'),distributed=q('nbr_plants_distribues'),available=q('nbr_plants_disponibles');
-    const update=()=>{const prod=Math.max(0,Number(produced?.value||0)||0),dist=Math.max(0,Number(distributed?.value||0)||0);if(available)available.value=String(Math.max(0,Math.round(prod-dist)))};
-    produced?.addEventListener('input',update);distributed?.addEventListener('input',update);update();
+  if(editorForestType==='PEPINIERE_PRODUCTION'){
+    const sous=q('sous_prefecture'),localite=q('localite'),coordX=q('coord_x'),coordY=q('coord_y'),essence=q('essence'),produced=q('nbr_plants_produits');
+    if(!sous||!localite)return;
+    [sous,localite,essence,produced].forEach(el=>{if(el)el.required=true});
+    const initialSous=String(record?.data?.sous_prefecture||sous.value||'').trim();
+    const initialLocalite=String(record?.data?.localite||record?.data?.localisation||localite.value||'').trim();
+    try{
+      const sites=(await fetchOwnModuleItems('exploitation-forestiere',{forestType:'PEPINIERE_SITE'})).filter(r=>String(r?.data?.sous_prefecture||'').trim()&&String(r?.data?.localite||'').trim());
+      const sousValues=[...new Map(sites.map(r=>[normalizeForestText(r.data.sous_prefecture),String(r.data.sous_prefecture).trim()])).values()].sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
+      sous.innerHTML='<option value="">— Sélectionner une sous-préfecture enregistrée —</option>';
+      sousValues.forEach(v=>{const op=document.createElement('option');op.value=v;op.textContent=v;sous.appendChild(op)});
+      if(initialSous&&!Array.from(sous.options).some(o=>normalizeForestText(o.value)===normalizeForestText(initialSous))){const op=document.createElement('option');op.value=initialSous;op.textContent=`${initialSous} — valeur existante`;sous.appendChild(op)}
+      sous.value=Array.from(sous.options).find(o=>normalizeForestText(o.value)===normalizeForestText(initialSous))?.value||'';
+      const fillLocalites=(wanted='')=>{
+        const selectedSous=normalizeForestText(sous.value);
+        const matching=sites.filter(r=>normalizeForestText(r.data.sous_prefecture)===selectedSous);
+        localite.innerHTML='<option value="">— Sélectionner une localité du site —</option>';
+        matching.sort((a,b)=>String(a.data.localite).localeCompare(String(b.data.localite),'fr',{sensitivity:'base'})).forEach(r=>{const d=r.data||{},op=document.createElement('option');op.value=String(d.localite||'');op.textContent=[d.localite,d.responsable_nom].filter(Boolean).join(' — ');op.dataset.coordX=String(d.coord_x||'');op.dataset.coordY=String(d.coord_y||'');op.dataset.siteId=String(r.id||'');localite.appendChild(op)});
+        if(wanted&&!Array.from(localite.options).some(o=>normalizeForestText(o.value)===normalizeForestText(wanted))){const op=document.createElement('option');op.value=wanted;op.textContent=`${wanted} — valeur existante`;op.dataset.coordX=String(record?.data?.coord_x||'');op.dataset.coordY=String(record?.data?.coord_y||'');localite.appendChild(op)}
+        const wantedOption=Array.from(localite.options).find(o=>normalizeForestText(o.value)===normalizeForestText(wanted));
+        if(wantedOption)localite.value=wantedOption.value;else if(matching.length===1)localite.value=String(matching[0].data?.localite||'');else localite.value='';
+        applySite();
+      };
+      const applySite=()=>{const op=localite.options[localite.selectedIndex];if(coordX)coordX.value=op?.dataset?.coordX||'';if(coordY)coordY.value=op?.dataset?.coordY||''};
+      sous.addEventListener('change',()=>fillLocalites(''));
+      localite.addEventListener('change',applySite);
+      if(sous.value)fillLocalites(initialLocalite);else{localite.innerHTML='<option value="">— Choisissez d’abord la sous-préfecture —</option>';if(coordX)coordX.value='';if(coordY)coordY.value=''}
+      if(!sites.length){sous.innerHTML='<option value="">Aucun site de pépinière enregistré</option>';sous.disabled=true;localite.innerHTML='<option value="">Ajoutez d’abord un site de pépinière</option>';localite.disabled=true;const help=document.createElement('small');help.className='muted';help.textContent='La production doit être rattachée à un site de pépinière enregistré dans « Sites de pépinière et responsables ».';sous.closest('.field')?.appendChild(help)}
+    }catch(e){console.warn('Sites de pépinière',e);showToast('Impossible de charger les sites de pépinière.','error')}
   }
 }
+
 
 function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null,smartSourceRecord=null,forestTypeOverride=null,fireTypeOverride=null,faunaTypeOverride=null,missionTypeOverride=null){
   const d=document.getElementById('editorDialog');d.classList.add('editor-dialog');
@@ -1702,7 +1810,11 @@ async function saveRecord(e){
       payload.eventDate=data.date_activite||'';
       payload.status='ACTIVE';
       payload.reference=payload.reference||'';
-      payload.title=editorForestType==='RECHERCHE_PARCELLAIRE'?`${data.localite||'Parcelle'}${data.essence?` — ${data.essence}`:''}`:editorForestType==='PEPINIERE'?`${data.localisation||'Pépinière'}${data.essence?` — ${data.essence}`:''}`:editorForestType==='PLANTATION_CREEE'?`${data.beneficiaire||data.localite||'Plantation forestière'}`:`${data.beneficiaire||data.localite||'Reboisement'}${data.type_reboisement?` — ${data.type_reboisement}`:''}`;
+      if(editorForestType==='RECHERCHE_PARCELLAIRE')payload.title=`${data.localite||'Parcelle'}${data.essence?` — ${data.essence}`:''}`;
+      else if(editorForestType==='PEPINIERE_SITE')payload.title=`${data.localite||data.sous_prefecture||'Site de pépinière'}${data.responsable_nom?` — ${data.responsable_nom}`:''}`;
+      else if(editorForestType==='PEPINIERE_PRODUCTION')payload.title=`${data.localite||'Production de pépinière'}${data.essence?` — ${data.essence}`:''}`;
+      else if(editorForestType==='PLANTATION_CREEE')payload.title=`${data.beneficiaire||data.localite||'Plantation forestière'}`;
+      else payload.title=`${data.beneficiaire||data.localite||'Reboisement'}${data.type_reboisement?` — ${data.type_reboisement}`:''}`;
       if(editorForestType==='REBOISEMENT'&&normalizeForestText(data.type_reboisement)!=='compensatoires suivis')data.entreprise_responsable='';
     }
     if(moduleKey==='transformation-bois'){
@@ -2751,11 +2863,19 @@ async function printCurrentList(){
       await launchPrint(html);return;
     }
     if(moduleKey==='exploitation-forestiere'){
-      const cfg=forestConfig(currentForestType)||{};const title=`REGISTRE — ${String(cfg.label||'EXPLOITATION FORESTIÈRE').toUpperCase()}`;
+      const cfg=forestConfig(currentForestType)||{};const nurseryPrintTitle=currentNurseryView==='SITES'?'SITES DE PÉPINIÈRE ET RESPONSABLES':currentNurseryView==='PRODUCTION'?'PRODUCTION DE PÉPINIÈRES':'DISTRIBUTION ET SITUATION DE LA PÉPINIÈRE';const title=`REGISTRE — ${String(currentForestType==='PEPINIERE'?nurseryPrintTitle:(cfg.label||'EXPLOITATION FORESTIÈRE')).toUpperCase()}`;
       let headers=[],rows='';
       if(currentForestType==='PEPINIERE'){
-        headers=['N°','Date','Localisation','Sous-préfecture','Essence','Produits','Distribués','Disponibles','Responsable'];
-        rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localisation))}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td><td>${esc(displayValue(d.nbr_plants_distribues))}</td><td>${esc(displayValue(d.nbr_plants_disponibles))}</td><td>${esc(displayValue(d.contact_responsable))}</td></tr>`}).join('');
+        if(currentNurseryView==='SITES'){
+          headers=['N°','Sous-préfecture','Localité','Coordonnées X / Y','Responsable','Contacts'];
+          rows=lastItems.map((r,i)=>{const d=r.data||{},coord=[d.coord_x,d.coord_y].filter(Boolean).join(' / ')||'—';return `<tr><td>${i+1}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(coord)}</td><td>${esc(displayValue(d.responsable_nom))}</td><td>${esc(displayValue(d.responsable_contact))}</td></tr>`}).join('');
+        }else if(currentNurseryView==='PRODUCTION'){
+          headers=['N°','Sous-préfecture','Localité','Coordonnées X / Y','Essence','Nbr. de plants produits'];
+          rows=lastItems.map((r,i)=>{const d=r.data||{},coord=[d.coord_x,d.coord_y].filter(Boolean).join(' / ')||'—';return `<tr><td>${i+1}</td><td>${esc(displayValue(d.sous_prefecture))}</td><td>${esc(displayValue(d.localite||d.localisation))}</td><td>${esc(coord)}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.nbr_plants_produits))}</td></tr>`}).join('');
+        }else{
+          headers=['N°','Essence','Nbr. de plants produits','Nbr. de plants distribués','Plants disponibles'];
+          rows=lastItems.map((r,i)=>{const d=r.data||{};return `<tr><td>${i+1}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(formatNurseryNumber(d.nbr_plants_produits))}</td><td>${esc(formatNurseryNumber(d.nbr_plants_distribues))}</td><td>${esc(formatNurseryNumber(d.nbr_plants_disponibles))}</td></tr>`}).join('');
+        }
       }else if(currentForestType==='PLANTATION_CREEE'){
         headers=['N°','Date','Localité','Bénéficiaire','Contact','Superficie','Essence','Densité','Total plants','Coordonnées'];
         rows=lastItems.map((r,i)=>{const d=r.data||{},coord=[d.coord_x,d.coord_y].filter(Boolean).join(' / ')||'—';return `<tr><td>${i+1}</td><td>${esc(fmtDate(d.date_activite||r.event_date))}</td><td>${esc(displayValue(d.localite))}</td><td>${esc(displayValue(d.beneficiaire))}</td><td>${esc(displayValue(d.contact_beneficiaire))}</td><td>${esc(displayValue(d.superficie))}</td><td>${esc(displayValue(d.essence))}</td><td>${esc(displayValue(d.densite))}</td><td>${esc(displayValue(d.nombre_total_plants))}</td><td>${esc(coord)}</td></tr>`}).join('');

@@ -1006,3 +1006,44 @@ body[data-module="exploitation-forestiere"] .forest-filters.reboisement-filters 
 .list-print.personnel-list-print .personnel-print-table th:nth-child(2){width:7%!important}
 .list-print.personnel-list-print .personnel-print-table th:nth-child(3){width:11%!important}
 .list-print.personnel-list-print .personnel-print-table th:nth-child(17){width:7%!important}
+
+/* SIGAT V1.94 — Situation de la pépinière structurée */
+body[data-module="exploitation-forestiere"] .nursery-tabs{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  margin-top:-2px;
+  margin-bottom:14px;
+  padding:8px;
+  border:1px solid #dbe8e2;
+  border-radius:14px;
+  background:rgba(247,251,249,.92);
+}
+body[data-module="exploitation-forestiere"] .nursery-tabs .forest-tab{font-size:12px;min-height:44px}
+body[data-module="exploitation-forestiere"] .nursery-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin:0 0 16px;
+}
+body[data-module="exploitation-forestiere"] .nursery-summary-card{
+  border:1px solid #dbe8e2;
+  border-radius:13px;
+  background:linear-gradient(180deg,#fff,#f6faf8);
+  padding:15px 18px;
+  min-height:86px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  box-shadow:0 5px 16px rgba(17,76,56,.05);
+}
+body[data-module="exploitation-forestiere"] .nursery-summary-card span{font-size:12px;font-weight:800;color:#60736b;text-transform:uppercase;letter-spacing:.03em}
+body[data-module="exploitation-forestiere"] .nursery-summary-card strong{font-size:28px;color:#0c5e45;margin-top:5px}
+body[data-module="exploitation-forestiere"] .forest-filters.nursery-filters{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+body[data-module="exploitation-forestiere"] .forest-filters.nursery-filters input:not([hidden]),
+body[data-module="exploitation-forestiere"] .forest-filters.nursery-filters select:not([hidden]){min-width:180px;flex:1 1 190px}
+@media(max-width:800px){
+  body[data-module="exploitation-forestiere"] .nursery-tabs{display:flex;overflow-x:auto;gap:8px}
+  body[data-module="exploitation-forestiere"] .nursery-tabs .forest-tab{flex:0 0 auto;min-width:220px}
+  body[data-module="exploitation-forestiere"] .nursery-summary-grid{grid-template-columns:1fr}
+}
+body[data-module="exploitation-forestiere"] .nursery-tabs[hidden],
+body[data-module="exploitation-forestiere"] .nursery-summary-grid[hidden]{display:none!important}
