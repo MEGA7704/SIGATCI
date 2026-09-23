@@ -1382,11 +1382,16 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   titleInput.required=true;
   refField.classList.remove('personnel-base-hidden');dateField.classList.remove('personnel-base-hidden');titleField.classList.remove('personnel-base-hidden');statusField.classList.remove('personnel-status-hidden');statusField.hidden=false;
   if(isPersonnel){
-    // V1.80 — Le premier champ du formulaire Personnel est la référence administrative.
-    // Elle reste visible et modifiable à la création comme à la modification.
-    refField.classList.remove('personnel-base-hidden');
-    refField.querySelector('label').textContent='Référence administrative';
-    refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    // V2.02 — « Référence administrative » est supprimée uniquement du popup Ajouter — Agent.
+    // Elle reste disponible lors de la modification des anciens dossiers qui en possèdent une.
+    if(record){
+      refField.classList.remove('personnel-base-hidden');
+      refField.querySelector('label').textContent='Référence administrative';
+      refInput.value=record?.data?.reference_administrative||record?.reference||'';
+    }else{
+      refField.classList.add('personnel-base-hidden');
+      refInput.value='';
+    }
     dateField.classList.add('personnel-base-hidden');
     titleField.querySelector('label').textContent='Nom et Prénoms *';
     titleField.classList.remove('full');

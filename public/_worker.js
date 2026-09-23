@@ -605,6 +605,10 @@ function expiredCookie() {
 }
 
 const FREE_PLAN_DAYS = 20;
+// V2.02 — Après l'expiration d'un abonnement payant, la période FREE de secours
+// est limitée à 7 jours calendaires calculés depuis la date d'expiration du plan,
+// et non depuis la prochaine connexion de l'utilisateur.
+const POST_EXPIRY_FREE_DAYS = 7;
 async function currentSubscription(env, organizationId) {
   if (!organizationId) return null;
   let sub = await env.SIGAT_DB.prepare('SELECT * FROM subscriptions WHERE organization_id=? LIMIT 1').bind(organizationId).first();
@@ -618,14 +622,20 @@ async function currentSubscription(env, organizationId) {
   // automatiquement la structure vers une nouvelle période FREE. Une suspension
   // administrative reste une suspension et n'est pas transformée automatiquement.
   if (paidPlan && (expiredByDate || explicitlyExpired)) {
-    const start = new Date();
-    const freeEnd = new Date(start.getTime() + FREE_PLAN_DAYS * 86400000);
     const ds = d => d.toISOString().slice(0,10);
+    // end_date représente le dernier jour de validité du plan payant.
+    // La période FREE commence le lendemain et couvre exactement 7 jours calendaires.
+    // Ainsi, une structure qui revient plus tard ne reçoit pas une nouvelle période de 7 jours.
+    const paidEndDay = expiredByDate && Number.isFinite(end.getTime())
+      ? new Date(`${sub.end_date}T00:00:00Z`)
+      : new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()-1));
+    const freeStart = new Date(paidEndDay.getTime() + 86400000);
+    const freeEnd = new Date(freeStart.getTime() + (POST_EXPIRY_FREE_DAYS - 1) * 86400000);
     const update = await env.SIGAT_DB.prepare(`UPDATE subscriptions SET plan='FREE',price=0,start_date=?,end_date=?,status='TRIAL',updated_at=CURRENT_TIMESTAMP WHERE organization_id=? AND plan=? AND end_date=?`)
-      .bind(ds(start),ds(freeEnd),organizationId,sub.plan,sub.end_date).run();
+      .bind(ds(freeStart),ds(freeEnd),organizationId,sub.plan,sub.end_date).run();
     if (Number(update?.meta?.changes || 0) > 0) {
       await env.SIGAT_DB.prepare(`INSERT INTO subscription_history(organization_id,old_plan,new_plan,start_date,end_date,price,mode_activation,activated_by) VALUES(?,?,'FREE',?,?,0,'AUTO_FALLBACK_FREE',NULL)`)
-        .bind(organizationId,sub.plan,ds(start),ds(freeEnd)).run();
+        .bind(organizationId,sub.plan,ds(freeStart),ds(freeEnd)).run();
     }
     sub = await env.SIGAT_DB.prepare('SELECT * FROM subscriptions WHERE organization_id=? LIMIT 1').bind(organizationId).first();
   }

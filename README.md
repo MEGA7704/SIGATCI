@@ -1,3 +1,11 @@
+# SIGAT V2.02 — Expiration FREE 7 jours et formulaire Agent
+
+À l'expiration d'un abonnement **STANDARD** ou **BUSINESS**, SIGAT bascule automatiquement le compte vers **FREE pendant 7 jours calendaires**, calculés depuis la date d'expiration du plan payant et non depuis la prochaine connexion. Le FREE initial d'un nouveau compte reste à **20 jours**.
+
+Dans **Personnel → Ajouter — Agent**, le champ **Référence administrative** est supprimé uniquement à la création. Les anciens dossiers qui possèdent déjà une référence peuvent encore l'afficher lors d'une modification.
+
+---
+
 # SIGAT V1.95 — Exploitation forestière sans Référence administrative
 
 Le champ **Référence administrative** est supprimé uniquement des popups **Recherche parcellaire**, **Site de pépinière**, **Production de pépinière**, **Plantation forestière créée** et **Reboisement**. Il ne s’affiche plus non plus dans leurs impressions/PDF. Les autres formulaires et documents SIGAT conservent leur logique de référence administrative. Aucune migration D1 n’est nécessaire.
@@ -197,3 +205,6 @@ SIGAT V1.99 ajoute un journal des opérations consultable par l’Administrateur
 
 ## V2.01 — Indicateurs du tableau de bord
 Les indicateurs dynamiques ont été simplifiés à 8 cartes métier, présentées sur une seule ligne horizontale. Chaque carte est cliquable et ouvre la rubrique SIGAT associée. Les cartes Reboisements suivis, Formations, Équipements, Conflits homme-faune et Dégâts de feux ont été retirées du tableau de bord.
+
+## V2.03 — Indicateurs dynamiques compacts
+Les cartes des indicateurs du tableau de bord ont été compactées afin d’éviter les débordements : icônes, libellés, valeurs, textes secondaires et barres décoratives sont réduits, avec gestion des libellés longs sur deux lignes. La ligne horizontale centrée et les cartes cliquables sont conservées.
