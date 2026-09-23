@@ -1,3 +1,9 @@
+# SIGAT V1.95 — Exploitation forestière sans Référence administrative
+
+Le champ **Référence administrative** est supprimé uniquement des popups **Recherche parcellaire**, **Site de pépinière**, **Production de pépinière**, **Plantation forestière créée** et **Reboisement**. Il ne s’affiche plus non plus dans leurs impressions/PDF. Les autres formulaires et documents SIGAT conservent leur logique de référence administrative. Aucune migration D1 n’est nécessaire.
+
+---
+
 # SIGAT V1.94 — Situation de la pépinière
 
 La rubrique **Situation de la pépinière** est désormais structurée en trois sous-sections : **Sites de pépinière et responsables**, **Production de pépinières**, et **Distribution et situation générale**. Les productions sont rattachées intelligemment aux sites enregistrés. La situation générale calcule automatiquement, par essence, les plants produits, les plants distribués depuis **Reboisement** et **Plantations forestières créées**, puis les plants disponibles. Les anciennes lignes de pépinière sont conservées comme productions historiques. Aucune migration D1 n’est requise.

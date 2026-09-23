@@ -1,5 +1,5 @@
-import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.94';
-import {MODULE_CONFIG} from './module-config.js?v=1.94';
+import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.95';
+import {MODULE_CONFIG} from './module-config.js?v=1.95';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentNurseryView='SITES',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -27,6 +27,8 @@ function documentTypeOf(record){
 function documentConfig(type=currentDocumentType){return config?.documentTypes?.[type]||null}
 function forestTypeOf(record){const t=String(record?.data?._forest_type||'').toUpperCase();if(t==='PEPINIERE')return 'PEPINIERE_PRODUCTION';return ['RECHERCHE_PARCELLAIRE','PEPINIERE_SITE','PEPINIERE_PRODUCTION','PLANTATION_CREEE','REBOISEMENT'].includes(t)?t:'RECHERCHE_PARCELLAIRE'}
 function forestConfig(type=currentForestType){return config?.exploitationTypes?.[type]||null}
+const FOREST_NO_ADMIN_REFERENCE_TYPES=new Set(['RECHERCHE_PARCELLAIRE','PEPINIERE_SITE','PEPINIERE_PRODUCTION','PLANTATION_CREEE','REBOISEMENT']);
+function forestSuppressesAdministrativeReference(type){return FOREST_NO_ADMIN_REFERENCE_TYPES.has(String(type||'').toUpperCase())}
 function woodTypeOf(record){const t=String(record?.data?._wood_type||'').toUpperCase();return ['EXPLOITANTS_SECONDAIRES','PRODUITS_QTE','UNITES_BOIS'].includes(t)?t:'UNITES_BOIS'}
 function woodConfig(type=currentWoodType){return config?.woodTypes?.[type]||null}
 function fireTypeOf(record){const t=String(record?.data?._fire_type||'').toUpperCase();return ['REDYNAMISE','CREE','RENOUVELE','DEGATS'].includes(t)?t:'DEGATS'}
@@ -1486,11 +1488,13 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   if(isMission&&editorMissionType==='PV_INFRACTION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_offense_id';hidden.value=record?.data?._source_offense_id||'';area.appendChild(hidden)}
   if(isMission&&editorMissionType==='PV_ORDRE_MISSION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_order_mission_id';hidden.value=record?.data?._source_order_mission_id||'';area.appendChild(hidden)}
 
-  // V1.74 — Référence administrative sur tous les formulaires de création, y compris les P-V.
+  // V1.74 — Référence administrative sur les formulaires concernés.
+  // V1.95 — Elle est supprimée des cinq formulaires d’Exploitation forestière :
+  // Recherche parcellaire, Site de pépinière, Production de pépinière, Plantation forestière créée et Reboisement.
   // V1.91 — Pour le Procès-verbal de mission, la Référence administrative reste visible
   // et modifiable même en modification. Elle occupe la première place visible du formulaire,
   // à la place de l’ancien sélecteur intelligent « Chef de mission ».
-  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv){
+  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv&&!(isForest&&forestSuppressesAdministrativeReference(editorForestType))){
     const isOrderMissionPv=isMission&&editorMissionType==='PV_ORDRE_MISSION';
     const administrativeReference=String(record?.data?.reference_administrative||record?.reference||'');
     if(record&&!isOrderMissionPv){
@@ -2827,8 +2831,9 @@ async function printRecord(record){
     if(hasOwn(record.data,'_ampliations'))documentSettings.ampliations=String(record.data?._ampliations||'');
     if(hasOwn(record.data,'_ampliation_numbers'))documentSettings.ampliationNumbers=String(record.data?._ampliation_numbers||'');
     const documentClass=customDocumentClass||(moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':moduleKey==='personnel'?'personnel-sheet-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'');
-    const printReference=String(record.data?.reference_administrative||record.reference||'');
-    const html=buildPrintDocument({title,body,reference:printReference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
+    const suppressForestReference=moduleKey==='exploitation-forestiere'&&forestSuppressesAdministrativeReference(forestTypeOf(record));
+    const printReference=suppressForestReference?'':String(record.data?.reference_administrative||record.reference||'');
+    const html=buildPrintDocument({title,body,reference:printReference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',hideReference:suppressForestReference,showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
