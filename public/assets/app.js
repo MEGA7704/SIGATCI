@@ -1,5 +1,5 @@
 import {api,esc,fmtDate,loadSession,showToast,withButtonLock,professionalAlert,professionalConfirm,professionalDialog} from './common.js?v=1.95';
-import {MODULE_CONFIG} from './module-config.js?v=1.95';
+import {MODULE_CONFIG} from './module-config.js?v=1.97';
 let session=null,currentPage=1,currentSearch='',lastItems=[],currentStageType='MISE_STAGE',editorStageType='MISE_STAGE',currentDocumentType='CESSATION_SERVICE',editorDocumentType='CESSATION_SERVICE',currentConvocationView='CONVOCATIONS',editorConvocationView='CONVOCATIONS',currentForestType='RECHERCHE_PARCELLAIRE',editorForestType='RECHERCHE_PARCELLAIRE',currentNurseryView='SITES',currentWoodType='EXPLOITANTS_SECONDAIRES',editorWoodType='EXPLOITANTS_SECONDAIRES',currentFireType='CREE',editorFireType='CREE',currentFaunaType='OBSERVATIONS',editorFaunaType='OBSERVATIONS',currentMissionType='ORDRE_MISSION',editorMissionType='ORDRE_MISSION',editorOffensePvRecord=null,editorOrderMissionPvRecord=null,pendingSmartSourceRecord=null;
 const moduleKey=document.body.dataset.module||'';
 const woodContext=document.body.dataset.woodContext||'transformation';
@@ -35,6 +35,18 @@ function fireTypeOf(record){const t=String(record?.data?._fire_type||'').toUpper
 function fireConfig(type=currentFireType){return config?.fireTypes?.[type]||null}
 function faunaTypeOf(record){const t=String(record?.data?._fauna_type||'').toUpperCase();return ['OBSERVATIONS','CONFLITS'].includes(t)?t:'OBSERVATIONS'}
 function faunaConfig(type=currentFaunaType){return config?.faunaTypes?.[type]||null}
+// V1.97 — Ces registres ne portent plus de Référence administrative dans leurs formulaires ni leurs PDF.
+const WOOD_NO_ADMIN_REFERENCE_TYPES=new Set(['EXPLOITANTS_SECONDAIRES','PRODUITS_QTE','UNITES_BOIS']);
+const FIRE_NO_ADMIN_REFERENCE_TYPES=new Set(['CREE','REDYNAMISE','RENOUVELE','DEGATS']);
+const FAUNA_NO_ADMIN_REFERENCE_TYPES=new Set(['OBSERVATIONS','CONFLITS']);
+const MODULES_NO_ADMIN_REFERENCE=new Set(['sensibilisations','ressources-naturelles','formations','materiel']);
+function suppressesAdministrativeReference(record=null){
+  if(moduleKey==='exploitation-forestiere')return forestSuppressesAdministrativeReference(record?forestTypeOf(record):editorForestType);
+  if(moduleKey==='transformation-bois')return WOOD_NO_ADMIN_REFERENCE_TYPES.has(record?woodTypeOf(record):editorWoodType);
+  if(moduleKey==='feux-brousse')return FIRE_NO_ADMIN_REFERENCE_TYPES.has(record?fireTypeOf(record):editorFireType);
+  if(moduleKey==='faune')return FAUNA_NO_ADMIN_REFERENCE_TYPES.has(record?faunaTypeOf(record):editorFaunaType);
+  return MODULES_NO_ADMIN_REFERENCE.has(moduleKey);
+}
 function missionTypeOf(record){const t=String(record?.data?._mission_type||record?.data?._offense_type||'').toUpperCase();return ['ORDRE_MISSION','PV_ORDRE_MISSION','REPRESSION','PV_INFRACTION'].includes(t)?t:'ORDRE_MISSION'}
 function missionConfig(type=currentMissionType){return config?.missionTypes?.[type]||null}
 function normalizeWoodText(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
@@ -115,8 +127,8 @@ const SMART_AUTOFILL={
     PV:{sourceModule:'convocations',label:'Convocation à l’origine de la rencontre',help:"Sélectionnez la convocation concernée : la personne, la date, l’heure, l’objet et le responsable sont préremplis. Tous les champs restent modifiables.",copyTitle:true,map:{convocation_reference:'$reference',profession:'data.profession',domicile:'data.domicile',date_rencontre:'data.date_presentation',heure_debut:'data.heure',objet_rencontre:'data.objet_convocation',personne_a_voir:'data.personne_a_voir'},sourceIdKey:'_source_convocation_id'}
   },
   missions:{sourceModule:'personnel',label:'Chef de mission',help:"Choisissez un agent pour renseigner le chef de mission. Le champ reste modifiable.",map:{chef_mission:'$title'}},
-  materiel:{sourceModule:'personnel',label:'Responsable du matériel',help:"Choisissez un agent pour renseigner le responsable. Le champ reste modifiable.",map:{responsable:'$title'}},
-  sensibilisations:{sourceModule:'personnel',label:'Agent en charge',help:"Choisissez un agent pour renseigner automatiquement l’agent en charge de la sensibilisation. Le champ reste modifiable.",map:{agent_charge:'$title'}},
+  materiel:{sourceModule:'personnel',label:'Responsable du matériel',help:"Choisissez l’agent responsable du matériel. Son nom est enregistré automatiquement.",map:{responsable:'$title'}},
+  sensibilisations:{sourceModule:'personnel',label:'Agent en charge',help:"Choisissez l’agent en charge de la sensibilisation. Son nom est enregistré automatiquement.",map:{agent_charge:'$title'}},
   stages:{
     FIN_STAGE:{sourceModule:'stages',sourceStageType:'MISE_STAGE',ongoingOnly:true,label:'Stage en cours à clôturer',help:"SIGAT présente les stages en cours de votre structure. La sélection préremplit l’attestation de fin de stage ; tous les champs restent modifiables.",copyTitle:true,map:{qualite_stagiaire:'data.qualite_stagiaire',matricule_stagiaire:'data.matricule_stagiaire',date_debut:'data.date_debut',date_fin:'data.date_fin',lettre_mise_stage_numero:'data.note_service_numero',lettre_mise_stage_date:'data.note_service_date'},sourceIdKey:'_source_stage_id'}
   }
@@ -238,7 +250,7 @@ async function mountSmartAutofill(record=null){
   try{
     const candidates=await loadSmartCandidates(profile,record);
     const cessationMutation=moduleKey==='documents'&&editorDocumentType==='CESSATION_SERVICE';
-    const smartAgentRequired=!record&&(cessationMutation||(moduleKey==='documents'&&editorDocumentType==='DEMANDE_EXPLICATION')||(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE'))||(moduleKey==='convocations'&&editorConvocationView==='PV')||(moduleKey==='stages'&&editorStageType==='FIN_STAGE'));
+    const smartAgentRequired=!record&&(cessationMutation||(moduleKey==='documents'&&editorDocumentType==='DEMANDE_EXPLICATION')||(moduleKey==='absences'||(moduleKey==='documents'&&editorDocumentType==='ABSENCE'))||(moduleKey==='convocations'&&editorConvocationView==='PV')||(moduleKey==='stages'&&editorStageType==='FIN_STAGE')||moduleKey==='sensibilisations'||moduleKey==='materiel');
     const requiredSmartPlaceholder=(moduleKey==='convocations'&&editorConvocationView==='PV')?'— Sélectionner une convocation —':'— Sélectionner un agent —';
     const repressionChiefOnly=moduleKey==='missions'&&editorMissionType==='REPRESSION'&&!record;
     select.innerHTML=smartAgentRequired?`<option value="">${requiredSmartPlaceholder}</option>`:(repressionChiefOnly?'<option value="">— Sélectionner un chef de mission —</option>':'<option value="">— Saisie manuelle / ne pas préremplir —</option>');
@@ -1479,6 +1491,8 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
     titleField.classList.add('full');
     statusField.classList.remove('personnel-status-hidden');
   }
+  // V1.97 — Ressource et Équipement : retirer aussi le champ générique « Référence ».
+  if(moduleKey==='ressources-naturelles'||moduleKey==='materiel')refField.classList.add('personnel-base-hidden');
   const area=document.getElementById('dynamicFields');area.innerHTML='';
   // V1.92 — Dans « Ajouter — Répression d’infraction », le champ simple
   // « Chef de mission » n’est plus affiché. Ce champ caché reçoit la valeur
@@ -1487,6 +1501,10 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   if(isMission&&editorMissionType==='REPRESSION'&&!record){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='chef_mission';hidden.value='';area.appendChild(hidden)}
   if(isMission&&editorMissionType==='PV_INFRACTION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_offense_id';hidden.value=record?.data?._source_offense_id||'';area.appendChild(hidden)}
   if(isMission&&editorMissionType==='PV_ORDRE_MISSION'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='_source_order_mission_id';hidden.value=record?.data?._source_order_mission_id||'';area.appendChild(hidden)}
+  // V1.97 — Les champs manuels sont retirés, mais les sélecteurs intelligents
+  // continuent d'enregistrer la valeur métier dans un champ caché.
+  if(isAwareness){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='agent_charge';hidden.value=record?.data?.agent_charge||'';area.appendChild(hidden)}
+  if(moduleKey==='materiel'){const hidden=document.createElement('input');hidden.type='hidden';hidden.dataset.key='responsable';hidden.value=record?.data?.responsable||'';area.appendChild(hidden)}
 
   // V1.74 — Référence administrative sur les formulaires concernés.
   // V1.95 — Elle est supprimée des cinq formulaires d’Exploitation forestière :
@@ -1494,7 +1512,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   // V1.91 — Pour le Procès-verbal de mission, la Référence administrative reste visible
   // et modifiable même en modification. Elle occupe la première place visible du formulaire,
   // à la place de l’ancien sélecteur intelligent « Chef de mission ».
-  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv&&!(isForest&&forestSuppressesAdministrativeReference(editorForestType))){
+  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv&&!suppressesAdministrativeReference(record)){
     const isOrderMissionPv=isMission&&editorMissionType==='PV_ORDRE_MISSION';
     const administrativeReference=String(record?.data?.reference_administrative||record?.reference||'');
     if(record&&!isOrderMissionPv){
@@ -1510,6 +1528,8 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   }
 
   for(const [key,label,type,opts] of activeFields(record)){
+    if(isAwareness&&key==='agent_charge')continue;
+    if(moduleKey==='materiel'&&key==='responsable')continue;
     if(type==='section'){
       const section=document.createElement('div');section.className='form-section-heading full';section.dataset.sectionKey=key;section.innerHTML=`<strong>${esc(label)}</strong>`;area.appendChild(section);continue;
     }
@@ -1598,6 +1618,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   if(isFire)mountFireEditorLogic(record);
   if(isMission)mountMissionEditorLogic(record);
   if(isFormation)mountFormationEditorLogic(record);
+  if(moduleKey==='ressources-naturelles')mountResourceEditorLogic(record);
   if(isMinefActivity)mountMinefActivityEditorLogic(record);
   const foot=d.querySelector('.dialog-foot');foot?.querySelector('[data-pv-print-dialog]')?.remove();
   if(isMission&&['PV_INFRACTION','PV_ORDRE_MISSION'].includes(editorMissionType)&&record&&foot){const b=document.createElement('button');b.type='button';b.className='btn btn-secondary';b.dataset.pvPrintDialog='1';b.textContent='Imprimer le P-V';b.addEventListener('click',e=>withButtonLock(e.currentTarget,()=>printRecord(record),'Préparation…'));foot.insertBefore(b,foot.lastElementChild)}
@@ -1749,6 +1770,12 @@ function mountFormationEditorLogic(record=null){
   const update=()=>{const other=normalizeWoodText(theme.value).startsWith('autres');setFieldVisibility('theme_autre',other,{clear:!other})};
   theme.addEventListener('change',update);update();
 }
+function mountResourceEditorLogic(record=null){
+  const type=document.querySelector('#dynamicFields [data-key="type"]');if(!type)return;
+  const otherInput=document.querySelector('#dynamicFields [data-key="type_autre"]');
+  const update=()=>{const other=normalizeWoodText(type.value)==='autre';setFieldVisibility('type_autre',other,{clear:!other});if(otherInput)otherInput.required=other};
+  type.addEventListener('change',update);update();
+}
 
 async function saveRecord(e){
   e.preventDefault();
@@ -1809,6 +1836,7 @@ async function saveRecord(e){
       payload.status='ACTIVE';
       payload.reference=payload.reference||'';
     }
+    if(moduleKey==='ressources-naturelles'&&normalizeWoodText(data.type)!=='autre')data.type_autre='';
     if(moduleKey==='exploitation-forestiere'){
       data._forest_type=editorForestType;
       payload.eventDate=data.date_activite||'';
@@ -2822,8 +2850,9 @@ async function printRecord(record){
       body=`<div class="agent-profile-title"><div class="agent-profile-title-main">FICHE DE RENSEIGNEMENT DE L’AGENT</div><div class="agent-profile-subtitle">INFORMATIONS PERSONNELLES ET PROFESSIONNELLES</div></div><div class="agent-profile"><section class="agent-profile-section agent-identity-section"><div class="agent-section-title"><span class="agent-section-number">1.</span> IDENTITÉ DE L’AGENT</div><div class="agent-identity-layout"><div class="agent-identity-fields">${field('Référence administrative',esc(displayValue(d.reference_administrative||record.reference)))}${field('Nom et Prénoms',esc(record.title))}${field('Date de naissance',esc(fmtDate(d.date_naissance)))}${field('Lieu de naissance',v('lieu_naissance'))}${field('Matricule',v('matricule'))}${field('Situation matrimoniale',v('situation_matrimoniale'))}</div><div class="agent-photo-frame">${photoHtml}</div></div></section><section class="agent-profile-section"><div class="agent-section-title"><span class="agent-section-number">2.</span> SITUATION PROFESSIONNELLE</div><div class="agent-professional-grid"><div>${field('Emploi',v('emploi'))}${field('Fonction',v('fonction'))}${field('Catégorie',v('categorie'))}</div><div>${field('Grade',v('grade'))}${field('Classe',v('classe'))}${field('Échelon',v('echelon'))}</div></div></section><div class="agent-split-sections"><section class="agent-profile-section"><div class="agent-section-title"><span class="agent-section-number">3.</span> INFORMATIONS ADMINISTRATIVES</div><div class="agent-section-content">${field('Date de prise de service au MINEF',esc(fmtDate(d.date_prise_service_minef)))}${field('Date de prise de service dans la Région',esc(fmtDate(d.date_prise_service_gbeke)))}</div></section><section class="agent-profile-section"><div class="agent-section-title"><span class="agent-section-number">4.</span> SITUATION PARTICULIÈRE</div><div class="agent-section-content">${field('Handicap',v('handicap'))}</div></section></div><section class="agent-profile-section agent-contact-section"><div class="agent-section-title"><span class="agent-section-number">5.</span> COORDONNÉES</div><div class="agent-contact-layout"><div class="agent-contact-field">${field('Numéro de téléphone',v('telephone'))}</div><div class="agent-signature-box-wrap"><span>Signature de l’agent</span><div class="agent-signature-box"></div></div></div></section></div>`;
     }else{
       title=(config?.singular||'Document').toUpperCase();
-      const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo').map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
-      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta"><div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div><div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div></div><div class="data">${dataRows}</div></div>`;
+      const dataRows=(config?.fields||[]).filter(([k])=>k!=='photo'&&!(moduleKey==='ressources-naturelles'&&k==='type_autre'&&normalizeWoodText(record.data?.type)!=='autre')).map(([k,l])=>`<div><span class="label">${esc(l)}</span><span class="value">${esc(displayValue(record.data?.[k]))}</span></div>`).join('');
+      const hideGenericReference=['ressources-naturelles','materiel'].includes(moduleKey);
+      body=`<div class="document-title">${esc(title)}</div><div class="official-body"><div class="meta">${hideGenericReference?'':`<div><span class="label">Référence</span><span class="value">${esc(displayValue(record.reference))}</span></div>`}<div><span class="label">Date</span><span class="value">${esc(fmtDate(record.event_date))}</span></div><div><span class="label">Nom / Intitulé</span><span class="value">${esc(record.title)}</span></div><div><span class="label">Statut</span><span class="value">${esc(record.status)}</span></div></div><div class="data">${dataRows}</div></div>`;
     }
     const showAmpliations=['1','true','yes','oui'].includes(String(record.data?._show_ampliations||'').toLowerCase());
     const hasOwn=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
@@ -2831,9 +2860,9 @@ async function printRecord(record){
     if(hasOwn(record.data,'_ampliations'))documentSettings.ampliations=String(record.data?._ampliations||'');
     if(hasOwn(record.data,'_ampliation_numbers'))documentSettings.ampliationNumbers=String(record.data?._ampliation_numbers||'');
     const documentClass=customDocumentClass||(moduleKey==='convocations'?(currentConvocationView==='PV'?'pv-print':'convocation-print'):(moduleKey==='absences'||(moduleKey==='documents'&&currentDocumentType==='ABSENCE'))?'absence-print':moduleKey==='stages'?'stage-print':moduleKey==='personnel'?'personnel-sheet-print':(moduleKey==='documents'&&['CESSATION_SERVICE','CESSATION_CONGE','REPRISE_SERVICE','PRISE_SERVICE_MUTATION'].includes(currentDocumentType))?'service-document-print':(moduleKey==='documents'&&currentDocumentType==='DEMANDE_EXPLICATION')?'explanation-print':'');
-    const suppressForestReference=moduleKey==='exploitation-forestiere'&&forestSuppressesAdministrativeReference(forestTypeOf(record));
-    const printReference=suppressForestReference?'':String(record.data?.reference_administrative||record.reference||'');
-    const html=buildPrintDocument({title,body,reference:printReference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',hideReference:suppressForestReference,showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
+    const suppressAdministrativeReference=suppressesAdministrativeReference(record);
+    const printReference=suppressAdministrativeReference?'':String(record.data?.reference_administrative||record.reference||'');
+    const html=buildPrintDocument({title,body,reference:printReference,date:record.event_date,settings:documentSettings,signature:moduleKey!=='personnel',hideReference:suppressAdministrativeReference,showAmpliations:moduleKey==='personnel'?false:showAmpliations,documentClass,signatureHtml:customSignatureHtml});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'Le document n’a pas pu être préparé.');}
 }
@@ -2959,9 +2988,11 @@ async function printCurrentList(){
       const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
       await launchPrint(html);return;
     }
-    const rows=lastItems.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td></tr>`).join('');
+    const genericListNoReference=['ressources-naturelles','materiel'].includes(moduleKey);
+    const rows=lastItems.map((r,i)=>genericListNoReference?`<tr><td>${i+1}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td></tr>`:`<tr><td>${i+1}</td><td>${esc(r.reference||'—')}</td><td>${esc(r.title)}</td><td>${esc(fmtDate(r.event_date))}</td><td>${esc(r.status)}</td></tr>`).join('');
     const title=moduleKey==='stages'?(currentStageType==='MISE_STAGE'?'REGISTRE DES MISES EN STAGE':'REGISTRE DES FINS DE STAGE'):moduleKey==='documents'?(currentDocumentType==='CESSATION_SERVICE'?'REGISTRE DES CESSATIONS DE SERVICE / MUTATION':currentDocumentType==='CESSATION_CONGE'?'REGISTRE DES CESSATIONS DE SERVICE / CONGÉ':currentDocumentType==='REPRISE_SERVICE'?'REGISTRE DES REPRISES DE SERVICE / CONGÉ':currentDocumentType==='PRISE_SERVICE_MUTATION'?'REGISTRE DES PRISES DE SERVICE / MUTATION':currentDocumentType==='DEMANDE_EXPLICATION'?'REGISTRE DES DEMANDES D’EXPLICATION':'REGISTRE DES AUTORISATIONS D’ABSENCE'):moduleKey==='convocations'?(currentConvocationView==='PV'?'REGISTRE DES PROCÈS-VERBAUX DE RENCONTRE':'REGISTRE DES CONVOCATIONS'):config.title.toUpperCase();
-    const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr><th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const genericHeaders=genericListNoReference?'<th>N°</th><th>Intitulé</th><th>Date</th><th>Statut</th>':'<th>N°</th><th>Référence</th><th>Intitulé</th><th>Date</th><th>Statut</th>';
+    const body=`<div class="document-title">${esc(title)}</div><div class="official-body wide"><table><thead><tr>${genericHeaders}</tr></thead><tbody>${rows}</tbody></table></div>`;
     const html=buildPrintDocument({title,body,settings:s,signature:false,hideReference:true});
     await launchPrint(html);
   }catch(e){await professionalAlert('Impression impossible',e.message||'La liste n’a pas pu être préparée.');}

@@ -1268,6 +1268,14 @@ async function apiSave(env, request) {
   const orgId = Number(auth.user.organization_id);
   const payload = body?.payload || {};
   const incomingData = payload?.data && typeof payload.data === 'object' ? payload.data : {};
+  // V1.97 — Les registres ci-dessous ne portent plus de Référence administrative.
+  if (['transformation-bois','sensibilisations','ressources-naturelles','feux-brousse','faune','formations','materiel'].includes(module)) delete incomingData.reference_administrative;
+  if (module === 'ressources-naturelles') {
+    const resourceType = String(incomingData.type || '').trim();
+    const isOther = resourceType.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() === 'autre';
+    if (isOther && !String(incomingData.type_autre || '').trim()) return bad('Précisez le type de ressource lorsque « Autre » est choisi.');
+    if (!isOther) incomingData.type_autre = '';
+  }
   if (module === 'exploitation-forestiere') {
     const forestType = String(incomingData._forest_type || 'RECHERCHE_PARCELLAIRE').toUpperCase();
     if (!['RECHERCHE_PARCELLAIRE','PEPINIERE_SITE','PEPINIERE_PRODUCTION','PLANTATION_CREEE','REBOISEMENT'].includes(forestType)) return bad('Type d’enregistrement forestier non autorisé.');
@@ -1667,7 +1675,7 @@ async function superSetPlan(env, request) {
   const b = await parseJson(request);
   const orgId = Number(b?.organizationId);
   const plan = String(b?.plan || '').toUpperCase();
-  const plans = { FREE: { days:20, price:0, status:'TRIAL' }, STANDARD:{days:30,price:20600,status:'ACTIVE'}, BUSINESS:{days:365,price:181000,status:'ACTIVE'} };
+  const plans = { FREE: { days:20, price:0, status:'TRIAL' }, STANDARD:{days:30,price:23700,status:'ACTIVE'}, BUSINESS:{days:365,price:181000,status:'ACTIVE'} };
   const cfg = plans[plan]; if (!cfg) return bad('Plan invalide.');
   const org = await env.SIGAT_DB.prepare("SELECT id FROM organizations WHERE id=? AND COALESCE(service_type,organization_type) IN ('PEF','CANTONNEMENT')").bind(orgId).first(); if (!org) return bad('Structure introuvable ou type de service non pris en charge.',404);
   const old = await env.SIGAT_DB.prepare('SELECT plan FROM subscriptions WHERE organization_id=?').bind(orgId).first();
