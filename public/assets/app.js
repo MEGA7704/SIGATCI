@@ -1773,8 +1773,22 @@ function mountFormationEditorLogic(record=null){
 function mountResourceEditorLogic(record=null){
   const type=document.querySelector('#dynamicFields [data-key="type"]');if(!type)return;
   const otherInput=document.querySelector('#dynamicFields [data-key="type_autre"]');
-  const update=()=>{const other=normalizeWoodText(type.value)==='autre';setFieldVisibility('type_autre',other,{clear:!other});if(otherInput)otherInput.required=other};
-  type.addEventListener('change',update);update();
+  const otherWrap=editorFieldWrap('type_autre');
+  const update=()=>{
+    const other=normalizeWoodText(type.value)==='autre';
+    setFieldVisibility('type_autre',other,{clear:!other});
+    if(otherWrap){
+      otherWrap.hidden=!other;
+      otherWrap.classList.toggle('hidden',!other);
+    }
+    if(otherInput){
+      otherInput.required=other;
+      otherInput.disabled=!other;
+      if(!other)otherInput.value='';
+    }
+  };
+  type.addEventListener('change',update);
+  update();
 }
 
 async function saveRecord(e){

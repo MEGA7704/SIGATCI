@@ -1047,3 +1047,7 @@ body[data-module="exploitation-forestiere"] .forest-filters.nursery-filters sele
 }
 body[data-module="exploitation-forestiere"] .nursery-tabs[hidden],
 body[data-module="exploitation-forestiere"] .nursery-summary-grid[hidden]{display:none!important}
+
+/* V1.98 — Ressources naturelles : le champ « Préciser le type »
+   doit être strictement masqué sauf lorsque Type = Autre. */
+body[data-module="ressources-naturelles"] #editorDialog [data-field-key="type_autre"][hidden]{display:none!important}
