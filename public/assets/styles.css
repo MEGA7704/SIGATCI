@@ -1234,3 +1234,55 @@ body[data-module="ressources-naturelles"] #editorDialog [data-field-key="type_au
   .dashboard-metric-copy .v{font-size:21px!important}
   .dashboard-metric-copy .s{font-size:8px!important}
 }
+
+
+/* V2.04 — Personnel : sans référence administrative dans la liste + actions agrandies sans débordement */
+body[data-module="personnel"] .personnel-table th:nth-child(1),
+body[data-module="personnel"] .personnel-table td:nth-child(1){width:4%!important;text-align:center!important}
+body[data-module="personnel"] .personnel-table th:nth-child(2),
+body[data-module="personnel"] .personnel-table td:nth-child(2){width:17%!important;text-align:left!important}
+body[data-module="personnel"] .personnel-table th:nth-child(3),
+body[data-module="personnel"] .personnel-table td:nth-child(3){width:8%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(4),
+body[data-module="personnel"] .personnel-table td:nth-child(4){width:10%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(5),
+body[data-module="personnel"] .personnel-table td:nth-child(5){width:10%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(6),
+body[data-module="personnel"] .personnel-table td:nth-child(6){width:7%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(7),
+body[data-module="personnel"] .personnel-table td:nth-child(7){width:8%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(8),
+body[data-module="personnel"] .personnel-table td:nth-child(8){width:10%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(9),
+body[data-module="personnel"] .personnel-table td:nth-child(9){width:10%!important}
+body[data-module="personnel"] .personnel-table th:nth-child(10),
+body[data-module="personnel"] .personnel-table td:nth-child(10){width:16%!important;text-align:center!important;overflow:visible!important}
+body[data-module="personnel"] .personnel-table .personnel-actions{
+  width:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;
+  flex-wrap:nowrap!important;gap:5px!important;overflow:visible!important;white-space:nowrap!important;
+}
+body[data-module="personnel"] .personnel-table .personnel-actions .btn-sm{
+  flex:0 0 auto!important;min-width:32px!important;width:auto!important;min-height:32px!important;
+  padding:7px 8px!important;font-size:12px!important;line-height:1!important;border-radius:8px!important;
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;
+}
+@media(max-width:1050px){
+  body[data-module="personnel"] .personnel-table th:nth-child(2),body[data-module="personnel"] .personnel-table td:nth-child(2){width:16%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(10),body[data-module="personnel"] .personnel-table td:nth-child(10){width:19%!important}
+  body[data-module="personnel"] .personnel-table .personnel-actions{gap:3px!important}
+  body[data-module="personnel"] .personnel-table .personnel-actions .btn-sm{min-width:30px!important;min-height:30px!important;padding:6px 7px!important;font-size:11px!important}
+}
+@media(max-width:700px){
+  body[data-module="personnel"] .personnel-table th:nth-child(4),body[data-module="personnel"] .personnel-table td:nth-child(4),
+  body[data-module="personnel"] .personnel-table th:nth-child(6),body[data-module="personnel"] .personnel-table td:nth-child(6),
+  body[data-module="personnel"] .personnel-table th:nth-child(7),body[data-module="personnel"] .personnel-table td:nth-child(7){display:none!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(1),body[data-module="personnel"] .personnel-table td:nth-child(1){width:7%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(2),body[data-module="personnel"] .personnel-table td:nth-child(2){width:24%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(3),body[data-module="personnel"] .personnel-table td:nth-child(3){width:13%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(5),body[data-module="personnel"] .personnel-table td:nth-child(5){width:14%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(8),body[data-module="personnel"] .personnel-table td:nth-child(8){width:14%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(9),body[data-module="personnel"] .personnel-table td:nth-child(9){width:14%!important}
+  body[data-module="personnel"] .personnel-table th:nth-child(10),body[data-module="personnel"] .personnel-table td:nth-child(10){width:14%!important}
+  body[data-module="personnel"] .personnel-table .personnel-actions{flex-wrap:wrap!important;gap:2px!important}
+  body[data-module="personnel"] .personnel-table .personnel-actions .btn-sm{min-width:27px!important;min-height:27px!important;padding:4px 5px!important;font-size:9.5px!important;border-radius:6px!important}
+}
