@@ -1009,9 +1009,9 @@ function setupModule(){
 }
 
 function bindMinefActivityFilters(){
-  const ids=['minefActivityYearFilter','minefActivityDateFilter','minefActivityTypeFilter','minefActivityCategoryFilter','minefActivityOrganizerFilter'];
+  const ids=['minefActivityYearFilter','minefActivityDateFilter','minefActivityTypeFilter','minefActivityCategoryFilter'];
   ids.forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{currentPage=1;loadRecords()}));
-  for(const id of ['minefActivityYearFilter','minefActivityOrganizerFilter']){
+  for(const id of ['minefActivityYearFilter']){
     const el=document.getElementById(id);
     el?.addEventListener('input',()=>{clearTimeout(window.__minefActivityFilterTimer);window.__minefActivityFilterTimer=setTimeout(()=>{currentPage=1;loadRecords()},250)});
   }
@@ -1068,7 +1068,7 @@ async function loadRecords(){
     const dataModule=effectiveModule();
     const stageFilter=moduleKey==='stages'?`&stageType=${encodeURIComponent(currentStageType)}`:'';
     const documentFilter=moduleKey==='documents'&&dataModule==='documents'?`&documentType=${encodeURIComponent(currentDocumentType)}`:'';
-    const minefActivityFilter=moduleKey==='activites-minef'?`&year=${encodeURIComponent(document.getElementById('minefActivityYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('minefActivityDateFilter')?.value||'')}&activityType=${encodeURIComponent(document.getElementById('minefActivityTypeFilter')?.value||'')}&activityCategory=${encodeURIComponent(document.getElementById('minefActivityCategoryFilter')?.value||'')}&organizer=${encodeURIComponent(document.getElementById('minefActivityOrganizerFilter')?.value||'')}`:'';
+    const minefActivityFilter=moduleKey==='activites-minef'?`&year=${encodeURIComponent(document.getElementById('minefActivityYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('minefActivityDateFilter')?.value||'')}&activityType=${encodeURIComponent(document.getElementById('minefActivityTypeFilter')?.value||'')}&activityCategory=${encodeURIComponent(document.getElementById('minefActivityCategoryFilter')?.value||'')}`:'';
     const awarenessFilter=moduleKey==='sensibilisations'?`&year=${encodeURIComponent(document.getElementById('awarenessYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('awarenessDateFilter')?.value||'')}&awarenessType=${encodeURIComponent(document.getElementById('awarenessTypeFilter')?.value||'')}`:'';
     const forestFilter=moduleKey==='exploitation-forestiere'?`&forestType=${encodeURIComponent(effectiveForestType())}&year=${encodeURIComponent(document.getElementById('forestYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('forestDateFilter')?.value||'')}&sousPrefecture=${encodeURIComponent(document.getElementById('forestSousPrefFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('forestLocaliteFilter')?.value||'')}&essence=${encodeURIComponent(document.getElementById('forestEssenceFilter')?.value||'')}&reboisementType=${encodeURIComponent(document.getElementById('forestReboisementTypeFilter')?.value||'')}&beneficiary=${encodeURIComponent(document.getElementById('forestBeneficiaryFilter')?.value||'')}`:'';
     const woodFilter=moduleKey==='transformation-bois'?`&woodType=${encodeURIComponent(currentWoodType)}&year=${encodeURIComponent(document.getElementById('woodYearFilter')?.value||'')}&activityDate=${encodeURIComponent(document.getElementById('woodDateFilter')?.value||'')}&localite=${encodeURIComponent(document.getElementById('woodLocaliteFilter')?.value||'')}&natureProduit=${encodeURIComponent(document.getElementById('woodNatureFilter')?.value||'')}&operatorStatus=${encodeURIComponent(document.getElementById('woodStatusFilter')?.value||'')}&exercantType=${encodeURIComponent(document.getElementById('woodExercantFilter')?.value||'')}&region=${encodeURIComponent(document.getElementById('woodRegionFilter')?.value||'')}&departement=${encodeURIComponent(document.getElementById('woodDepartementFilter')?.value||'')}`:'';
@@ -1562,7 +1562,7 @@ function openEditor(record=null,stageTypeOverride=null,documentTypeOverride=null
   // V1.91 — Pour le Procès-verbal de mission, la Référence administrative reste visible
   // et modifiable même en modification. Elle occupe la première place visible du formulaire,
   // à la place de l’ancien sélecteur intelligent « Chef de mission ».
-  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv&&!suppressesAdministrativeReference(record)){
+  if(!isPersonnel&&!isExplanationDocument&&!isAbsence&&!isStage&&!isConvocation&&!isConvocationPv&&!isMinefActivity&&!suppressesAdministrativeReference(record)){
     const isOrderMissionPv=isMission&&editorMissionType==='PV_ORDRE_MISSION';
     const administrativeReference=String(record?.data?.reference_administrative||record?.reference||'');
     if(record&&!isOrderMissionPv){

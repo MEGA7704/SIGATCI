@@ -1018,7 +1018,6 @@ async function apiLoad(env, request) {
     const activityDate = String(url.searchParams.get('activityDate') || '').trim();
     const activityType = String(url.searchParams.get('activityType') || '').trim();
     const activityCategory = String(url.searchParams.get('activityCategory') || '').trim();
-    const organizer = String(url.searchParams.get('organizer') || '').trim();
     if (/^\d{4}$/.test(year)) {
       where += ` AND substr(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.date_activite'), r.event_date, ''),1,4) = ?`;
       params.push(year);
@@ -1034,10 +1033,6 @@ async function apiLoad(env, request) {
     if (activityCategory) {
       where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.categorie_minef'),'')) = LOWER(?)`;
       params.push(activityCategory);
-    }
-    if (organizer) {
-      where += ` AND LOWER(COALESCE(json_extract(COALESCE(r.data_json,'{}'), '$.organisateur'),'')) LIKE LOWER(?)`;
-      params.push(`%${organizer}%`);
     }
   }
 
